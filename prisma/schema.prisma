@@ -1,0 +1,170 @@
+// 1. Setting up the environment
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ====================================================================
+// 2. ENUMS
+// ====================================================================
+
+// 2.1 User Roles
+enum Role {
+  ADMIN            // System Admin / Support Staff
+  LECTURER         // General Lecturer
+  PROGRAM_CHAIR    // Program Chair (1st Approval)
+  VICE_DEAN        // Vice Dean (2nd Approval)
+}
+
+// 2.2 User Types
+enum UserType {
+  ACADEMIC // Academic Staff (Lecturers) -> Has teaching load
+  SUPPORT  // Support Staff -> System/Document management
+}
+
+// 2.3 Approval Status
+enum ApprovalStatus {
+  PENDING   
+  APPROVED  
+  REJECTED  
+  DRAFT     
+}
+
+// ====================================================================
+// 3. MODELS
+// ====================================================================
+
+// 3.1 User Model
+model User {
+  id         Int      @id @default(autoincrement()) 
+  email      String   @unique                       
+  password   String                                 
+  
+  // --- Personal Info (Matches JSON) ---
+  title            String?  // Matches JSON: title
+  academicPosition String?  // Matches JSON: academicPosition
+  firstName        String?  // Matches JSON: firstName
+  lastName         String?  // Matches JSON: lastName
+  academicRank     String?  // Matches JSON: academicRank
+  workStatus       String?  // Matches JSON: workStatus
+  
+  // --- Department & Admin Title ---
+  department       String?  // Matches JSON: department (Subject Group)
+  curriculum       String?  // Matches JSON: curriculum (Full Program Name for Type check)
+  adminTitle       String?  // Matches JSON: role (Admin Position e.g., Program Chair)
+
+  // --- System Data ---
+  role       Role      @default(LECTURER)  // System Role (Calculated from adminTitle/userType in Seed)
+  userType   UserType  @default(ACADEMIC)  // Personnel Type
+  
+  // --- Relations ---
+  managedPrograms     Program[]             @relation("ProgramChair")
+  teachingAssignments TeachingAssignment[]
+  
+  responsibleSubjects Subject[]             @relation("SubjectResponsible")
+  
+  // Approval Rights (Reverse Relations)
+  chairApprovals TeachingAssignment[] @relation("ChairApprovals")
+  deanApprovals  TeachingAssignment[] @relation("DeanApprovals")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// 3.2 Program Model
+model Program {
+  id             Int       @id @default(autoincrement())
+  name_th        String    // Program Name (TH)
+  degree_level   String    // Degree Level
+  year           Int       // Year (B.E.)
+  
+  programChairId      Int?      
+  programChair        User?     @relation("ProgramChair", fields: [programChairId], references: [id])
+  
+  subjects        Subject[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 3.3 Subject Model
+model Subject {
+  id                Int        @id @default(autoincrement())
+  code              String     // Subject Code
+  name_th           String     // Subject Name (TH)
+  name_en           String?    // Subject Name (EN)
+  credit            String     // Credit (Stored as String e.g. "3(2-3-5)")
+  
+  // Quick text display. Approval logic resides in TeachingAssignment
+  instructor        String?    @db.Text 
+  
+  program_full_name String?    // Full Program Name (For validation)
+  
+  programId      Int
+  program        Program  @relation(fields: [programId], references: [id])
+  
+  responsibleUserId Int?
+  responsibleUser   User?     @relation("SubjectResponsible", fields: [responsibleUserId], references: [id])
+
+  teachingAssignments TeachingAssignment[]
+
+  // Unique constraint for code within a program
+  @@unique([code, programId]) 
+}
+
+// 3.4 Teaching Assignment (Core of the flow)
+model TeachingAssignment {
+  id             Int       @id @default(autoincrement())
+  
+  academicYear   Int       
+  semester       Int       
+  section        String?   
+  
+  // --- Teaching Hours ---
+  lectureHours   Float     @default(0.0) 
+  labHours       Float     @default(0.0) 
+  examHours      Float     @default(0)
+  // =================================================================
+  // 4-STEP APPROVAL FLOW
+  // =================================================================
+
+  // STEP 1: Lecturer Verification
+  // - If correct -> Approved
+  // - If incorrect -> Rejected with comment in lecturerFeedback
+  lecturerStatus       ApprovalStatus @default(PENDING) 
+  lecturerFeedback     String?        @db.Text // Feedback message for correction
+  lecturerActionAt     DateTime?
+
+  // STEP 2: Responsible Subject User Review
+  // - Review feedback, edit if necessary
+  // - Must confirm to proceed to Program Chair
+  responsibleStatus    ApprovalStatus @default(PENDING)
+  responsibleActionAt  DateTime?
+
+  // STEP 3: Program Chair Approval
+  headApprovalStatus ApprovalStatus @default(PENDING) 
+  headApprovedAt     DateTime?
+  headApproverId     Int?
+  headApprover       User?      @relation("ChairApprovals", fields: [headApproverId], references: [id])
+
+  // STEP 4: Vice Dean Approval
+  deanApprovalStatus ApprovalStatus @default(PENDING) 
+  deanApprovedAt     DateTime?
+  deanApproverId     Int?
+  deanApprover       User?      @relation("DeanApprovals", fields: [deanApproverId], references: [id])
+
+  // --- Relations ---
+  lecturerId     Int
+  lecturer       User       @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+  subjectId      Int
+  subject        Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([lecturerId, academicYear, semester])
+}

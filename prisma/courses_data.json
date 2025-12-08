@@ -1,0 +1,1397 @@
+[
+  {
+    "code": 341302,
+    "nameTh": "เภสัชเคมี 1",
+    "nameEn": "Pharmaceutical Chemistry I",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "supang.kh@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341401,
+    "nameTh": "เภสัชเคมี 2",
+    "nameEn": "Pharmaceutical Chemistry II",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "maleeruk.ut@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341542,
+    "nameTh": "เภสัชศาสตร์สังคมและพฤติกรรม",
+    "nameEn": "Social and Behavioral Aspects in Pharmacy",
+    "credit": "2 (2-0-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "ongart.ma@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341552,
+    "nameTh": "เภสัชบำบัดประยุกต์ 4",
+    "nameEn": "Applied Pharmacotherapeutics IV",
+    "credit": "5 (3-6-9)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "chanadda.wu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341553,
+    "nameTh": "บทนำสู่ปฏิบัติการทางบริบาลเภสัชกรรม",
+    "nameEn": "Introduction to Clerkship",
+    "credit": "3 (1-6-5)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "chanadda.wu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341554,
+    "nameTh": "การฝึกงานวิชาชีพเภสัชกรรม",
+    "nameEn": "Pharmacy Training",
+    "credit": "7 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "chanadda.wu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341591,
+    "nameTh": "โครงงานวิจัยทางเภสัชศาสตร์",
+    "nameEn": "Research Project in Pharmaceutical Sciences",
+    "credit": "3 (0-9-5)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "kirati.ke@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341642,
+    "nameTh": "ปฏิบัติการการจัดการระบบยา",
+    "nameEn": "Clerkship : Medication management system",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341651,
+    "nameTh": "ปฏิบัติการเภสัชกรรมอายุรศาสตร์",
+    "nameEn": "Clerkship : Medicine",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341652,
+    "nameTh": "ปฏิบัติการให้บริการสารสนเทศทางยา",
+    "nameEn": "Clerkship : Drug Information Service",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341653,
+    "nameTh": "ปฏิบัติการเภสัชกรรมชุมชน",
+    "nameEn": "Clerkship : Community Pharmacy",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341654,
+    "nameTh": "ปฏิบัติการเภสัชกรรมผู้ป่วยนอก",
+    "nameEn": "Clerkship : Ambulatory Care",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341655,
+    "nameTh": "ปฏิบัติการบริบาลเภสัชกรรมสำหรับผู้ป่วยเฉพาะกลุ่ม",
+    "nameEn": "Clerkship : Pharmaceutical Care in Special Group",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341211,
+    "nameTh": "พฤกษศาสตร์การแพทย์",
+    "nameEn": "Medical Botany",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2555)",
+    "lecturer_email": "wichuda.ph@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341121,
+    "nameTh": "บทนำทางเภสัชกรรม",
+    "nameEn": "Introduction to Pharmaceutics",
+    "credit": "1 (1-0-2)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "supang.kh@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341141,
+    "nameTh": "บทนำสู่วิชาชีพเภสัชกรรม",
+    "nameEn": "Introduction to Pharmacy Profession",
+    "credit": "1 (1-0-2)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "pajaree.mo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341201,
+    "nameTh": "การควบคุมคุณภาพเภสัชภัณฑ์ 1",
+    "nameEn": "Pharmaceutical Quality Control I",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "saengrawee.su@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341212,
+    "nameTh": "พฤกษศาสตร์การแพทย์",
+    "nameEn": "Medical Botany",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "wichuda.ph@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341211,
+    "nameTh": "บทนำสู่เภสัชเวท",
+    "nameEn": "Introduction to Pharmacognosy",
+    "credit": "2 (1-3-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "wichuda.ph@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341221,
+    "nameTh": "เภสัชกรรม 1",
+    "nameEn": "Pharmaceutics I",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "nuttakorn.ba@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341222,
+    "nameTh": "เภสัชกรรม 2",
+    "nameEn": "Pharmaceutics II",
+    "credit": "4 (3-3-8)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "kamchai.sa@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341241,
+    "nameTh": "เภสัชศาสตร์สังคมและพฤติกรรม",
+    "nameEn": "Social and Behavioral Aspects in Pharmacy",
+    "credit": "1 (1-0-2)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "ongart.ma@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341301,
+    "nameTh": "การควบคุมคุณภาพเภสัชภัณฑ์ 2",
+    "nameEn": "Pharmaceutical Quality Control II",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "saengrawee.su@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341302,
+    "nameTh": "เภสัชเคมี 1",
+    "nameEn": "Pharmaceutical Chemistry I",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "maleeruk.ut@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341311,
+    "nameTh": "เภสัชเวท 1",
+    "nameEn": "Pharmacognosy I",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "charlee.t@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341312,
+    "nameTh": "เภสัชเวท 2",
+    "nameEn": "Pharmacognosy II",
+    "credit": "2 (1-3-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "sontaya.so@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341321,
+    "nameTh": "เภสัชกรรม 3",
+    "nameEn": "Pharmaceutics III",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "pattavet.vi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341322,
+    "nameTh": "เภสัชกรรม 4",
+    "nameEn": "Pharmaceutics IV",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "panijapatr.ws@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341331,
+    "nameTh": "หลักเภสัชวิทยา",
+    "nameEn": "Principle of Pharmacology",
+    "credit": "2 (1-3-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "thamrong.wo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341332,
+    "nameTh": "เภสัชวิทยา 1",
+    "nameEn": "Pharmacology I",
+    "credit": "2 (2-0-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "niwat.sa@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341333,
+    "nameTh": "เภสัชวิทยาทางการพยาบาลและปฏิบัติการฉุกเฉินการเเพทย์",
+    "nameEn": "Pharmacology in Nursing and Emergency Medical Operation",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "thamrong.wo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341334,
+    "nameTh": "เภสัชวิทยาเบื้องต้น",
+    "nameEn": "Basic Pharmacology",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "niwat.sa@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341336,
+    "nameTh": "เภสัชวิทยาทางทันตกรรม 1",
+    "nameEn": "Pharmacology in Dentistry I",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "suthida.bo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341337,
+    "nameTh": "เภสัชวิทยาทางทันตกรรม 2",
+    "nameEn": "Pharmacology in Dentistry II",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "suthida.bo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341338,
+    "nameTh": "เภสัชวิทยาทางการแพทย์ทางเลือก",
+    "nameEn": "Pharmacology in Alternative Medicine",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "niwat.sa@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341339,
+    "nameTh": "ยาและผลิตภัณฑ์สุขภาพ",
+    "nameEn": "Drugs and Health Products",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "pattavet.vi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341341,
+    "nameTh": "การจัดการเภสัชกรรม",
+    "nameEn": "Pharmacy Management",
+    "credit": "2 (2-0-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "kittipak.je@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341342,
+    "nameTh": "เภสัชกรรมปฐมภูมิ",
+    "nameEn": "Primary Care Pharmacy",
+    "credit": "2 (2-0-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "ongart.ma@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341351,
+    "nameTh": "หลักเภสัชบำบัด",
+    "nameEn": "Principles of Pharmacotherapeutics",
+    "credit": "2 (1-3-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "jantima.ch@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341352,
+    "nameTh": "เภสัชสนเทศศาสตร์เบื้องต้น",
+    "nameEn": "Basic Pharmacoinformatics",
+    "credit": "1 (1-0-2)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "nat.na@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341353,
+    "nameTh": "เภสัชบำบัด 1",
+    "nameEn": "Pharmacotherapeutic I",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "yuttana.wo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341354,
+    "nameTh": "เภสัชบำบัด 2",
+    "nameEn": "Pharmacotherapeutic 2",
+    "credit": "2 (1-3-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "phaweesac.ch@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341355,
+    "nameTh": "เภสัชสนเทศศาสตร์เพื่อการบริบาลทางเภสัชกรรม",
+    "nameEn": "Pharmacoinformatics for Pharmaceutical Cares",
+    "credit": "2 (1-2-3)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "nat.na@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341401,
+    "nameTh": "เภสัชเคมี 2",
+    "nameEn": "Pharmaceutical Chemistry II",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "maleeruk.ut@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341431,
+    "nameTh": "เภสัชวิทยา 2",
+    "nameEn": "Pharmacology II",
+    "credit": "2 (2-0-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "thamrong.wo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341432,
+    "nameTh": "ชีวเภสัชกรรมและเภสัชจลนศาสตร์",
+    "nameEn": "Biopharmaceutics and Pharmacokinetics",
+    "credit": "2 (2-0-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "noppaket.si@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341433,
+    "nameTh": "เภสัชวิทยา 3",
+    "nameEn": "Pharmacology III",
+    "credit": "2 (2-0-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "suthida.bo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341441,
+    "nameTh": "การสื่อสารเชิงวิชาชีพ",
+    "nameEn": "Professional Communication",
+    "credit": "2 (1-3-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "kkhanita.du@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341442,
+    "nameTh": "เภสัชระบาดวิทยาเบื้องต้น",
+    "nameEn": "Basic Pharmacoepidemiology",
+    "credit": "2 (2-0-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "sirayut.ph@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341443,
+    "nameTh": "ทักษะการบริบาลทางเภสัชกรรมในงานเภสัชกรรมปฐมภูมิ",
+    "nameEn": "Skill of Pharmaceutical Cares in Primary Care Pharmacy",
+    "credit": "2 (0-6-3)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "ongart.ma@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341444,
+    "nameTh": "เภสัชเศรษฐศาสตร์เบื้องต้น",
+    "nameEn": "Basic Pharmacoeconomics",
+    "credit": "1 (1-0-2)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "apirak.sr@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341445,
+    "nameTh": "ระบบการจัดการด้านยาเพื่อการรับรองคุณภาพร้านยาและโรงพยาบาล",
+    "nameEn": "Medication Management System for Drug Store and Hospital Accreditation",
+    "credit": "2 (1-2-3)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "kittipak.je@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341446,
+    "nameTh": "กฎหมายและจริยธรรมทางเภสัชกรรม",
+    "nameEn": "Laws and Ethics in Pharmacy",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "ongart.ma@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341447,
+    "nameTh": "ระเบียบวิธีวิจัยสำหรับเภสัชศาสตร์",
+    "nameEn": "Research Methodology for Pharmacy",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "sirayut.ph@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341451,
+    "nameTh": "เภสัชบำบัด 3",
+    "nameEn": "Pharmacotherapeutics III",
+    "credit": "2 (1-3-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "pitchayut.ra@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341452,
+    "nameTh": "เภสัชบำบัด 4",
+    "nameEn": "Pharmacotherapeutics IV",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "apinya.bo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341453,
+    "nameTh": "เภสัชบำบัด 5",
+    "nameEn": "Pharmacotherapeutics V",
+    "credit": "2 (1-3-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "piranee.ka@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341454,
+    "nameTh": "เภสัชบำบัด 6",
+    "nameEn": "Pharmacotherapeutics VI",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "kirati.ke@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341455,
+    "nameTh": "พิษวิทยาคลินิก",
+    "nameEn": "Clinical Toxicology",
+    "credit": "2 (2-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "sunisa.kh@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341531,
+    "nameTh": "เภสัชพันธุศาสตร์และการแพทย์แม่นยำ",
+    "nameEn": "Pharmacogenomics and Precision Medicine",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "thamrong.wo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341541,
+    "nameTh": "นาฏยคีตาและชราศาสตร์",
+    "nameEn": "Dance, Music and Gerontology",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "puwich.ch@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341551,
+    "nameTh": "เภสัชบำบัดในผู้ป่วยกลุ่มพิเศษ",
+    "nameEn": "Pharmacotherapeutic in Special patients",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "sunisa.kh@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341552,
+    "nameTh": "การทบทวนข้อมูลยาใหม่",
+    "nameEn": "Current Drug Review",
+    "credit": "2 (0-6-3)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "nat.na@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341553,
+    "nameTh": "ทักษะการบริบาลทางเภสัชกรรมชุมชน",
+    "nameEn": "Pharmaceutical Care Skills in Community Pharmacy",
+    "credit": "3 (0-8-4)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "sudarat.pa@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341554,
+    "nameTh": "ทักษะการบริบาลทางเภสัชกรรมในโรงพยาบาล",
+    "nameEn": "Pharmaceutical Care Skills in Hospital",
+    "credit": "3 (0-9-5)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "chanadda.wu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341555,
+    "nameTh": "การเลือกใช้เภสัชภัณฑ์ในร้านยา",
+    "nameEn": "Pharmaceutical Product Selection in Community Pharmacy",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "piranee.ka@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341556,
+    "nameTh": "หัวข้อปัจจุบันในเภสัชบำบัดโรคหัวใจและหลอดเลือด",
+    "nameEn": "Current topics in cardiovascular pharmacotherapy",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341561,
+    "nameTh": "การติดตามอาการไม่พึงประสงค์จากการใช้ยา",
+    "nameEn": "Adverse Drug Reaction Monitoring",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "noppaket.si@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341562,
+    "nameTh": "เภสัชบำบัดในผู้ป่วยวิกฤต",
+    "nameEn": "Pharmacotherapeutics in Critical Ill Patients",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "phaweesac.ch@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341566,
+    "nameTh": "บทนำสู่วิศวกรรมชีวการแพทย์สำหรับเภสัชศาสตร์",
+    "nameEn": "Introduction to Biomedical Engineering for Pharmacy",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "kkhanita.du@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341567,
+    "nameTh": "ชีววัตถุและชีวเภสัชภัณฑ์",
+    "nameEn": "Biological and Biopharmaceutical Products",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "puwich.ch@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341569,
+    "nameTh": "การสังเคราะห์หลักฐานเชิงประจักษ์ทางการแพทย์",
+    "nameEn": "Evidence-based Medicine Synthesis",
+    "credit": "3 (3-0-6)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "pajaree.mo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341571,
+    "nameTh": "เภสัชศาสตร์บูรณาการ",
+    "nameEn": "Integrative Pharmacy",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "nuttakorn.ba@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341572,
+    "nameTh": "ปฏิบัติงานวิชาชีพเภสัชกรรม 1",
+    "nameEn": "Pharmacy Training 1",
+    "credit": "4 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "chanadda.wu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341573,
+    "nameTh": "โครงงานวิจัยทางเภสัชศาสตร์",
+    "nameEn": "Research Project in Pharmaceutical Sciences",
+    "credit": "3 (0-9-5)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "kkhanita.du@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341574,
+    "nameTh": "ปฏิบัติงานวิชาชีพเภสัชกรรม 2",
+    "nameEn": "Pharmacy Training 2",
+    "credit": "4 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341671,
+    "nameTh": "ปฏิบัติงานการจัดการระบบยา",
+    "nameEn": "Clerkship: Medication Management System",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "kittipak.je@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341672,
+    "nameTh": "ปฏิบัติงานเภสัชกรรมอายุรศาสตร์",
+    "nameEn": "Clerkship: Medicine",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "sukrit.ka@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341673,
+    "nameTh": "ปฏิบัติงานเภสัชกรรมชุมชน",
+    "nameEn": "Clerkship: Community Pharmacy",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "sudarat.pa@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341674,
+    "nameTh": "ปฏิบัติงานเภสัชกรรมผู้ป่วยนอก",
+    "nameEn": "Clerkship: Ambulatory Care",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "piranee.ka@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341675,
+    "nameTh": "ปฏิบัติงานการให้บริการสารสนเทศทางยา",
+    "nameEn": "Clerkship: Drug Information Service",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "nat.na@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341676,
+    "nameTh": "ปฏิบัติงานบริบาลทางเภสัชกรรมสำหรับผู้ป่วยเฉพาะกลุ่ม",
+    "nameEn": "Clerkship: Pharmaceutical Care in Special Group Patients",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "jantima.ch@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341677,
+    "nameTh": "ปฏิบัติงานบริบาลทางเภสัชกรรมขั้นสูง",
+    "nameEn": "Clerkship: Advanced Pharmaceutical Care",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "jantima.ch@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341678,
+    "nameTh": "ปฏิบัติงานด้านข้อมูลยาในบริษัทยา",
+    "nameEn": "Clerkship: Drug Information in Pharmaceutical Company",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "pitchayut.ra@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341679,
+    "nameTh": "ปฏิบัติงานเภสัชจลนศาสตร์คลินิก",
+    "nameEn": "Clerkship: Clinical Pharmacokinetics",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "apinya.bo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341684,
+    "nameTh": "ปฏิบัติงานบริบาลทางเภสัชกรรมสำหรับผู้ป่วยโรคหัวใจและหลอดเลือด",
+    "nameEn": "Clerkship: Pharmaceutical Care in Patient with Cardiovascular Diseases",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "yuttana.wo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341685,
+    "nameTh": "ปฏิบัติงานบริบาลทางเภสัชกรรมทางโรคติดเชื้อ",
+    "nameEn": "Clerkship: Pharmaceutical Care in Infectious Disease",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "apinya.bo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341686,
+    "nameTh": "ปฏิบัติงานบริบาลทางเภสัชกรรมด้านการติดตามอาการไม่พึงประสงค์จากการใช้ยา",
+    "nameEn": "Clerkship: Pharmaceutical Care in Adverse Drug Reaction Monitoring",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "chanadda.wu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341687,
+    "nameTh": "ปฏิบัติการบริบาลทางเภสัชกรรมสำหรับผู้ป่วยมะเร็ง",
+    "nameEn": "Clerkship: Pharmaceutical Care in Oncologic Patients",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "kirati.ke@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341688,
+    "nameTh": "ปฏิบัติงานวิจัยด้านเภสัชกรรมปฏิบัติ",
+    "nameEn": "Clerkship: Research in Pharmacy Practice",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "noppaket.si@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341689,
+    "nameTh": "ปฏิบัติงานเภสัชกรรมครอบครัว",
+    "nameEn": "Clerkship: Family Pharmacy",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "noppaket.si@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341691,
+    "nameTh": "ปฏิบัติงานการแพทย์ทางเลือก",
+    "nameEn": "Clerkship: Complementary and Alternative Medicine",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562)",
+    "lecturer_email": "chanadda.wu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341671,
+    "nameTh": "ปฏิบัติงานการจัดการระบบยา",
+    "nameEn": "Clerkship: Medication Management System",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341672,
+    "nameTh": "ปฏิบัติงานเภสัชกรรมอายุรศาสตร์",
+    "nameEn": "Clerkship: Medicine",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341673,
+    "nameTh": "ปฏิบัติงานเภสัชกรรมชุมชน",
+    "nameEn": "Clerkship: Community Pharmacy",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341674,
+    "nameTh": "ปฏิบัติงานเภสัชกรรมผู้ป่วยนอก",
+    "nameEn": "Clerkship: Ambulatory Care",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341675,
+    "nameTh": "ปฏิบัติงานการให้บริการสารสนเทศทางยา",
+    "nameEn": "Clerkship: Drug Information Service",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341676,
+    "nameTh": "ปฏิบัติงานบริบาลทางเภสัชกรรมสำหรับผู้ป่วยเฉพาะกลุ่ม",
+    "nameEn": "Clerkship: Pharmaceutical Care in Special Group Patients",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341677,
+    "nameTh": "ปฏิบัติงานบริบาลทางเภสัชกรรมขั้นสูง",
+    "nameEn": "Clerkship: Advanced Pharmaceutical Care",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341678,
+    "nameTh": "ปฏิบัติงานด้านข้อมูลยาในบริษัทยา",
+    "nameEn": "Clerkship: Drug Information in Pharmaceutical Company",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341679,
+    "nameTh": "ปฏิบัติงานเภสัชจลนศาสตร์คลินิก",
+    "nameEn": "Clerkship: Clinical Pharmacokinetics",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341684,
+    "nameTh": "ปฏิบัติงานบริบาลทางเภสัชกรรมสำหรับผู้ป่วยโรคหัวใจและหลอดเลือด",
+    "nameEn": "Clerkship: Pharmaceutical Care in Patient with Cardiovascular Diseases",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341685,
+    "nameTh": "ปฏิบัติงานบริบาลทางเภสัชกรรมทางโรคติดเชื้อ",
+    "nameEn": "Clerkship: Pharmaceutical Care in Infectious Disease",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341686,
+    "nameTh": "ปฏิบัติงานบริบาลทางเภสัชกรรมด้านการติดตามอาการไม่พึงประสงค์จากการใช้ยา",
+    "nameEn": "Clerkship: Pharmaceutical Care in Adverse Drug Reaction Monitoring",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341687,
+    "nameTh": "ปฏิบัติการบริบาลทางเภสัชกรรมสำหรับผู้ป่วยมะเร็ง",
+    "nameEn": "Clerkship: Pharmaceutical Care in Oncologic Patients",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341688,
+    "nameTh": "ปฏิบัติงานวิจัยด้านเภสัชกรรมปฏิบัติ",
+    "nameEn": "Clerkship: Research in Pharmacy Practice",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341689,
+    "nameTh": "ปฏิบัติงานเภสัชกรรมครอบครัว",
+    "nameEn": "Clerkship: Family Pharmacy",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 341691,
+    "nameTh": "ปฏิบัติงานการแพทย์ทางเลือก",
+    "nameEn": "Clerkship: Complementary and Alternative Medicine",
+    "credit": "5 (-)",
+    "curriculum_full": "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม (พ.ศ.2562 ตกแผน)",
+    "lecturer_email": "preyanate.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342110,
+    "nameTh": "บทนำสู่วิทยาศาสตร์เครื่องสำอาง",
+    "nameEn": "Introduction to Cosmetic Science",
+    "credit": "1 (1-0-2)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "ranit.ch@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342111,
+    "nameTh": "เคมีเชิงฟิสิกส์ประยุกต์ในวิทยาศาสตร์เครื่องสำอาง",
+    "nameEn": "Applied Physical Chemistry in Cosmetic Science",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "tammanoon.ru@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342220,
+    "nameTh": "วัตถุดิบที่ใช้ในเครื่องสำอาง",
+    "nameEn": "Raw Materials in Cosmetics",
+    "credit": "2 (2-0-4)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "weeraya.pr@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342221,
+    "nameTh": "การตั้งตำรับเครื่องสำอางพื้นฐาน",
+    "nameEn": "Basic Formulation in Cosmetics",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "eakkaluk.wo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342222,
+    "nameTh": "เทคนิคและเครื่องมือวิเคราะห์ทางวิทยาศาสตร์เครื่องสำอาง",
+    "nameEn": "Techniques and Instrumental Analysis for Cosmetic Science",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "ruttanaporn.ch@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342223,
+    "nameTh": "กฎหมายและจริยธรรมทางเครื่องสำอาง",
+    "nameEn": "Laws and Ethics in Cosmetics",
+    "credit": "2 (2-0-4)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "ranit.ch@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342224,
+    "nameTh": "ฉลากและบรรจุภัณฑ์ของผลิตภัณฑ์เครื่องสำอาง",
+    "nameEn": "Labeling and Packaging of Cosmetics",
+    "credit": "2 (2-0-4)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "ranit.ch@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342225,
+    "nameTh": "ผลิตภัณฑ์ดูแลผิวหนัง",
+    "nameEn": "Skin Care Products",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "weeraya.pr@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342226,
+    "nameTh": "ผลิตภัณฑ์เครื่องสำอางแต่งสีผิว",
+    "nameEn": "Color Cosmetic Products",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "jukkarin.sr@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342320,
+    "nameTh": "ผลิตภัณฑ์ธรรมชาติที่ใช้ในเครื่องสำอาง",
+    "nameEn": "Natural Products in Cosmetics",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "lapatrada.mu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342321,
+    "nameTh": "ความคงตัวและความคงสภาพทางวิทยาศาสตร์เครื่องสำอาง",
+    "nameEn": "Advanced Stability and Stabilization in Cosmetic Sciences",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "eakkaluk.wo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342322,
+    "nameTh": "ระเบียบวิธีวิจัย",
+    "nameEn": "Research Methodology",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "krisada.wu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342323,
+    "nameTh": "ศาสตร์แห่งน้ำหอมและสุคนธบำบัด",
+    "nameEn": "Perfumery and Aromatherapy",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "lapatrada.mu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342324,
+    "nameTh": "ผลิตภัณฑ์ดูแลเส้นผม",
+    "nameEn": "Hair Care Products",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "panikchar.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342325,
+    "nameTh": "การตลาดและการเป็นผู้ประกอบการของธุรกิจสุขภาพและความงาม",
+    "nameEn": "Marketing and Entrepreneurship of Health and Beauty Business",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "panikchar.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342326,
+    "nameTh": "การประเมินประสิทธิภาพและความปลอดภัยทางเครื่องสำอาง",
+    "nameEn": "Efficacy and Safety Assessment in Cosmetics",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "lapatrada.mu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342327,
+    "nameTh": "นวัตกรรมและเทคโนโลยีทางเครื่องสำอาง",
+    "nameEn": "Innovation and Technology in Cosmetics",
+    "credit": "2 (1-3-4)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "krisada.wu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342328,
+    "nameTh": "การผลิตเครื่องสำอางที่ดีและการผลิตเครื่องสำอางที่เป็นมิตรกับสิ่งแวดล้อม",
+    "nameEn": "Good manufacturing practice for cosmetics and environmentally friendly production in cosmetics",
+    "credit": "2 (2-0-4)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "krisada.wu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342329,
+    "nameTh": "สัมมนา",
+    "nameEn": "Seminar",
+    "credit": "1 (0-3-2)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "jukkarin.sr@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342342,
+    "nameTh": "ผู้ดำเนินการสปาเพื่อสุขภาพ",
+    "nameEn": "Spa Manager for Health",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "lapatrada.mu@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342343,
+    "nameTh": "ผลิตภัณฑ์เสริมอาหารเพื่อสุขภาพและความงาม",
+    "nameEn": "Dietary Supplements for Health and Beauty",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "eakkaluk.wo@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342420,
+    "nameTh": "การพัฒนาผลิตภัณฑ์เครื่องสำอางเชิงประยุกต์",
+    "nameEn": "Applied Cosmetic Products Development",
+    "credit": "2 (1-3-2)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "tammanoon.ru@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342421,
+    "nameTh": "โครงงาน",
+    "nameEn": "Senior Project",
+    "credit": "1 (0-3-2)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "jukkarin.sr@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342422,
+    "nameTh": "การฝึกงาน",
+    "nameEn": "Professional Training",
+    "credit": "6 (0-18-9)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "panikchar.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 342423,
+    "nameTh": "สหกิจศึกษา",
+    "nameEn": "Co-operative Education",
+    "credit": "6 (0-18-9)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาศาสตร์เครื่องสำอาง (พ.ศ. 2564)",
+    "lecturer_email": "panikchar.wi@up.ac.th",
+    "degree_level": "ป.ตรี"
+  },
+  {
+    "code": 351701,
+    "nameTh": "สัมมนา 1",
+    "nameEn": "Seminar I",
+    "credit": "1 (0-2-1)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรมหาบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "pajaree.mo@up.ac.th",
+    "degree_level": "ป.โท"
+  },
+  {
+    "code": 351702,
+    "nameTh": "สัมมนา 2",
+    "nameEn": "Seminar II",
+    "credit": "1 (0-2-1)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรมหาบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "pajaree.mo@up.ac.th",
+    "degree_level": "ป.โท"
+  },
+  {
+    "code": 351711,
+    "nameTh": "เภสัชศาสตร์และระบบสุขภาพที่ยั่งยืน",
+    "nameEn": "Pharmaceutical sciences and sustainable health systems",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรมหาบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "pajaree.mo@up.ac.th",
+    "degree_level": "ป.โท"
+  },
+  {
+    "code": 351712,
+    "nameTh": "ระเบียบวิธีวิจัยทางวิทยาศาสตร์สุขภาพและสถิติประยุกต์",
+    "nameEn": "Research methodology in health sciences and applied statistics",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรมหาบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "pajaree.mo@up.ac.th",
+    "degree_level": "ป.โท"
+  },
+  {
+    "code": 351713,
+    "nameTh": "แนวคิดเชิงนวัตกรรมและการจัดการนวัตกรรมทางเภสัชศาสตร์",
+    "nameEn": "Innovative thinking and pharmaceutical innovation management",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรมหาบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "kkhanita.du@up.ac.th",
+    "degree_level": "ป.โท"
+  },
+  {
+    "code": 351731,
+    "nameTh": "การทำวิจัยในสัตว์ทดลองและในคนทางเภสัชศาสตร์",
+    "nameEn": "Pre-clinical and clinical pharmaceutical studies",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรมหาบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "niwat.sa@up.ac.th",
+    "degree_level": "ป.โท"
+  },
+  {
+    "code": 351751,
+    "nameTh": "เทคนิคการวิจัยและพัฒนาผลิตภัณฑ์สุขภาพ",
+    "nameEn": "Techniques for research and development of health products",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรมหาบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "supavadee.bo@up.ac.th",
+    "degree_level": "ป.โท"
+  },
+  {
+    "code": 351752,
+    "nameTh": "การพัฒนาเภสัชภัณฑ์ ชีววัตถุ และเครื่องสำอาง",
+    "nameEn": "Development of pharmaceutical products, biologics and cosmetics",
+    "credit": "3 (2-3-6)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรมหาบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "supavadee.bo@up.ac.th",
+    "degree_level": "ป.โท"
+  },
+  {
+    "code": 351753,
+    "nameTh": "เภสัชพฤกษเคมีและผลิตภัณฑ์จากธรรมชาติ",
+    "nameEn": "Phytochemicals and natural products",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรมหาบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "pajaree.mo@up.ac.th",
+    "degree_level": "ป.โท"
+  },
+  {
+    "code": 351754,
+    "nameTh": "การออกแบบยาและพิสูจน์เอกลักษณ์ยา",
+    "nameEn": "Drug Design and Drug Identification",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรมหาบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "pajaree.mo@up.ac.th",
+    "degree_level": "ป.โท"
+  },
+  {
+    "code": 351791,
+    "nameTh": "วิทยานิพนธ์",
+    "nameEn": "Thesis",
+    "credit": "3 (0-9-5)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรมหาบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "pajaree.mo@up.ac.th",
+    "degree_level": "ป.โท"
+  },
+  {
+    "code": 351791,
+    "nameTh": "วิทยานิพนธ์",
+    "nameEn": "Thesis",
+    "credit": "6 (0-18-9)",
+    "curriculum_full": "หลักสูตรวิทยาศาสตรมหาบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "pajaree.mo@up.ac.th",
+    "degree_level": "ป.โท"
+  },
+  {
+    "code": 351801,
+    "nameTh": "สัมมนา 1",
+    "nameEn": "Seminar I",
+    "credit": "1 (0-2-1)",
+    "curriculum_full": "หลักสูตรปรัชญาดุษฎีบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "supavadee.bo@up.ac.th",
+    "degree_level": "ป.เอก"
+  },
+  {
+    "code": 351802,
+    "nameTh": "สัมมนา 2",
+    "nameEn": "Seminar II",
+    "credit": "1 (0-2-1)",
+    "curriculum_full": "หลักสูตรปรัชญาดุษฎีบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "supavadee.bo@up.ac.th",
+    "degree_level": "ป.เอก"
+  },
+  {
+    "code": 351803,
+    "nameTh": "สัมมนา 3",
+    "nameEn": "Seminar III",
+    "credit": "1 (0-2-1)",
+    "curriculum_full": "หลักสูตรปรัชญาดุษฎีบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "supavadee.bo@up.ac.th",
+    "degree_level": "ป.เอก"
+  },
+  {
+    "code": 351811,
+    "nameTh": "นวัตกรรมทางเภสัชศาสตร์กับการพัฒนาระบบสุขภาพโลกที่ยั่งยืน",
+    "nameEn": "Pharmaceutical innovation and sustainable global health system",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรปรัชญาดุษฎีบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "surasak.sa@up.ac.th",
+    "degree_level": "ป.เอก"
+  },
+  {
+    "code": 351812,
+    "nameTh": "ระเบียบวิธีวิจัยทางวิทยาศาสตร์สุขภาพขั้นสูง",
+    "nameEn": "Advanced research methodology for health sciences",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรปรัชญาดุษฎีบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "pajaree.mo@up.ac.th",
+    "degree_level": "ป.เอก"
+  },
+  {
+    "code": 351813,
+    "nameTh": "หัวข้อปัจจุบันนวัตกรรมทางเภสัชศาสตร์",
+    "nameEn": "Current topics in pharmaceutical innovation",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรปรัชญาดุษฎีบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "kkhanita.du@up.ac.th",
+    "degree_level": "ป.เอก"
+  },
+  {
+    "code": 351832,
+    "nameTh": "นวัตกรรมการรักษาทางเภสัชศาสตร์ระดับโมเลกุล",
+    "nameEn": "Pharmaceutical innovation for molecular molecular therapy",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรปรัชญาดุษฎีบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "niwat.sa@up.ac.th",
+    "degree_level": "ป.เอก"
+  },
+  {
+    "code": 351833,
+    "nameTh": "นวัตกรรมการออกแบบและพัฒนายา",
+    "nameEn": "Innovative drug discovery and drug design",
+    "credit": "3 (2-2-5)",
+    "curriculum_full": "หลักสูตรปรัชญาดุษฎีบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "jukkarin.sr@up.ac.th",
+    "degree_level": "ป.เอก"
+  },
+  {
+    "code": 351891,
+    "nameTh": "วิทยานิพนธ์",
+    "nameEn": "Dissertation",
+    "credit": "6 (0-18-9)",
+    "curriculum_full": "หลักสูตรปรัชญาดุษฎีบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "supavadee.bo@up.ac.th",
+    "degree_level": "ป.เอก"
+  },
+  {
+    "code": 351892,
+    "nameTh": "วิทยานิพนธ์",
+    "nameEn": "Dissertation",
+    "credit": "6 (0-18-9)",
+    "curriculum_full": "หลักสูตรปรัชญาดุษฎีบัณฑิต สาขาวิชานวัตกรรมทางเภสัชศาสตร์ (พ.ศ. 2565)",
+    "lecturer_email": "jukkarin.sr@up.ac.th",
+    "degree_level": "ป.เอก"
+  }
+]
