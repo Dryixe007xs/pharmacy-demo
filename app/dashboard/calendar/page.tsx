@@ -108,7 +108,7 @@ export default function CalendarPage() {
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-slate-800">ปฏิทินนัดหมาย</h1>
-        <h2 className="text-xl text-slate-600 mt-2">กำหนดช่วงเวลาในการเปิดให้กรอกชั่วโมงการสอน</h2>
+        <h2 className="text-xl text-slate-600 mt-2">ปฏิทินการดำเนินงานฝ่ายวิชาการเกี่ยวกับการจัดการข้อมูลชั่วโมงสอน</h2>
       </div>
 
       {/* Calendar Section */}

@@ -73,6 +73,8 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("user")
 }
 
 // 3.2 Program Model
@@ -89,6 +91,8 @@ model Program {
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@map("program")
 }
 
 // 3.3 Subject Model
@@ -114,6 +118,8 @@ model Subject {
 
   // Unique constraint for code within a program
   @@unique([code, programId]) 
+
+  @@map("subject")
 }
 
 // 3.4 Teaching Assignment (Core of the flow)
@@ -167,4 +173,6 @@ model TeachingAssignment {
   updatedAt      DateTime @updatedAt
 
   @@index([lecturerId, academicYear, semester])
+
+  @@map("teachingassignment")
 }

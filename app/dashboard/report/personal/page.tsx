@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Download, FileText } from "lucide-react";
+import { Download } from "lucide-react";
 
 // --- Mock Data ---
 interface Course {
@@ -11,7 +11,7 @@ interface Course {
   role: string;
   lecture: number;
   lab: number;
-  exam: number; // คุมสอบนอกตาราง
+  exam: number;
   note: string;
 }
 
@@ -38,7 +38,7 @@ const reportData: SemesterData[] = [
   },
   {
     title: "ภาคฤดูร้อน",
-    courses: [] // ไม่มีรายวิชา
+    courses: [] 
   }
 ];
 
@@ -52,17 +52,18 @@ export default function PersonalReportPage() {
       </div>
 
       {/* A4 Paper Container */}
-      <div className="max-w-[210mm] mx-auto bg-white shadow-md p-10 min-h-[297mm] relative">
+      <div className="max-w-[210mm] mx-auto bg-white shadow-md p-10 min-h-[297mm] relative flex flex-col">
         
         {/* Report Header */}
         <div className="text-center mb-8 space-y-2">
-           <h2 className="text-xl font-bold">รายงานสรุปชั่วโมงปฏิบัติการ/บรรยาย ปีการศึกษา 2569</h2>
-           <p className="font-bold text-lg">ผศ.ดร.ภก.สมัคร สมาน สาขาวิชาการบริบาลทางเภสัชกรรม</p>
+           <h2 className="text-xl font-bold">รายงานสรุปชั่วโมงสอนประจำปีการศึกษา 2569</h2>
+           <p className="font-bold text-lg">ผศ.ดร.ภก.สมัคร สมาน</p>
+           <p className="font-semibold text-lg">สาขาวิชาการบริบาลทางเภสัชกรรม</p>
            <p className="font-semibold text-slate-600">คณะเภสัชศาสตร์ มหาวิทยาลัยพะเยา</p>
         </div>
 
         {/* Content Table */}
-        <div className="border rounded-lg overflow-hidden mb-12">
+        <div className="border rounded-lg overflow-hidden mb-12 flex-grow">
             <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b">
                     <tr>
@@ -77,12 +78,10 @@ export default function PersonalReportPage() {
                 <tbody className="divide-y">
                     {reportData.map((term, index) => (
                         <React.Fragment key={index}>
-                            {/* Semester Title Row */}
                             <tr className="bg-slate-50/50">
                                 <td colSpan={6} className="py-3 px-4 font-bold text-slate-700">{term.title}</td>
                             </tr>
                             
-                            {/* Course Rows */}
                             {term.courses.length > 0 ? (
                                 term.courses.map((course, cIndex) => (
                                     <tr key={cIndex} className="hover:bg-slate-50/30">
@@ -103,7 +102,6 @@ export default function PersonalReportPage() {
                                 </tr>
                             )}
 
-                            {/* Subtotal Row */}
                             {term.courses.length > 0 && (
                                 <tr className="bg-slate-50/30 font-bold text-slate-700 border-t border-dashed">
                                     <td colSpan={2} className="py-2 px-4 text-right text-xs">รวม{term.title}</td>
@@ -120,7 +118,7 @@ export default function PersonalReportPage() {
         </div>
 
         {/* Signatures Section */}
-        <div className="mt-12 grid grid-cols-2 gap-16 px-8">
+        <div className="mt-8 grid grid-cols-2 gap-16 px-8">
             <div className="text-center space-y-12">
                 <div className="space-y-2">
                     <div className="font-bold text-sm">(ผศ.ดร.ภก ณัฐ นาเอก)</div>
@@ -131,24 +129,29 @@ export default function PersonalReportPage() {
             <div className="text-center space-y-12">
                 <div className="space-y-2">
                     <div className="font-bold text-sm">(รศ. ดร. ภญ. สุภางค์ คนดี)</div>
-                    <div className="text-xs font-semibold">รองคณบดีฝ่ายวิชาการและบูรณาการพันธกิจสู่ความเป็นสากล</div>
+                    <div className="text-xs font-semibold">รองคณบดีฝ่ายวิชาการ</div>
                     <div className="text-xs text-slate-400 pt-2">___/___/___</div>
                 </div>
             </div>
         </div>
 
-        {/* Bottom Small Text */}
-        <div className="mt-16 text-[10px] text-slate-500 flex gap-4">
+        {/* Bottom Small Text (Update Name) */}
+        <div className="mt-16 text-[10px] text-slate-500 flex flex-col gap-1">
             <span>เจ้าหน้าที่ฝ่ายวิชาการผู้ปฏิบัติงาน</span>
-            <span>1. นางสาวธนาธิป เครือวัลย์</span>
-            <span>2. นางใจตรา อินสุริย</span>
+            <div className="flex gap-4">
+                 <span>1. นางสาว ธนารีย์ เครือวัลย์</span>
+                 <span>2. นาง ไพจิตรา อินสุขขิน</span>
+            </div>
         </div>
 
-        {/* Download Button (Floating or Embedded) */}
-        <div className="mt-8 flex justify-center">
-             <Button variant="outline" className="text-green-600 border-green-200 hover:bg-green-50 flex gap-2">
+        {/* Download Button Section */}
+        <div className="mt-8 flex flex-col items-center gap-2">
+             <Button variant="outline" className="text-green-600 border-green-200 hover:bg-green-50 flex gap-2 w-fit">
                 <Download size={16} /> Download PDF
              </Button>
+             <p className="text-[10px] text-slate-400 font-light">
+                * ข้อมูลดังกล่าวจะเปิดให้ดาวน์โหลดได้เมื่อสิ้นสุดปีการศึกษา
+             </p>
         </div>
 
       </div>

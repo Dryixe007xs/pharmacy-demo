@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 // GET: ดึงข้อมูล
+// GET: ดึงข้อมูล
 export async function GET() {
   try {
     const users = await prisma.user.findMany({
@@ -12,7 +13,7 @@ export async function GET() {
     });
 
     const formattedUsers = users.map((user) => {
-      // รวมชื่อเต็ม
+      // รวมชื่อเต็ม (Code เดิม - เก็บไว้เผื่อที่อื่นใช้)
       const fullName = `${user.academicPosition || user.title || ''} ${user.firstName || ''} ${user.lastName || ''}`.trim();
       
       const managedProgramNames = user.managedPrograms.length > 0 
@@ -25,6 +26,7 @@ export async function GET() {
       else if (ws.includes("ฝึกอบรม")) status = "TRAINING";
 
       return {
+        // --- ส่วนเดิม (KEEP: ห้ามลบ เพื่อไม่ให้กระทบที่อื่น) ---
         id: user.id,
         email: user.email,
         name: fullName, 
@@ -36,8 +38,14 @@ export async function GET() {
         createdAt: user.createdAt.toISOString(),
         workStatus: status,
         adminTitle: user.adminTitle || "",
-        // แก้ไข: ใช้ academicPosition แทน position (ที่ไม่มีใน DB)
-        position: user.academicPosition || "" 
+        position: user.academicPosition || "", // หน้าอื่นอาจใช้ key นี้
+
+        // --- ส่วนที่เพิ่ม (NEW: เพื่อรองรับ Frontend ใหม่) ---
+        firstName: user.firstName || "",       // ส่งแยกให้ Frontend เอาไป search/sort เองได้
+        lastName: user.lastName || "",         // ส่งแยกให้ Frontend
+        type: user.userType || "GENERAL",      // สำคัญ: ใช้สำหรับ Filter 'ACADEMIC'
+        adminPosition: user.adminTitle || "",  // Map ให้ตรงกับ interface Frontend (adminPosition)
+        academicPosition: user.academicPosition || "" // Map ให้ตรงกับ interface Frontend
       };
     });
 

@@ -186,12 +186,13 @@ export default function YearlyReportPage() {
         </div>
 
         {/* Footer Info */}
-        <div className="mt-20 text-[10px] text-slate-500 flex gap-4">
+        <div className="mt-16 text-[10px] text-slate-500 flex flex-col gap-1">
             <span>เจ้าหน้าที่ฝ่ายวิชาการผู้ปฏิบัติงาน</span>
-            <span>1. นางสาวธนาธิป เครือวัลย์</span>
-            <span>2. นางใจตรา อินสุริย</span>
+            <div className="flex gap-4">
+                 <span>1. นางสาว ธนารีย์ เครือวัลย์</span>
+                 <span>2. นาง ไพจิตรา อินสุขขิน</span>
+            </div>
         </div>
-
         {/* Download Buttons Area */}
         <div className="mt-10 flex justify-center gap-4">
              <Button variant="outline" className="text-green-600 border-green-200 bg-green-50 hover:bg-green-100 flex gap-2">

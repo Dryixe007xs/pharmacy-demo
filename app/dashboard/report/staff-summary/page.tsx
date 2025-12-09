@@ -1,165 +1,244 @@
 "use client";
 
-import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
-import Link from "next/link";
+import React, { useState, useEffect, useMemo } from "react";
+import { 
+  Search, 
+  Filter, 
+  ChevronDown, 
+  ChevronLeft, 
+  ChevronRight, 
+  Loader2 
+} from "lucide-react";
 
-// --- Mock Data ---
+// --- Type Definition ---
 interface Staff {
-  id: string;
-  name: string;
+  id: number;
+  firstName: string;
+  lastName: string;
   email: string;
-  department: string;
-  role: string;
+  type?: string;           
+  department?: string;     
+  curriculum?: string;     
+  adminPosition?: string;  
+  academicPosition?: string | null; 
 }
 
-const staffList: Staff[] = [
-  { id: "1", name: "รศ. ดร. ภญ. สุภางค์ คนดี", email: "supang.kh@up.ac.th", department: "การบริบาลทางเภสัชกรรม", role: "รองคณบดีฝ่ายวิชาการและบูรณาการพันธกิจสู่ความเป็นสากล" },
-  { id: "2", name: "ผศ. ดร. ภญ. ณัฐ มาเอก", email: "nat.na@up.ac.th", department: "การบริบาลทางเภสัชกรรม", role: "ประธานหลักสูตร เภสัชศาสตรบัณฑิต" },
-  { id: "3", name: "ผศ. ดร. ภญ. ปาจรีย์ มงคล", email: "pajaree.mo@up.ac.th", department: "การบริบาลทางเภสัชกรรม", role: "ประธานหลักสูตร วิทยาศาสตรมหาบัณฑิต" },
-  { id: "4", name: "ผศ. ดร. ภญ. สุภาวดี บุญทา", email: "supavadee.bo@up.ac.th", department: "การบริบาลทางเภสัชกรรม", role: "ประธานหลักสูตร ปรัชญาดุษฎีบัณฑิต" },
-  { id: "5", name: "ผศ. ดร. ธรรมนูญ รุ่งสิงห์", email: "tammanoon.ru@up.ac.th", department: "วิทยาศาสตร์เครื่องสำอาง", role: "ประธานหลักสูตร วิทยาศาสตรบัณฑิต" },
-  { id: "6", name: "ดร. ภญ. คณิตา ดวงแจ่มกาญจน์", email: "khanita.du@up.ac.th", department: "การบริบาลทางเภสัชกรรม", role: "อาจารย์" },
-  { id: "7", name: "ดร. เอกลักษณ์ วงแวด", email: "eakkaluk.wo@up.ac.th", department: "วิทยาศาสตร์เครื่องสำอาง", role: "อาจารย์" },
-];
-
 export default function StaffSummaryListPage() {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [staffList, setStaffList] = useState<Staff[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Filter Logic (Simple Mock)
-  const filteredStaff = staffList.filter(staff => 
-    staff.name.includes(searchTerm) || 
-    staff.email.includes(searchTerm)
-  );
+  // --- Filter States ---
+  const [activeTab, setActiveTab] = useState("ACADEMIC"); 
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCurriculum, setSelectedCurriculum] = useState(""); 
+  const [selectedDepartment, setSelectedDepartment] = useState("");
+
+  // ===== 1. FETCH DATA =====
+  useEffect(() => {
+    const fetchStaff = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch("/api/staff");
+            if (!res.ok) throw new Error("Failed to fetch");
+            const data = await res.json();
+            setStaffList(Array.isArray(data) ? data : []);
+        } catch (error) {
+            console.error("Error fetching staff:", error);
+            setStaffList([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+    fetchStaff();
+  }, []);
+
+  // ===== 2. EXTRACT UNIQUE OPTIONS =====
+  const uniqueCurriculums = useMemo(() => {
+    const list = staffList
+        .filter(s => s.type?.toUpperCase() === 'ACADEMIC' && s.curriculum)
+        .map(s => s.curriculum as string);
+    return Array.from(new Set(list)).sort();
+  }, [staffList]);
+
+  const uniqueDepartments = useMemo(() => {
+    let list = staffList.filter(s => s.type?.toUpperCase() === 'ACADEMIC' && s.department);
+    if (selectedCurriculum) {
+        list = list.filter(s => s.curriculum === selectedCurriculum);
+    }
+    const depts = list.map(s => s.department as string);
+    return Array.from(new Set(depts)).sort();
+  }, [staffList, selectedCurriculum]);
+
+  // ===== 3. FILTER LOGIC =====
+  const filteredStaff = staffList.filter(staff => {
+    const isAcademic = staff.type?.toUpperCase() === 'ACADEMIC';
+    if (activeTab === "ACADEMIC" && !isAcademic) return false;
+    if (activeTab !== "ACADEMIC" && isAcademic) return false;
+
+    const fullName = `${staff.academicPosition || ''}${staff.firstName} ${staff.lastName}`.toLowerCase();
+    const search = searchTerm.toLowerCase();
+    const matchesSearch = fullName.includes(search) || (staff.email || "").toLowerCase().includes(search);
+
+    const matchesCurriculum = selectedCurriculum === "" || staff.curriculum === selectedCurriculum;
+    const matchesDepartment = selectedDepartment === "" || staff.department === selectedDepartment;
+
+    return matchesSearch && matchesCurriculum && matchesDepartment;
+  });
+
+  // Helper Functions
+  const getFullName = (staff: Staff) => `${staff.academicPosition || ''} ${staff.firstName} ${staff.lastName}`.trim();
+  
+  // ✅ แก้ไข: ไม่ดึง academicPosition มาแสดงในช่องบทบาทแล้ว
+  const getDisplayRole = (staff: Staff) => {
+    if (staff.adminPosition && staff.adminPosition.trim() !== "") {
+        return staff.adminPosition;
+    }
+    return "อาจารย์";
+  };
 
   return (
-    <div className="space-y-6 font-sarabun min-h-screen bg-slate-50/50 p-6">
+    <div className="font-sarabun min-h-screen bg-white p-8">
       
-      {/* Header */}
-      <div>
-        <h1 className="text-xl text-slate-500 mb-2">รายงานสรุป/รายงานสรุปของบุคลากรรายบุคคล</h1>
-      </div>
+      {/* --- Header Section --- */}
+      <div className="flex flex-col lg:flex-row justify-between items-end lg:items-center mb-6 gap-4">
+            <div className="flex-1 w-full lg:w-auto flex flex-col gap-4">
+                <h3 className="text-2xl font-bold text-[#1e3a8a]">
+                  {activeTab === "ACADEMIC" ? "รายชื่อบุคลากรสายวิชาการ" : "รายชื่อเจ้าหน้าที่และผู้ดูแลระบบ"} 
+                  <span className="text-gray-400 text-lg ml-2">({filteredStaff.length} ท่าน)</span>
+                </h3>
+                
+                <div className="flex flex-wrap gap-4 w-full items-center relative z-20">
+                    
+                    {/* Search Input */}
+                    <div className="relative w-80">
+                        <input 
+                            type="text" 
+                            placeholder="ค้นหาชื่อ หรือ อีเมล..." 
+                            value={searchTerm} 
+                            onChange={(e) => setSearchTerm(e.target.value)} 
+                            className="w-full border border-gray-300 rounded-lg pl-10 pr-4 py-2 text-gray-900 focus:ring-2 focus:ring-purple-200 outline-none" 
+                        />
+                        <Search className="w-5 h-5 text-gray-400 absolute left-3 top-2.5" />
+                    </div>
 
-      {/* Filter Section */}
-      <div className="bg-white p-6 rounded-xl border shadow-sm space-y-6">
-        <h3 className="font-bold text-lg text-slate-700">ค้นหารายวิชา (ค้นหาบุคลากร)</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-           {/* Row 1 */}
-           <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">หลักสูตร</label>
-                <Select>
-                    <SelectTrigger className="bg-slate-50"><SelectValue placeholder="เลือกหลักสูตร" /></SelectTrigger>
-                    <SelectContent><SelectItem value="all">ทั้งหมด</SelectItem></SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">ระดับ</label>
-                <Select>
-                    <SelectTrigger className="bg-slate-50"><SelectValue placeholder="เลือกระดับ" /></SelectTrigger>
-                    <SelectContent><SelectItem value="bachelor">ปริญญาตรี</SelectItem></SelectContent>
-                </Select>
-              </div>
-           </div>
+                    {activeTab === "ACADEMIC" && (
+                      <>
+                        {/* Dropdown 1: Curriculum */}
+                        <div className="relative w-64 z-20">
+                            <div className="absolute left-3 top-2.5 pointer-events-none">
+                                <Filter className="w-4 h-4 text-gray-500" />
+                            </div>
+                            <select 
+                                value={selectedCurriculum} 
+                                onChange={(e) => { 
+                                    setSelectedCurriculum(e.target.value); 
+                                    setSelectedDepartment(""); 
+                                }} 
+                                className="w-full border border-gray-300 rounded-lg pl-9 pr-8 py-2 text-gray-900 bg-white outline-none focus:ring-2 focus:ring-purple-200 appearance-none cursor-pointer"
+                            >
+                                <option value="">ทุกหลักสูตร</option>
+                                {uniqueCurriculums.map((curr, idx) => (
+                                    <option key={idx} value={curr}>{curr}</option>
+                                ))}
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-gray-500 absolute right-3 top-3 pointer-events-none" />
+                        </div>
 
-           {/* Row 2 */}
-           <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">หลักสูตร (สาขา)</label>
-                <Select>
-                    <SelectTrigger className="bg-slate-50"><SelectValue placeholder="เลือกหลักสูตร" /></SelectTrigger>
-                    <SelectContent><SelectItem value="pharma">เภสัชศาสตร์</SelectItem></SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">ชื่อ-สกุล</label>
-                <div className="relative">
-                    <Input 
-                        placeholder="เลือกชื่อบุคลากร" 
-                        className="bg-slate-50 pl-10" 
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                </div>
-              </div>
-           </div>
-        </div>
-      </div>
-
-      {/* Table Section */}
-      <div className="bg-white rounded-xl border shadow-sm p-6">
-        <h3 className="font-bold text-lg text-slate-700 mb-4">ชื่อรายบุคลากรสายวิชาการ</h3>
-
-        <div className="rounded-lg border overflow-hidden">
-            <Table>
-                <TableHeader className="bg-slate-50">
-                    <TableRow>
-                        <TableHead className="font-bold text-slate-700 w-[25%]">ชื่อ - สกุล</TableHead>
-                        <TableHead className="font-bold text-slate-700 w-[20%]">E-Mail</TableHead>
-                        <TableHead className="font-bold text-slate-700 w-[20%]">สาขาวิชา</TableHead>
-                        <TableHead className="font-bold text-slate-700 w-[25%]">บทบาท</TableHead>
-                        <TableHead className="font-bold text-slate-700 text-right">จัดการ</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {filteredStaff.map((staff) => (
-                        <TableRow key={staff.id} className="hover:bg-slate-50">
-                            <TableCell className="font-medium text-slate-800">{staff.name}</TableCell>
-                            <TableCell className="text-slate-600">{staff.email}</TableCell>
-                            <TableCell className="text-slate-600">{staff.department}</TableCell>
-                            <TableCell className="text-slate-600 text-xs">{staff.role}</TableCell>
-                            <TableCell className="text-right">
-                                <Link 
-                                    href={`/report/personal?id=${staff.id}`} 
-                                    className="text-orange-500 hover:text-orange-600 hover:underline text-sm font-medium"
+                        {/* Dropdown 2: Department */}
+                        {uniqueDepartments.length > 0 && (
+                             <div className="relative w-64 z-10">
+                                <div className="absolute left-3 top-2.5 pointer-events-none">
+                                    <Filter className="w-4 h-4 text-gray-500" />
+                                </div>
+                                <select 
+                                    value={selectedDepartment} 
+                                    onChange={(e) => setSelectedDepartment(e.target.value)} 
+                                    className="w-full border border-gray-300 rounded-lg pl-9 pr-8 py-2 text-gray-900 bg-white outline-none focus:ring-2 focus:ring-purple-200 appearance-none cursor-pointer"
                                 >
-                                    รายละเอียด
-                                </Link>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                    {filteredStaff.length === 0 && (
-                        <TableRow>
-                            <TableCell colSpan={5} className="text-center py-8 text-slate-400">ไม่พบข้อมูล</TableCell>
-                        </TableRow>
+                                    <option value="">ทุกกลุ่มวิชา</option>
+                                    {uniqueDepartments.map((dept, idx) => (
+                                        <option key={idx} value={dept}>{dept}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="w-4 h-4 text-gray-500 absolute right-3 top-3 pointer-events-none" />
+                            </div>
+                        )}
+                      </>
                     )}
-                </TableBody>
-            </Table>
-        </div>
-
-        {/* Pagination */}
-        <div className="flex items-center justify-end space-x-2 py-4 text-sm text-slate-600 mt-2">
-            <div className="flex items-center gap-2 mr-4">
-                <span>Rows per page:</span>
-                <Select defaultValue="10">
-                    <SelectTrigger className="h-8 w-[70px] border-slate-200"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="10">10</SelectItem><SelectItem value="20">20</SelectItem></SelectContent>
-                </Select>
+                </div>
             </div>
-            <span>1-{filteredStaff.length} of {filteredStaff.length}</span>
-            <div className="flex gap-1">
-                <Button variant="outline" size="icon" className="h-8 w-8" disabled><ChevronLeft className="w-4 h-4" /></Button>
-                <Button variant="outline" size="icon" className="h-8 w-8" disabled><ChevronRight className="w-4 h-4" /></Button>
-            </div>
-        </div>
+      </div>
 
+      {/* --- Table Section --- */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 border-b border-slate-100 uppercase text-slate-700">
+                    <tr>
+                        <th className="px-6 py-4 font-bold w-[30%]">ชื่อ - สกุล</th>
+                        <th className="px-6 py-4 font-bold w-[20%] text-center">E-Mail</th>
+                        <th className="px-6 py-4 font-bold w-[20%] text-center">หลักสูตร</th>
+                        <th className="px-6 py-4 font-bold w-[20%] text-center">บทบาท</th>
+                        <th className="px-6 py-4 font-bold text-right w-[10%]">จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {loading ? (
+                        <tr>
+                            <td colSpan={5} className="text-center py-12 text-slate-400">
+                                <div className="flex justify-center items-center gap-2">
+                                    <Loader2 className="w-5 h-5 animate-spin" /> กำลังโหลดข้อมูล...
+                                </div>
+                            </td>
+                        </tr>
+                    ) : filteredStaff.length > 0 ? (
+                        filteredStaff.map((staff) => (
+                            <tr key={staff.id} className="hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
+                                <td className="px-6 py-4 font-medium text-slate-800 align-top">
+                                    {getFullName(staff)}
+                                </td>
+                                <td className="px-6 py-4 text-slate-600 text-center align-top">
+                                    {staff.email || "-"}
+                                </td>
+                                <td className="px-6 py-4 text-slate-600 text-center align-top">
+                                    {staff.curriculum || "-"}
+                                </td>
+                                <td className="px-6 py-4 text-slate-600 text-center align-top">
+                                    {getDisplayRole(staff)}
+                                </td>
+                                <td className="px-6 py-4 text-right align-top">
+                                    <a 
+                                        href={`/staff/${staff.id}`} 
+                                        className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-orange-600 bg-orange-50 rounded-md hover:bg-orange-100 transition-colors"
+                                    >
+                                        รายละเอียด
+                                    </a>
+                                </td>
+                            </tr>
+                        ))
+                    ) : (
+                        <tr>
+                            <td colSpan={5} className="text-center py-12 text-slate-400">
+                                ไม่พบข้อมูลที่ตรงกับเงื่อนไข
+                            </td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+            
+            {/* Footer / Pagination */}
+            <div className="bg-slate-50 border-t px-6 py-3 flex items-center justify-between">
+                 <span className="text-sm text-slate-500">
+                    แสดง {filteredStaff.length} รายการ
+                 </span>
+                 <div className="flex gap-1">
+                    <button disabled className="p-2 bg-white border rounded hover:bg-gray-50 disabled:opacity-50">
+                        <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button disabled className="p-2 bg-white border rounded hover:bg-gray-50 disabled:opacity-50">
+                        <ChevronRight className="w-4 h-4" />
+                    </button>
+                 </div>
+            </div>
       </div>
 
     </div>
