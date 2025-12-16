@@ -7,6 +7,26 @@ import {
 import { Toaster, toast } from 'sonner';
 
 // ===== TYPES =====
+type Assignment = {
+  id: number;
+  subjectId: number;
+  lecturerId: number;
+  lectureHours: number;
+  labHours: number;
+  examHours: number;
+  lecturer: {
+    id: number;
+    firstName: string | null;
+    lastName: string | null;
+    academicPosition: string | null;
+    email: string;
+  };
+  lecturerStatus?: 'PENDING' | 'APPROVED' | 'REJECTED'; 
+  lecturerFeedback?: string;
+  responsibleStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUBMITTED'; 
+  headApprovalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+};
+
 type Course = {
   id: number;
   code: string;
@@ -27,6 +47,8 @@ type Course = {
     academicPosition: string | null;
     title: string | null;
   } | null;
+  // ✅ เพิ่ม field นี้: รับข้อมูลที่ส่งมาจาก API (ที่แก้ไปเมื่อกี้)
+  teachingAssignments?: Assignment[]; 
   // ✅ เก็บสรุปสถานะเพื่อแสดงในตาราง
   summary?: {
     total: number;
@@ -37,26 +59,6 @@ type Course = {
     isHeadApproved: boolean; // ประธานอนุมัติหรือยัง
     isHeadRejected: boolean; // ประธานตีกลับไหม
   };
-};
-
-type Assignment = {
-  id: number;
-  subjectId: number;
-  lecturerId: number;
-  lectureHours: number;
-  labHours: number;
-  examHours: number;
-  lecturer: {
-    id: number;
-    firstName: string | null;
-    lastName: string | null;
-    academicPosition: string | null;
-    email: string;
-  };
-  lecturerStatus?: 'PENDING' | 'APPROVED' | 'REJECTED'; 
-  lecturerFeedback?: string;
-  responsibleStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUBMITTED'; 
-  headApprovalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
 };
 
 type UserData = {
@@ -148,7 +150,7 @@ export default function CourseOwnerPage() {
     return () => window.removeEventListener("auth-change", syncUser);
   }, []);
 
-  // ===== 2. INITIAL FETCH (With Summary Logic) =====
+  // ===== 2. INITIAL FETCH (With Optimized Logic ✅) =====
   const initialize = async () => {
     setLoading(true);
     try {
@@ -160,26 +162,22 @@ export default function CourseOwnerPage() {
         const dataCourses = await resCourses.json();
         const dataStaff = await resStaff.json();
 
-        // 🟢 คำนวณสถานะสรุปของแต่ละวิชา
-        const coursesWithSummary = await Promise.all(dataCourses.map(async (c: any) => {
-            try {
-                const res = await fetch(`/api/assignments?subjectId=${c.id}`);
-                const assigns: Assignment[] = await res.json();
-                
-                if (!Array.isArray(assigns)) return c;
-
-                const summary = {
-                    total: assigns.length,
-                    lecturerPending: assigns.filter(a => a.lecturerStatus === 'PENDING').length,
-                    lecturerRejected: assigns.filter(a => a.lecturerStatus === 'REJECTED').length,
-                    isReady: assigns.length > 0 && assigns.every(a => a.lecturerStatus === 'APPROVED'),
-                    isSubmitted: assigns.length > 0 && assigns.every(a => a.responsibleStatus === 'APPROVED'),
-                    isHeadApproved: assigns.length > 0 && assigns.every(a => a.headApprovalStatus === 'APPROVED'),
-                    isHeadRejected: assigns.some(a => a.headApprovalStatus === 'REJECTED')
-                };
-                return { ...c, summary };
-            } catch (e) { return c; }
-        }));
+        // 🟢 แก้ไขตรงนี้: ไม่ต้องวนลูป fetch แล้ว! ใช้ข้อมูล teachingAssignments ที่ติดมาได้เลย
+        const coursesWithSummary = dataCourses.map((c: Course) => {
+            // ใช้ข้อมูลที่ติดมากับ API (ถ้าไม่มีให้เป็น array ว่าง)
+            const assigns = c.teachingAssignments || [];
+            
+            const summary = {
+                total: assigns.length,
+                lecturerPending: assigns.filter(a => a.lecturerStatus === 'PENDING').length,
+                lecturerRejected: assigns.filter(a => a.lecturerStatus === 'REJECTED').length,
+                isReady: assigns.length > 0 && assigns.every(a => a.lecturerStatus === 'APPROVED'),
+                isSubmitted: assigns.length > 0 && assigns.every(a => a.responsibleStatus === 'APPROVED'),
+                isHeadApproved: assigns.length > 0 && assigns.every(a => a.headApprovalStatus === 'APPROVED'),
+                isHeadRejected: assigns.some(a => a.headApprovalStatus === 'REJECTED')
+            };
+            return { ...c, summary };
+        });
 
         setCourses(coursesWithSummary);
         setStaffs(Array.isArray(dataStaff) ? dataStaff : []);
@@ -194,7 +192,7 @@ export default function CourseOwnerPage() {
     initialize();
   }, []);
 
-  // ===== FETCH ASSIGNMENTS =====
+  // ===== FETCH ASSIGNMENTS (เฉพาะตอนเปิด Modal เพื่อความสดใหม่) =====
   const fetchAssignments = async (subjectId: number) => {
     try {
       const res = await fetch(`/api/assignments?subjectId=${subjectId}`);
@@ -212,7 +210,13 @@ export default function CourseOwnerPage() {
   // ===== HANDLERS =====
   const handleOpenModal = (course: Course) => {
     setSelectedCourse(course);
+    // ✅ เพิ่ม: ใช้ข้อมูลที่มีอยู่แล้วแสดงไปก่อนเลย (จะได้ไม่โหลดหมุนๆ)
+    if (course.teachingAssignments) {
+        setAssignments(course.teachingAssignments);
+    }
+    // แล้วค่อย fetch ใหม่เผื่อมีอัปเดต (Optional)
     fetchAssignments(course.id);
+
     setIsModalOpen(true);
     setIsAddingLecturer(false);
     setSubmitStatus('idle'); 

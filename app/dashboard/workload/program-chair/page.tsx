@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, CheckCircle, Clock, AlertOctagon, Loader2, X } from "lucide-react";
+import { Search, CheckCircle, Clock, AlertOctagon, Loader2, X, FileText } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
 // --- Types ---
@@ -65,7 +65,7 @@ export default function ProgramChairPage() {
     return () => window.removeEventListener("auth-change", syncUser);
   }, []);
 
-  // ===== 2. FETCH DATA =====
+  // ===== 2. FETCH DATA (Optimized ✅) =====
   useEffect(() => {
     if (currentChairId) {
         fetchData(currentChairId);
@@ -78,6 +78,7 @@ export default function ProgramChairPage() {
   const fetchData = async (chairId: number) => {
     setLoading(true);
     try {
+      // 1. ดึงรายวิชาทั้งหมดทีเดียว (ข้อมูล TeachingAssignments ติดมาแล้ว)
       const resCourses = await fetch("/api/courses");
       const allCourses = await resCourses.json();
 
@@ -86,22 +87,24 @@ export default function ProgramChairPage() {
         return;
       }
 
+      // 2. กรองเฉพาะวิชาของประธานคนนี้
       const myCourses = allCourses.filter((c: any) => 
          c.program?.programChairId === chairId || 
-         (c.program?.programChairId === null && chairId === 1) 
+         (c.program?.programChairId === null && chairId === 1) // กรณี Admin หรือประธานส่วนกลาง
       );
 
-      const workloadData: CourseWorkload[] = [];
+      // 3. Map ข้อมูลใน Memory (ไม่ต้องวนลูป Fetch แล้ว)
+      const workloadData = myCourses.map((course: any) => {
+        // ใช้ข้อมูลที่ติดมากับ API (ถ้าไม่มีให้เป็น array ว่าง)
+        const assignments = course.teachingAssignments || [];
 
-      for (const course of myCourses) {
-        const resAssign = await fetch(`/api/assignments?subjectId=${course.id}`);
-        const assignments = await resAssign.json();
+        // ถ้าไม่มีการมอบหมายงานเลย ให้ข้าม (ตาม Logic เดิม)
+        if (assignments.length === 0) return null;
 
-        if (!Array.isArray(assignments) || assignments.length === 0) continue;
-
+        // แปลงข้อมูล
         const instructors: InstructorLoad[] = assignments.map((a: any) => ({
             id: a.id,
-            name: `${a.lecturer.academicPosition || ''}${a.lecturer.firstName} ${a.lecturer.lastName}`,
+            name: a.lecturer ? `${a.lecturer.academicPosition || ''}${a.lecturer.firstName} ${a.lecturer.lastName}` : 'Unknown',
             role: a.lecturerId === course.responsibleUserId ? 'ผู้รับผิดชอบรายวิชา' : 'ผู้สอน',
             lecture: a.lectureHours || 0,
             lab: a.labHours || 0,
@@ -110,6 +113,7 @@ export default function ProgramChairPage() {
             headApprovalStatus: a.headApprovalStatus
         }));
 
+        // คำนวณสถานะ
         let status: WorkloadStatus = 'waiting_owner';
         const allResponsibleApproved = instructors.every(i => i.responsibleStatus === 'APPROVED');
         const anyRejectedByHead = instructors.some(i => i.headApprovalStatus === 'REJECTED');
@@ -120,17 +124,19 @@ export default function ProgramChairPage() {
         else if (allResponsibleApproved) status = 'pending_approval'; 
         else status = 'waiting_owner';
         
-        workloadData.push({
+        return {
             id: course.id,
             code: course.code,
             name: course.name_th,
             nameEn: course.name_en || "",
-            programName: course.program.name_th,
+            programName: course.program?.name_th || "-",
             responsibleUser: "", 
             instructors: instructors.sort((a, b) => (a.role === 'ผู้รับผิดชอบรายวิชา' ? -1 : 1)),
             status
-        });
-      }
+        };
+      })
+      .filter((item): item is CourseWorkload => item !== null); // กรองค่า null ทิ้ง
+
       setCoursesWorkload(workloadData);
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -283,6 +289,7 @@ export default function ProgramChairPage() {
             ))
         ) : (
             <div className="p-12 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50 text-slate-400">
+                <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 {currentChairId ? "ไม่พบรายวิชาที่ต้องพิจารณา" : "กรุณาเลือกผู้ใช้งานจาก Navbar เพื่อดูข้อมูล"}
             </div>
         )}

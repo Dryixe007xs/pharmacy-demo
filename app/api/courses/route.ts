@@ -3,11 +3,11 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// GET: ดึงข้อมูลรายวิชาทั้งหมด พร้อมข้อมูลที่เกี่ยวข้อง
+// GET: ดึงข้อมูลรายวิชาทั้งหมด พร้อมภาระงาน (Assignments) และข้อมูลประธานหลักสูตร
 export async function GET() {
   try {
     const courses = await prisma.subject.findMany({
-      select: { // ใช้ select เพื่อควบคุม output ให้ชัดเจน
+      select: { 
         id: true,
         code: true,
         name_th: true,
@@ -15,10 +15,29 @@ export async function GET() {
         credit: true,
         instructor: true,
         program_full_name: true,
-        responsibleUserId: true, // *** MUST BE SELECTED ***: ใช้สำหรับการกรองในหน้า workload
-        program: true,
+        responsibleUserId: true,
+        // ✅ แก้ไขตรงนี้: เปลี่ยนจาก program: true เป็น select เพื่อดึง programChair
+        program: {
+            select: {
+                id: true,
+                name_th: true,
+                year: true,
+                degree_level: true,
+                programChairId: true, // ดึง ID มาด้วยเผื่อใช้ check
+                programChair: {       // ✅ ดึงชื่อ-นามสกุล ของประธานหลักสูตร
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        academicPosition: true,
+                        email: true,
+                        adminTitle: true
+                    }
+                }
+            }
+        },
         responsibleUser: {
-            select: { // ดึงเฉพาะ field ที่จำเป็นของ Responsible User
+            select: {
                 id: true,
                 firstName: true,
                 lastName: true,
@@ -26,6 +45,15 @@ export async function GET() {
                 academicPosition: true,
                 title: true,
             }
+        },
+        // ดึงภาระงาน (Assignments) มาพร้อมกันเลย
+        teachingAssignments: {
+           include: {
+             lecturer: true, 
+           },
+           orderBy: {
+             id: 'asc' 
+           }
         }
       },
       orderBy: { id: 'desc' }
@@ -37,7 +65,7 @@ export async function GET() {
   }
 }
 
-// POST: เพิ่มรายวิชาใหม่ (สำหรับหน้า courses/page.tsx)
+// ... (ส่วน POST, PUT, DELETE ใช้โค้ดเดิมของคุณได้เลยครับ ไม่ต้องแก้) ...
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -58,7 +86,6 @@ export async function POST(req: Request) {
             name_en,
             credit,
             programId: Number(programId),
-            // Save Responsible User ID and Instructor text
             responsibleUserId: responsibleUserId ? Number(responsibleUserId) : null,
             instructor,
         }
@@ -70,7 +97,6 @@ export async function POST(req: Request) {
   }
 }
 
-// PUT: แก้ไขข้อมูลรายวิชา (สำหรับหน้า courses/page.tsx)
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
@@ -97,7 +123,6 @@ export async function PUT(req: Request) {
             name_en,
             credit,
             programId: Number(programId),
-            // Update Responsible User ID and Instructor text
             responsibleUserId: responsibleUserId ? Number(responsibleUserId) : null,
             instructor,
         }
@@ -109,7 +134,6 @@ export async function PUT(req: Request) {
   }
 }
 
-// DELETE: ลบรายวิชา (สำหรับหน้า courses/page.tsx)
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -119,7 +143,6 @@ export async function DELETE(req: Request) {
         return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
 
-    // Must delete related TeachingAssignments first due to foreign key constraints
     await prisma.teachingAssignment.deleteMany({
         where: { subjectId: Number(id) }
     });
