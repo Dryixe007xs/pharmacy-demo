@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, ReactNode } from "react";
 import { 
-  Plus, Search, Edit, Trash2, X, ChevronLeft, ChevronRight, User, ChevronsUpDown, Briefcase, Check, Loader2, FolderPlus, AlertCircle
+  Plus, Search, Edit, Trash2, X, ChevronLeft, ChevronRight, User, ChevronsUpDown, Briefcase, Loader2, FolderPlus
 } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
@@ -62,7 +62,7 @@ const getFullName = (user: any) => {
   return `${prefix} ${user.firstName || ""} ${user.lastName || ""}`.trim();
 };
 
-// --- ✨ ANIMATED MODAL WRAPPER (Fixed Z-Index) ✨ ---
+// --- ✨ ANIMATED MODAL WRAPPER (Fixed: High Z-Index) ✨ ---
 const Modal = ({ 
     isOpen, 
     onClose, 
@@ -71,7 +71,7 @@ const Modal = ({
     colorClass = "text-slate-800",
     children,
     maxWidth = "max-w-xl",
-    zIndex = "z-[9999]" // ✅ ปรับ Z-Index ให้สูงลิ่ว ทับ Navbar แน่นอน
+    zIndex = 9999 // ✅ แก้จุดที่ 1: Default สูงทะลุ Navbar (9999)
 }: { 
     isOpen: boolean; 
     onClose: () => void; 
@@ -80,7 +80,7 @@ const Modal = ({
     colorClass?: string;
     children: ReactNode;
     maxWidth?: string;
-    zIndex?: string;
+    zIndex?: number;
 }) => {
     const [isVisible, setIsVisible] = useState(false);
     const [isAnimatingOut, setIsAnimatingOut] = useState(false);
@@ -102,7 +102,11 @@ const Modal = ({
     if (!isVisible) return null;
 
     return (
-        <div className={`fixed inset-0 ${zIndex} flex items-center justify-center p-4 bg-black/60 backdrop-blur-md transition-opacity duration-200 ${isAnimatingOut ? 'opacity-0' : 'opacity-100 animate-in fade-in'}`}>
+        // ✅ ใช้ style={{ zIndex }} บังคับค่าโดยตรง
+        <div 
+            className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md transition-opacity duration-200"
+            style={{ zIndex: zIndex }}
+        >
             <div className={`bg-white rounded-2xl shadow-2xl w-full flex flex-col ring-1 ring-black/5 overflow-hidden transition-all duration-200 ${maxWidth} ${isAnimatingOut ? 'scale-95 opacity-0' : 'scale-100 opacity-100 animate-in zoom-in-95 slide-in-from-bottom-8'}`}>
                 {/* Header */}
                 <div className="px-5 py-4 border-b flex justify-between items-center bg-white sticky top-0 z-20 shadow-sm">
@@ -338,7 +342,6 @@ export default function CourseDataPage() {
     setIsModalOpen(true);
   };
 
-  // ✅ Searchable User Select (Responsive & Animated)
   const SearchableUserSelect = ({ onSelect, placeholder = "ค้นหา...", initialValue = "" }: { onSelect: (user: UserData) => void, placeholder?: string, initialValue?: string }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState("");
@@ -362,10 +365,9 @@ export default function CourseDataPage() {
                 <span className={`text-sm truncate ${initialValue ? 'text-slate-800 font-medium' : 'text-slate-400'}`}>{initialValue || placeholder}</span>
                 <ChevronsUpDown size={16} className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
             </div>
-            
-            {/* ✅ Dropdown Animation + Z-Index Fix */}
             {isOpen && (
-                <div className="absolute z-[100] w-full min-w-[300px] mt-1.5 bg-white border border-slate-100 rounded-xl shadow-2xl max-h-72 overflow-y-auto animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top custom-scrollbar">
+                // ✅ Z-Index 1000 เพื่อให้ Dropdown ลอยเหนือทุกสิ่งใน Modal
+                <div className="absolute z-[1000] w-full min-w-[300px] mt-1.5 bg-white border border-slate-100 rounded-xl shadow-2xl max-h-72 overflow-y-auto animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top custom-scrollbar">
                     <div className="p-2 sticky top-0 bg-white/95 backdrop-blur border-b z-10">
                         <div className="relative">
                             <Search size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"/>
@@ -527,7 +529,8 @@ export default function CourseDataPage() {
         icon={isEditMode ? Edit : Plus}
         colorClass={isEditMode ? "text-purple-700" : "text-green-700"}
       >
-          <div className="p-6 space-y-6 overflow-y-auto max-h-[80vh] custom-scrollbar">
+          {/* ... Content ... */}
+           <div className="p-6 space-y-6 overflow-y-auto max-h-[80vh] custom-scrollbar">
               {/* Basic Info */}
               <div className="grid grid-cols-3 gap-6">
                   <div className="col-span-2 space-y-2">
@@ -564,7 +567,6 @@ export default function CourseDataPage() {
                   </div>
               </div>
 
-              {/* ✅ ลดระยะห่างผู้รับผิดชอบ */}
               <div className="space-y-2 pb-24"> 
                     <label className="text-sm font-semibold text-slate-800 flex items-center gap-2"><User size={18} className="text-purple-600" /> ผู้รับผิดชอบรายวิชา</label>
                   <div className="w-full">
@@ -585,7 +587,7 @@ export default function CourseDataPage() {
           </div>
       </Modal>
 
-      {/* --- ADD PROGRAM MODAL (Extra Space for Scroll) --- */}
+      {/* --- ADD PROGRAM MODAL --- */}
       <Modal
         isOpen={isAddProgramModalOpen}
         onClose={() => setIsAddProgramModalOpen(false)}
@@ -594,7 +596,6 @@ export default function CourseDataPage() {
         colorClass="text-blue-700"
         maxWidth="max-w-md"
       >
-          {/* ✅ เพิ่ม min-h-400px และ pb-32 เพื่อให้ Dropdown มีพื้นที่แสดงผล */}
           <div className="p-6 space-y-6 overflow-y-auto max-h-[80vh] min-h-[400px] pb-32 custom-scrollbar">
               <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">ชื่อหลักสูตร <span className="text-red-500">*</span></label>
@@ -677,6 +678,7 @@ export default function CourseDataPage() {
         icon={Briefcase}
         colorClass="text-purple-800"
         maxWidth="max-w-4xl"
+        zIndex={9999} // ✅ Default High Z-Index
       >
           <div className="p-0 overflow-y-auto custom-scrollbar max-h-[70vh]">
               <table className="w-full text-left text-sm">
@@ -711,7 +713,6 @@ export default function CourseDataPage() {
 
                               <td className="py-4 px-6 text-center align-top">
                                   <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-2 group-hover:translate-y-0">
-                                      {/* ✅ เปิด Modal แก้ไขแยกต่างหาก */}
                                       <button 
                                           onClick={() => openEditChairModal(p)}
                                           className="w-8 h-8 flex items-center justify-center border border-purple-200 rounded-lg text-purple-600 hover:bg-purple-50 hover:border-purple-300 transition-all shadow-sm"
@@ -746,7 +747,7 @@ export default function CourseDataPage() {
         icon={Briefcase}
         colorClass="text-purple-800"
         maxWidth="max-w-md"
-        zIndex="z-[100]" // Layer สูงกว่า
+        zIndex={10000} // ✅ จุดแก้จุดที่ 2: สูงกว่า 9999
       >
         <div className="p-6 space-y-4 overflow-y-auto max-h-[80vh] min-h-[300px] pb-32 custom-scrollbar">
             <div className="p-3 bg-purple-50 rounded-lg border border-purple-100 text-sm text-purple-700">
@@ -776,8 +777,8 @@ export default function CourseDataPage() {
             </div>
         </div>
         <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 sticky bottom-0 z-10 bg-white">
-             <button onClick={() => setIsEditChairModalOpen(false)} className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm hover:bg-white hover:text-slate-700 text-slate-600 font-medium transition-all shadow-sm">ยกเลิก</button>
-             <button onClick={handleSaveProgramChair} className="px-5 py-2.5 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 font-medium shadow-md shadow-purple-200 hover:shadow-lg transition-all active:scale-95">บันทึกการเปลี่ยนแปลง</button>
+              <button onClick={() => setIsEditChairModalOpen(false)} className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm hover:bg-white hover:text-slate-700 text-slate-600 font-medium transition-all shadow-sm">ยกเลิก</button>
+              <button onClick={handleSaveProgramChair} className="px-5 py-2.5 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 font-medium shadow-md shadow-purple-200 hover:shadow-lg transition-all active:scale-95">บันทึกการเปลี่ยนแปลง</button>
         </div>
       </Modal>
 

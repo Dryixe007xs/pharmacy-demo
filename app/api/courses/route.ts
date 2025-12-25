@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// GET: ดึงข้อมูลรายวิชาทั้งหมด พร้อมภาระงาน (Assignments) และข้อมูลประธานหลักสูตร
+// GET: ดึงข้อมูลรายวิชาทั้งหมด
 export async function GET() {
   try {
     const courses = await prisma.subject.findMany({
@@ -15,16 +15,15 @@ export async function GET() {
         credit: true,
         instructor: true,
         program_full_name: true,
-        responsibleUserId: true,
-        // ✅ แก้ไขตรงนี้: เปลี่ยนจาก program: true เป็น select เพื่อดึง programChair
+        responsibleUserId: true, // User ID เป็น String (ถูกต้อง)
         program: {
             select: {
                 id: true,
                 name_th: true,
                 year: true,
                 degree_level: true,
-                programChairId: true, // ดึง ID มาด้วยเผื่อใช้ check
-                programChair: {       // ✅ ดึงชื่อ-นามสกุล ของประธานหลักสูตร
+                programChairId: true,
+                programChair: {      
                     select: {
                         id: true,
                         firstName: true,
@@ -46,7 +45,6 @@ export async function GET() {
                 title: true,
             }
         },
-        // ดึงภาระงาน (Assignments) มาพร้อมกันเลย
         teachingAssignments: {
            include: {
              lecturer: true, 
@@ -65,7 +63,7 @@ export async function GET() {
   }
 }
 
-// ... (ส่วน POST, PUT, DELETE ใช้โค้ดเดิมของคุณได้เลยครับ ไม่ต้องแก้) ...
+// POST: สร้างรายวิชาใหม่
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -85,8 +83,12 @@ export async function POST(req: Request) {
             name_th,
             name_en,
             credit,
-            programId: Number(programId),
-            responsibleUserId: responsibleUserId ? Number(responsibleUserId) : null,
+            programId: Number(programId), // Program ID เป็น Int (ถูกต้อง)
+            
+            // ❌ เดิม: responsibleUserId ? Number(responsibleUserId) : null
+            // ✅ แก้ใหม่: ส่ง String ตรงๆ (เพราะ User ID เป็น String แล้ว)
+            responsibleUserId: responsibleUserId || null, 
+            
             instructor,
         }
     });
@@ -97,6 +99,7 @@ export async function POST(req: Request) {
   }
 }
 
+// PUT: แก้ไขรายวิชา
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
@@ -116,14 +119,18 @@ export async function PUT(req: Request) {
     }
 
     const updatedCourse = await prisma.subject.update({
-        where: { id: Number(id) },
+        where: { id: Number(id) }, // Subject ID เป็น Int (ถูกต้อง)
         data: {
             code,
             name_th,
             name_en,
             credit,
             programId: Number(programId),
-            responsibleUserId: responsibleUserId ? Number(responsibleUserId) : null,
+            
+            // ❌ เดิม: responsibleUserId ? Number(responsibleUserId) : null
+            // ✅ แก้ใหม่: ส่ง String ตรงๆ
+            responsibleUserId: responsibleUserId || null,
+            
             instructor,
         }
     });
@@ -134,6 +141,7 @@ export async function PUT(req: Request) {
   }
 }
 
+// DELETE: ลบรายวิชา
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -143,10 +151,12 @@ export async function DELETE(req: Request) {
         return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
 
+    // ลบ Assignments ที่เกี่ยวข้องก่อน (Subject ID เป็น Int ถูกต้องแล้ว)
     await prisma.teachingAssignment.deleteMany({
         where: { subjectId: Number(id) }
     });
 
+    // ลบวิชา
     await prisma.subject.delete({
         where: { id: Number(id) }
     });

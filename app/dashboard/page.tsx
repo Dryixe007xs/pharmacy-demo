@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link"; // ✅ Import Link
+import Link from "next/link";
+import { useSession } from "next-auth/react"; // 👈 1. Import พระเอกของเรา
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock, Users, BookOpen, Search, Calendar, FileText, ChevronRight, Briefcase, Award } from "lucide-react";
@@ -13,7 +14,7 @@ type Course = {
   code: string;
   name_th: string;
   name_en: string;
-  responsibleUserId: number;
+  responsibleUserId: string; // 👈 แก้เป็น String ตาม Database
 };
 
 type Assignment = {
@@ -35,8 +36,8 @@ type Assignment = {
 };
 
 export default function DashboardPage() {
+  const { data: session, status } = useSession(); // 👈 2. ดึงข้อมูล Session จากระบบ Login
   const [activeTab, setActiveTab] = useState<"responsible" | "teaching">("responsible");
-  const [user, setUser] = useState<any>(null);
   
   // Data States
   const [responsibleCourses, setResponsibleCourses] = useState<Course[]>([]);
@@ -46,32 +47,30 @@ export default function DashboardPage() {
   // Stats
   const [totalHours, setTotalHours] = useState(0);
 
-  // 1. Load User & Data
+  // 3. Load Data เมื่อ Login สำเร็จแล้วเท่านั้น
   useEffect(() => {
     const loadData = async () => {
-        setLoading(true);
-        const storedUser = localStorage.getItem("currentUser");
-        if (!storedUser) {
+        if (status === "loading") return; // รอโหลด Session
+        if (status === "unauthenticated" || !session?.user) {
             setLoading(false);
             return;
         }
 
+        setLoading(true);
         try {
-            const userData = JSON.parse(storedUser);
-            setUser(userData);
-            
-            if (!userData.id) return;
+            const userId = session.user.id; // 👈 ดึง ID จาก Session จริงๆ
 
             // Fetch 1: วิชาที่รับผิดชอบ
             const resCourses = await fetch("/api/courses");
             const allCourses = await resCourses.json();
             if (Array.isArray(allCourses)) {
-                const myCourses = allCourses.filter((c: any) => c.responsibleUserId === userData.id);
+                // กรองเฉพาะวิชาที่ฉันรับผิดชอบ
+                const myCourses = allCourses.filter((c: any) => c.responsibleUserId === userId);
                 setResponsibleCourses(myCourses);
             }
 
             // Fetch 2: วิชาที่สอน
-            const resAssignments = await fetch(`/api/assignments?lecturerId=${userData.id}`);
+            const resAssignments = await fetch(`/api/assignments?lecturerId=${userId}`);
             const myAssignments = await resAssignments.json();
             if (Array.isArray(myAssignments)) {
                 setTeachingAssignments(myAssignments);
@@ -87,12 +86,17 @@ export default function DashboardPage() {
     };
 
     loadData();
-  }, []);
+  }, [session, status]); // รันใหม่เมื่อ Session เปลี่ยนสถานะ
 
   const getResponsibleName = (user: any) => {
     if (!user) return "-";
     return `${user.academicPosition || ''} ${user.firstName} ${user.lastName}`.trim();
   };
+
+  // ถ้ายังไม่ Login หรือกำลังโหลด ให้โชว์ Loading
+  if (status === "loading") {
+      return <div className="flex h-screen items-center justify-center text-slate-400">กำลังโหลดข้อมูล...</div>;
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 font-sarabun p-6 bg-slate-50/30 min-h-screen">
@@ -100,7 +104,8 @@ export default function DashboardPage() {
       {/* 1. Header Section */}
       <div className="text-center pt-0 pb-4 space-y-2">
         <h1 className="text-2xl font-bold text-slate-800">
-          สวัสดี, <span className="text-purple-600">{user ? user.name : "..."}</span>
+          {/* ✅ 4. ดึงชื่อจาก Session โดยตรง (มาจาก route.ts ที่เราแก้) */}
+          สวัสดี, <span className="text-purple-600">{session?.user?.name || "อาจารย์"}</span>
         </h1>
         <p className="text-slate-500 text-sm">
           ยินดีต้อนรับสู่ระบบจัดการชั่วโมงสอน ประจำปีการศึกษา 2567

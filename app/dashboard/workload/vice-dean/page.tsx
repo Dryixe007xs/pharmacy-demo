@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react"; // ✅ Import useSession
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, CheckCircle, Clock, AlertOctagon, Loader2, FileText, Check, X } from "lucide-react";
+import { Search, CheckCircle, Clock, AlertOctagon, Loader2, FileText, X } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
 // --- Types ---
@@ -31,21 +32,35 @@ interface CourseWorkload {
   id: number;
   code: string;
   name: string;
-  programName: string; // เพิ่มชื่อหลักสูตร
+  programName: string; 
   instructors: InstructorLoad[];
   status: WorkloadStatus;
 }
 
 export default function ViceDeanPage() {
+  // ✅ ใช้ Session แทน LocalStorage
+  const { data: session, status } = useSession();
+  const currentUser = session?.user; // ข้อมูลผู้ใช้ปัจจุบัน (รวมถึงตอนสวมรอย)
+
   const [courses, setCourses] = useState<CourseWorkload[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // ===== FETCH DATA (Optimized ✅) =====
+  // ===== FETCH DATA =====
+  useEffect(() => {
+    // โหลดข้อมูลเมื่อ Login แล้ว (ไม่จำเป็นต้องเช็ค ID เพราะรองคณบดีเห็นทุกวิชา)
+    if (status === 'authenticated') {
+        fetchData();
+    } else if (status === 'unauthenticated') {
+        setCourses([]);
+        setLoading(false);
+    }
+  }, [status]); 
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. ดึงรายวิชาทีเดียว (ข้อมูล TeachingAssignments ติดมาแล้วจากที่เราแก้ Backend)
+      // 1. ดึงรายวิชาทั้งหมด
       const resCourses = await fetch("/api/courses");
       const allCourses = await resCourses.json();
 
@@ -54,21 +69,18 @@ export default function ViceDeanPage() {
         return;
       }
 
-      // 2. Map ข้อมูลใน Memory แทนการวนลูป Fetch (เร็วขึ้น 10-50 เท่า)
+      // 2. Map ข้อมูล
       const workloadData = allCourses
         .map((course: any) => {
-             // ใช้ข้อมูลที่ติดมากับ API (ถ้าไม่มีให้เป็น array ว่าง)
              const assignments = course.teachingAssignments || [];
 
-             // ถ้าไม่มีการมอบหมายงานเลย ให้ข้าม (ตาม Logic เดิม)
              if (assignments.length === 0) return null;
 
-             // แปลงข้อมูล
              const instructors: InstructorLoad[] = assignments.map((a: any) => ({
                 id: a.id,
-                // เช็คว่ามีข้อมูล lecturer หรือไม่ (กัน Error)
                 name: a.lecturer ? `${a.lecturer.academicPosition || ''}${a.lecturer.firstName} ${a.lecturer.lastName}` : 'Unknown',
-                role: a.lecturerId === course.responsibleUserId ? 'ผู้รับผิดชอบรายวิชา' : 'ผู้สอน',
+                // เทียบ String ID เพื่อความปลอดภัย
+                role: String(a.lecturerId) === String(course.responsibleUserId) ? 'ผู้รับผิดชอบรายวิชา' : 'ผู้สอน',
                 lecture: a.lectureHours || 0,
                 lab: a.labHours || 0,
                 exam: a.examHours || 0,
@@ -76,13 +88,11 @@ export default function ViceDeanPage() {
                 deanStatus: a.deanApprovalStatus
              }));
 
-             // เรียงให้ผู้รับผิดชอบขึ้นก่อน
              instructors.sort((a, b) => (a.role === 'ผู้รับผิดชอบรายวิชา' ? -1 : 1));
 
-             // Logic คำนวณสถานะสำหรับรองคณบดี
+             // Logic สถานะ
              let status: WorkloadStatus = 'waiting_chair';
              
-             // เช็คสถานะอนุมัติ
              const isHeadApproved = instructors.every(i => i.headStatus === 'APPROVED');
              const isDeanApproved = instructors.every(i => i.deanStatus === 'APPROVED');
              const isDeanRejected = instructors.some(i => i.deanStatus === 'REJECTED');
@@ -92,9 +102,9 @@ export default function ViceDeanPage() {
              } else if (isDeanRejected) {
                 status = 'rejected';
              } else if (isHeadApproved) {
-                status = 'pending_approval'; // ประธานอนุมัติแล้ว รอรองคณบดี
+                status = 'pending_approval'; // ประธานอนุมัติครบทุกคน -> ถึงคิวรองคณบดี
              } else {
-                status = 'waiting_chair'; // ประธานยังไม่เรียบร้อย
+                status = 'waiting_chair';
              }
 
              return {
@@ -106,7 +116,7 @@ export default function ViceDeanPage() {
                 status
              };
         })
-        .filter((item): item is CourseWorkload => item !== null); // กรองค่าที่เป็น null ออก
+        .filter((item): item is CourseWorkload => item !== null);
 
       setCourses(workloadData);
 
@@ -117,10 +127,6 @@ export default function ViceDeanPage() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   // ===== HANDLERS =====
 
@@ -141,7 +147,7 @@ export default function ViceDeanPage() {
 
         await Promise.all(updatePromises);
         toast.success("รับรองข้อมูลเรียบร้อยแล้ว");
-        fetchData(); // Reload (ตอนนี้ reload เร็วแล้ว ไม่ต้องกลัวช้า)
+        fetchData(); 
     } catch (error) {
         toast.error("เกิดข้อผิดพลาด");
     }
@@ -158,7 +164,7 @@ export default function ViceDeanPage() {
                 body: JSON.stringify({
                     id: inst.id,
                     deanApprovalStatus: "REJECTED",
-                    headApprovalStatus: "REJECTED" // ตีกลับสถานะประธานด้วยเพื่อให้เขากดส่งใหม่ได้
+                    headApprovalStatus: "REJECTED" // ตีกลับไปสถานะประธาน
                 })
             })
         );
@@ -185,24 +191,21 @@ export default function ViceDeanPage() {
       <div>
         <h1 className="text-xl text-slate-500 mb-2">การจัดการชั่วโมงการสอน/รองคณบดีฝ่ายวิชาการ</h1>
         <h2 className="text-2xl font-bold text-slate-800">สำหรับรองคณบดีฝ่ายวิชาการ</h2>
+        {/* แสดงชื่อผู้ใช้ (ถ้ามีการสวมรอยก็จะเปลี่ยนตาม) */}
+        {currentUser && !loading && (
+             <p className="text-sm text-purple-600 mt-1 font-medium animate-in fade-in">
+                กำลังแสดงข้อมูลของคุณ: {currentUser.name}
+             </p>
+        )}
       </div>
 
       {/* Filter Section */}
       <div className="bg-white p-6 rounded-xl border shadow-sm space-y-4">
         <h3 className="font-bold text-lg text-slate-700">ค้นหารายวิชา</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-           <Select>
-              <SelectTrigger><SelectValue placeholder="เลือกหลักสูตร" /></SelectTrigger>
-              <SelectContent><SelectItem value="1">เภสัชศาสตรบัณฑิต</SelectItem></SelectContent>
-           </Select>
-           <Select>
-              <SelectTrigger><SelectValue placeholder="เลือกระดับ" /></SelectTrigger>
-              <SelectContent><SelectItem value="1">ปริญญาตรี</SelectItem></SelectContent>
-           </Select>
-           <Select>
-              <SelectTrigger><SelectValue placeholder="เลือกสาขา" /></SelectTrigger>
-              <SelectContent><SelectItem value="1">การบริบาลทางเภสัชกรรม</SelectItem></SelectContent>
-           </Select>
+           <Select><SelectTrigger><SelectValue placeholder="เลือกหลักสูตร" /></SelectTrigger><SelectContent><SelectItem value="1">เภสัชศาสตรบัณฑิต</SelectItem></SelectContent></Select>
+           <Select><SelectTrigger><SelectValue placeholder="เลือกระดับ" /></SelectTrigger><SelectContent><SelectItem value="1">ปริญญาตรี</SelectItem></SelectContent></Select>
+           <Select><SelectTrigger><SelectValue placeholder="เลือกสาขา" /></SelectTrigger><SelectContent><SelectItem value="1">การบริบาลทางเภสัชกรรม</SelectItem></SelectContent></Select>
            <div className="relative">
              <Input 
                 placeholder="ค้นหารหัสวิชา" 
@@ -241,7 +244,7 @@ export default function ViceDeanPage() {
                     {/* Rows for Instructors */}
                     {course.instructors.map((instructor, index) => (
                         <tr key={instructor.id} className="hover:bg-slate-50/50">
-                        {/* Course Info Column (RowSpan) - แสดงแค่แถวแรก */}
+                        {/* Course Info Column (RowSpan) */}
                         {index === 0 ? (
                             <td rowSpan={course.instructors.length + 1} className="py-4 px-4 align-top border-r bg-white font-medium text-slate-800">
                                 <div className="text-base">{course.code}</div>
@@ -286,7 +289,7 @@ export default function ViceDeanPage() {
                 {/* Action Section (Bottom Bar) */}
                 <div className="p-4 border-t flex justify-center items-center bg-gray-50/50 min-h-[80px]">
                     
-                    {/* 1. รอการรับรอง (Pending Approval) - แสดงปุ่มกด */}
+                    {/* 1. รอการรับรอง (Pending Approval) */}
                     {course.status === 'pending_approval' && (
                         <div className="flex gap-4 items-center animate-in zoom-in duration-300">
                             <span className="text-sm text-blue-600 font-medium flex items-center gap-2 mr-2">

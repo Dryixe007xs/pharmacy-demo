@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react"; // ✅ 1. ใช้ useSession
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -39,46 +40,28 @@ interface CourseWorkload {
 }
 
 export default function ProgramChairPage() {
+  // ✅ 2. ใช้ Session แทน LocalStorage
+  const { data: session, status } = useSession();
+  const currentChair = session?.user; // ตัวแปรนี้จะเปลี่ยนตาม Cookie สวมรอยอัตโนมัติ
+
   const [coursesWorkload, setCoursesWorkload] = useState<CourseWorkload[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentChairId, setCurrentChairId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // ===== 1. SYNC USER =====
+  // ===== FETCH DATA =====
   useEffect(() => {
-    const syncUser = () => {
-        const storedUser = localStorage.getItem("currentUser");
-        if (storedUser) {
-            try {
-                const user = JSON.parse(storedUser);
-                setCurrentChairId(user.id);
-            } catch (e) {
-                console.error("User parse error");
-                setCurrentChairId(null);
-            }
-        } else {
-            setCurrentChairId(null);
-        }
-    };
-    syncUser();
-    window.addEventListener("auth-change", syncUser);
-    return () => window.removeEventListener("auth-change", syncUser);
-  }, []);
-
-  // ===== 2. FETCH DATA (Optimized ✅) =====
-  useEffect(() => {
-    if (currentChairId) {
-        fetchData(currentChairId);
-    } else {
+    if (status === 'authenticated' && currentChair?.id) {
+        fetchData(currentChair.id);
+    } else if (status === 'unauthenticated') {
         setCoursesWorkload([]);
         setLoading(false);
     }
-  }, [currentChairId]); 
+  }, [status, currentChair?.id]); 
 
-  const fetchData = async (chairId: number) => {
+  const fetchData = async (chairId: string) => { // ✅ รับ String ID
     setLoading(true);
     try {
-      // 1. ดึงรายวิชาทั้งหมดทีเดียว (ข้อมูล TeachingAssignments ติดมาแล้ว)
+      // 1. ดึงรายวิชาทั้งหมด
       const resCourses = await fetch("/api/courses");
       const allCourses = await resCourses.json();
 
@@ -88,24 +71,24 @@ export default function ProgramChairPage() {
       }
 
       // 2. กรองเฉพาะวิชาของประธานคนนี้
+      // หมายเหตุ: ต้องเช็คว่า API ส่ง programChairId มาเป็น String หรือไม่ (ปกติ Prisma ส่งตาม DB)
+      // ถ้า DB เก็บเป็น String ก็เทียบ String ได้เลย
       const myCourses = allCourses.filter((c: any) => 
-         c.program?.programChairId === chairId || 
-         (c.program?.programChairId === null && chairId === 1) // กรณี Admin หรือประธานส่วนกลาง
+         String(c.program?.programChairId) === String(chairId) || 
+         (c.program?.programChairId === null && currentChair?.role === 'ADMIN') // Admin เห็นของส่วนกลางได้
       );
 
-      // 3. Map ข้อมูลใน Memory (ไม่ต้องวนลูป Fetch แล้ว)
+      // 3. Map ข้อมูล
       const workloadData = myCourses.map((course: any) => {
-        // ใช้ข้อมูลที่ติดมากับ API (ถ้าไม่มีให้เป็น array ว่าง)
         const assignments = course.teachingAssignments || [];
 
-        // ถ้าไม่มีการมอบหมายงานเลย ให้ข้าม (ตาม Logic เดิม)
         if (assignments.length === 0) return null;
 
-        // แปลงข้อมูล
         const instructors: InstructorLoad[] = assignments.map((a: any) => ({
             id: a.id,
             name: a.lecturer ? `${a.lecturer.academicPosition || ''}${a.lecturer.firstName} ${a.lecturer.lastName}` : 'Unknown',
-            role: a.lecturerId === course.responsibleUserId ? 'ผู้รับผิดชอบรายวิชา' : 'ผู้สอน',
+            // เทียบ ID เป็น String เพื่อความปลอดภัย
+            role: String(a.lecturerId) === String(course.responsibleUserId) ? 'ผู้รับผิดชอบรายวิชา' : 'ผู้สอน',
             lecture: a.lectureHours || 0,
             lab: a.labHours || 0,
             exam: a.examHours || 0,
@@ -135,7 +118,7 @@ export default function ProgramChairPage() {
             status
         };
       })
-      .filter((item): item is CourseWorkload => item !== null); // กรองค่า null ทิ้ง
+      .filter((item): item is CourseWorkload => item !== null); 
 
       setCoursesWorkload(workloadData);
     } catch (err) {
@@ -159,7 +142,7 @@ export default function ProgramChairPage() {
         );
         await Promise.all(updatePromises);
         toast.success("อนุมัติข้อมูลเรียบร้อยแล้ว");
-        if (currentChairId) fetchData(currentChairId);
+        if (currentChair?.id) fetchData(currentChair.id);
     } catch (error) { toast.error("เกิดข้อผิดพลาดในการบันทึก"); }
   };
 
@@ -179,7 +162,7 @@ export default function ProgramChairPage() {
         );
         await Promise.all(updatePromises);
         toast.success("ส่งกลับแก้ไขเรียบร้อยแล้ว");
-        if (currentChairId) fetchData(currentChairId);
+        if (currentChair?.id) fetchData(currentChair.id);
     } catch (error) { toast.error("เกิดข้อผิดพลาด"); }
   };
 
@@ -196,9 +179,10 @@ export default function ProgramChairPage() {
       <div>
         <h1 className="text-xl text-slate-500 mb-2">การจัดการชั่วโมงการสอน/ประธานหลักสูตร</h1>
         <h2 className="text-2xl font-bold text-slate-800">สำหรับประธานหลักสูตร</h2>
-        {currentChairId && !loading && (
+        {/* ✅ แสดงชื่อผู้ใช้ */}
+        {currentChair && !loading && (
              <p className="text-sm text-purple-600 mt-1 font-medium animate-in fade-in">
-                กำลังแสดงข้อมูลของคุณ
+                กำลังแสดงข้อมูลของคุณ: {currentChair.name}
              </p>
         )}
       </div>
@@ -290,7 +274,9 @@ export default function ProgramChairPage() {
         ) : (
             <div className="p-12 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50 text-slate-400">
                 <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                {currentChairId ? "ไม่พบรายวิชาที่ต้องพิจารณา" : "กรุณาเลือกผู้ใช้งานจาก Navbar เพื่อดูข้อมูล"}
+                {currentChair 
+                    ? "ไม่พบรายวิชาที่ต้องพิจารณา" 
+                    : "กรุณาเลือกผู้ใช้งานจาก Navbar เพื่อดูข้อมูล"}
             </div>
         )}
       </div>

@@ -18,6 +18,7 @@ enum Role {
   LECTURER         // General Lecturer
   PROGRAM_CHAIR    // Program Chair (1st Approval)
   VICE_DEAN        // Vice Dean (2nd Approval)
+  USER             // Default role for new users
 }
 
 // 2.2 User Types
@@ -38,11 +39,13 @@ enum ApprovalStatus {
 // 3. MODELS
 // ====================================================================
 
-// 3.1 User Model
+// 3.1 User Model (Updated for NextAuth)
 model User {
-  id         Int      @id @default(autoincrement()) 
-  email      String   @unique                       
-  password   String                                 
+  id        String   @id @default(cuid()) // Changed to String (cuid) for NextAuth compliance
+  email     String?  @unique             
+  name      String?  // Combined firstName + lastName for NextAuth
+  emailVerified DateTime?
+  image         String?
   
   // --- Personal Info (Matches JSON) ---
   title            String?  // Matches JSON: title
@@ -58,10 +61,10 @@ model User {
   adminTitle       String?  // Matches JSON: role (Admin Position e.g., Program Chair)
 
   // --- System Data ---
-  role       Role      @default(LECTURER)  // System Role (Calculated from adminTitle/userType in Seed)
-  userType   UserType  @default(ACADEMIC)  // Personnel Type
+  role       Role      @default(USER)     // System Role
+  userType   UserType  @default(ACADEMIC) // Personnel Type
   
-  // --- Relations ---
+  // --- Relations (Existing) ---
   managedPrograms     Program[]             @relation("ProgramChair")
   teachingAssignments TeachingAssignment[]
   
@@ -71,26 +74,78 @@ model User {
   chairApprovals TeachingAssignment[] @relation("ChairApprovals")
   deanApprovals  TeachingAssignment[] @relation("DeanApprovals")
 
+  // --- NextAuth Relations (NEW) ---
+  accounts      Account[]
+  sessions      Session[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("user")
 }
 
+// ====================================================================
+// NEXTAUTH REQUIRED MODELS (NEW)
+// ====================================================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  ext_expires_in     Int?
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("account")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtoken")
+}
+
+// ====================================================================
+// YOUR EXISTING MODELS (Adjusted for User ID type change)
+// ====================================================================
+
 // 3.2 Program Model
 model Program {
-  id             Int       @id @default(autoincrement())
-  name_th        String    // Program Name (TH)
-  degree_level   String    // Degree Level
-  year           Int       // Year (B.E.)
+  id              Int       @id @default(autoincrement())
+  name_th         String    // Program Name (TH)
+  degree_level    String    // Degree Level
+  year            Int       // Year (B.E.)
   
-  programChairId      Int?      
-  programChair        User?     @relation("ProgramChair", fields: [programChairId], references: [id])
+  programChairId       String?   // Changed to String to match User.id
+  programChair         User?     @relation("ProgramChair", fields: [programChairId], references: [id])
   
-  subjects        Subject[]
+  subjects         Subject[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@map("program")
 }
@@ -108,11 +163,11 @@ model Subject {
   
   program_full_name String?    // Full Program Name (For validation)
   
-  programId      Int
-  program        Program  @relation(fields: [programId], references: [id])
+  programId       Int
+  program         Program  @relation(fields: [programId], references: [id])
   
-  responsibleUserId Int?
-  responsibleUser   User?     @relation("SubjectResponsible", fields: [responsibleUserId], references: [id])
+  responsibleUserId String?  // Changed to String to match User.id
+  responsibleUser   User?      @relation("SubjectResponsible", fields: [responsibleUserId], references: [id])
 
   teachingAssignments TeachingAssignment[]
 
@@ -124,53 +179,50 @@ model Subject {
 
 // 3.4 Teaching Assignment (Core of the flow)
 model TeachingAssignment {
-  id             Int       @id @default(autoincrement())
+  id              Int        @id @default(autoincrement())
   
-  academicYear   Int       
-  semester       Int       
-  section        String?   
+  academicYear    Int        
+  semester        Int        
+  section         String?    
   
   // --- Teaching Hours ---
-  lectureHours   Float     @default(0.0) 
-  labHours       Float     @default(0.0) 
-  examHours      Float     @default(0)
+  lectureHours    Float      @default(0.0) 
+  labHours        Float      @default(0.0) 
+  examHours       Float      @default(0)
+
   // =================================================================
   // 4-STEP APPROVAL FLOW
   // =================================================================
 
   // STEP 1: Lecturer Verification
-  // - If correct -> Approved
-  // - If incorrect -> Rejected with comment in lecturerFeedback
-  lecturerStatus       ApprovalStatus @default(PENDING) 
-  lecturerFeedback     String?        @db.Text // Feedback message for correction
-  lecturerActionAt     DateTime?
+  lecturerStatus        ApprovalStatus @default(PENDING) 
+  lecturerFeedback      String?        @db.Text // Feedback message for correction
+  lecturerActionAt      DateTime?
 
   // STEP 2: Responsible Subject User Review
-  // - Review feedback, edit if necessary
-  // - Must confirm to proceed to Program Chair
-  responsibleStatus    ApprovalStatus @default(PENDING)
-  responsibleActionAt  DateTime?
+  responsibleStatus     ApprovalStatus @default(PENDING)
+  responsibleActionAt   DateTime?
 
   // STEP 3: Program Chair Approval
   headApprovalStatus ApprovalStatus @default(PENDING) 
   headApprovedAt     DateTime?
-  headApproverId     Int?
-  headApprover       User?      @relation("ChairApprovals", fields: [headApproverId], references: [id])
+  headApproverId     String?  // Changed to String
+  headApprover       User?       @relation("ChairApprovals", fields: [headApproverId], references: [id])
 
   // STEP 4: Vice Dean Approval
   deanApprovalStatus ApprovalStatus @default(PENDING) 
   deanApprovedAt     DateTime?
-  deanApproverId     Int?
-  deanApprover       User?      @relation("DeanApprovals", fields: [deanApproverId], references: [id])
+  deanApproverId     String?  // Changed to String
+  deanApprover       User?       @relation("DeanApprovals", fields: [deanApproverId], references: [id])
 
   // --- Relations ---
-  lecturerId     Int
-  lecturer       User       @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
-  subjectId      Int
-  subject        Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  lecturerId      String   // Changed to String
+  lecturer        User        @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+  subjectId       Int
+  subject         Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([lecturerId, academicYear, semester])
 

@@ -13,10 +13,11 @@ export async function GET(request: Request) {
     let whereClause: any = {};
 
     if (subjectId) {
-      whereClause.subjectId = Number(subjectId);
+      whereClause.subjectId = Number(subjectId); // Subject ID ยังเป็น Int
     } 
     else if (lecturerId) {
-      whereClause.lecturerId = Number(lecturerId);
+      // ✅ แก้ไข: ไม่ต้องแปลงเป็น Number() แล้ว เพราะ ID คนเป็น String
+      whereClause.lecturerId = lecturerId; 
     } 
     else {
       return NextResponse.json({ error: "Either Subject ID or Lecturer ID is required" }, { status: 400 });
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
                 code: true,
                 name_th: true,
                 name_en: true,
-                program: true,
+                // program: true, // ถ้าไม่ได้ใช้ program แนะนำให้ปิดไว้ก่อน กัน error
                 responsibleUserId: true,
                 responsibleUser: {
                     select: {
@@ -69,13 +70,13 @@ export async function POST(request: Request) {
         lecturerId, 
         academicYear = 2567, 
         semester = 1,
-        lecturerStatus // รับค่านี้มาด้วย (เผื่อกรณี Owner เพิ่มตัวเองแล้วให้ Approve เลย)
+        lecturerStatus 
     } = body;
 
     const existing = await prisma.teachingAssignment.findFirst({
       where: {
-        subjectId: Number(subjectId),
-        lecturerId: Number(lecturerId)
+        subjectId: Number(subjectId), // Subject เป็น Int
+        lecturerId: lecturerId        // ✅ แก้ไข: Lecturer เป็น String (ไม่ต้องใส่ Number)
       }
     });
 
@@ -86,13 +87,12 @@ export async function POST(request: Request) {
     const newAssignment = await prisma.teachingAssignment.create({
       data: {
         subjectId: Number(subjectId),
-        lecturerId: Number(lecturerId),
+        lecturerId: lecturerId, // ✅ แก้ไข: ใส่ String ตรงๆ
         academicYear,
         semester,
         lectureHours: 0,
         labHours: 0,
-        examHours: 0, // ✅ เพิ่มค่าเริ่มต้น examHours
-        // ถ้าส่ง lecturerStatus มา (เช่น APPROVED) ให้ใช้ค่านั้น ถ้าไม่ส่งให้ใช้ PENDING
+        examHours: 0,
         lecturerStatus: lecturerStatus || ApprovalStatus.PENDING, 
         responsibleStatus: ApprovalStatus.PENDING,
         headApprovalStatus: ApprovalStatus.PENDING,
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
   }
 }
 
-// PUT: บันทึกแก้ไขชั่วโมงสอน หรือ อัปเดตสถานะการตรวจสอบ
+// PUT: บันทึกแก้ไขชั่วโมงสอน (อันนี้ถูกต้องแล้ว เพราะ ID ของ Assignment เป็น Int)
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
@@ -116,16 +116,16 @@ export async function PUT(request: Request) {
         id, 
         lectureHours, 
         labHours, 
-        examHours, // ✅ รับค่า examHours
+        examHours, 
         lecturerStatus, 
         lecturerFeedback,
-        responsibleStatus, // ✅ รับค่า responsibleStatus (สำหรับส่งประธาน)
-        headApprovalStatus // ✅ รับค่า headApprovalStatus (สำหรับประธานอนุมัติ)
+        responsibleStatus, 
+        headApprovalStatus 
     } = body;
 
     const dataToUpdate: any = {};
 
-    // 1. อัปเดตชั่วโมงสอน (ถ้ามีการส่งมา)
+    // 1. อัปเดตชั่วโมงสอน
     let hoursUpdated = false;
     if (lectureHours !== undefined) {
         dataToUpdate.lectureHours = Number(lectureHours);
@@ -136,39 +136,31 @@ export async function PUT(request: Request) {
         hoursUpdated = true;
     }
     if (examHours !== undefined) {
-        dataToUpdate.examHours = Number(examHours); // ✅ อัปเดต examHours
+        dataToUpdate.examHours = Number(examHours); 
         hoursUpdated = true;
     }
 
     // 2. Logic การ Reset สถานะเมื่อมีการแก้ตัวเลข
     if (hoursUpdated) {
-        // Default คือ Reset เป็น PENDING เพื่อความปลอดภัย
-        // แต่ถ้า Request นี้ส่ง Status มาด้วย (เช่น Owner แก้ของตัวเองแล้ว Auto Approve) จะไม่ Reset ทับ
         if (!lecturerStatus) {
             dataToUpdate.lecturerStatus = ApprovalStatus.PENDING;
         }
         if (!responsibleStatus) {
             dataToUpdate.responsibleStatus = ApprovalStatus.PENDING;
         }
-        // เมื่อแก้ตัวเลข สถานะการอนุมัติของหัวหน้า/คณบดี ควรถูก Reset เสมอเพื่อให้พิจารณาใหม่
-        // ยกเว้นว่าคนแก้คือหัวหน้าเอง (ในที่นี้ขอ Reset ไปก่อนเพื่อความปลอดภัยของ Flow)
         if (!headApprovalStatus) {
              dataToUpdate.headApprovalStatus = ApprovalStatus.PENDING;
         }
     }
 
-    // 3. อัปเดตสถานะต่างๆ (Override ค่าข้างบน ถ้ามีการส่งมาเจาะจง)
+    // 3. อัปเดตสถานะต่างๆ
     if (lecturerStatus) dataToUpdate.lecturerStatus = lecturerStatus;
     if (lecturerFeedback !== undefined) dataToUpdate.lecturerFeedback = lecturerFeedback;
-    
-    // ✅ อัปเดตสถานะผู้รับผิดชอบ (เช่น กดส่งให้ประธาน)
     if (responsibleStatus) dataToUpdate.responsibleStatus = responsibleStatus;
-    
-    // ✅ อัปเดตสถานะประธานหลักสูตร
     if (headApprovalStatus) dataToUpdate.headApprovalStatus = headApprovalStatus;
 
     const updated = await prisma.teachingAssignment.update({
-      where: { id: Number(id) },
+      where: { id: Number(id) }, // ID ของ TeachingAssignment เป็น Int ถูกแล้ว
       data: dataToUpdate
     });
 
@@ -179,7 +171,7 @@ export async function PUT(request: Request) {
   }
 }
 
-// DELETE: ลบผู้สอนออกจากรายวิชา
+// DELETE: ลบผู้สอน (ถูกต้องแล้ว ID เป็น Int)
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -188,7 +180,7 @@ export async function DELETE(request: Request) {
 
   try {
     await prisma.teachingAssignment.delete({
-      where: { id: Number(id) }
+      where: { id: Number(id) } // ID ของ TeachingAssignment เป็น Int ถูกแล้ว
     });
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation"; 
+import { usePathname } from "next/navigation";
+import { signOut, useSession } from "next-auth/react"; 
 import { 
   Home, 
   Database, 
@@ -16,8 +17,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// 1. กำหนด Role ให้ตรงกับใน Database
-type Role = 'ADMIN' | 'LECTURER' | 'PROGRAM_CHAIR' | 'VICE_DEAN';
+// --- Type Definitions ---
+type Role = 'ADMIN' | 'LECTURER' | 'PROGRAM_CHAIR' | 'VICE_DEAN' | 'USER';
 
 type MenuItem = {
   title: string;
@@ -31,19 +32,17 @@ type MenuItem = {
   }[];
 };
 
-// 2. กำหนดเมนูและสิทธิ์ตามเงื่อนไขที่ระบุเป๊ะๆ
+// --- Configuration ---
 const menuItems: MenuItem[] = [
   {
     title: "หน้าหลัก",
     icon: Home,
     href: "/dashboard",
-    // เห็นได้ทุกคน
-    roles: ['ADMIN', 'LECTURER', 'PROGRAM_CHAIR', 'VICE_DEAN'],
+    roles: ['ADMIN', 'LECTURER', 'PROGRAM_CHAIR', 'VICE_DEAN', 'USER'],
   },
   {
     title: "จัดการข้อมูล",
     icon: Database,
-    // เห็นเฉพาะ Admin
     roles: ['ADMIN'], 
     submenu: [
       { title: "ข้อมูลรายวิชา", href: "/dashboard/manage/courses", roles: ['ADMIN'] },
@@ -53,31 +52,26 @@ const menuItems: MenuItem[] = [
   {
     title: "จัดการชั่วโมงสอน",
     icon: Clock,
-    // เมนูหลักเห็นได้ทุกคนที่มีสิทธิ์ในลูกๆ
     roles: ['ADMIN', 'LECTURER', 'PROGRAM_CHAIR', 'VICE_DEAN'],
     submenu: [
       { 
           title: "ผู้รับผิดชอบรายวิชา", 
           href: "/dashboard/workload/owner", 
-          // เห็นได้ทุกคน
           roles: ['ADMIN', 'LECTURER', 'PROGRAM_CHAIR', 'VICE_DEAN'] 
       },
       { 
           title: "ผู้สอน", 
           href: "/dashboard/workload/instructor", 
-          // เห็นได้ทุกคน
           roles: ['ADMIN', 'LECTURER', 'PROGRAM_CHAIR', 'VICE_DEAN'] 
       },
       { 
           title: "ประธานหลักสูตร", 
-          href: "/dashboard/workload/program-chair", 
-          // เห็นเฉพาะ Admin และ ประธาน
+          href: "/dashboard/workload/program-chair", // ⚠️ แก้ href ให้ตรงกับ Folder จริง (/chair หรือ /program-chair)
           roles: ['ADMIN', 'PROGRAM_CHAIR'] 
       },
       { 
           title: "รองคณบดีฝ่ายวิชาการ", 
           href: "/dashboard/workload/vice-dean", 
-          // เห็นเฉพาะ Admin และ รองฯ
           roles: ['ADMIN', 'VICE_DEAN'] 
       },
     ],
@@ -90,19 +84,16 @@ const menuItems: MenuItem[] = [
       { 
           title: "รายงานสรุปรายบุคคล", 
           href: "/dashboard/report/personal", 
-          // เห็นได้ทุกคน
           roles: ['ADMIN', 'LECTURER', 'PROGRAM_CHAIR', 'VICE_DEAN'] 
       },
       { 
           title: "รายงานสรุปของบุคลากรรายบุคคล", 
           href: "/dashboard/report/staff-summary", 
-          // อาจารย์ทั่วไปไม่เห็น (เห็นเฉพาะผู้บริหาร/Admin)
           roles: ['ADMIN', 'PROGRAM_CHAIR', 'VICE_DEAN'] 
       },
       { 
           title: "รายงานสรุปรายปี", 
           href: "/dashboard/report/yearly", 
-          // อาจารย์ทั่วไปไม่เห็น
           roles: ['ADMIN', 'PROGRAM_CHAIR', 'VICE_DEAN'] 
       },
     ],
@@ -111,37 +102,25 @@ const menuItems: MenuItem[] = [
     title: "กำหนดปฏิทินนัดหมาย",
     icon: CalendarDays,
     href: "/dashboard/calendar",
-    // ให้ทุกคนเห็น
     roles: ['ADMIN', 'LECTURER', 'PROGRAM_CHAIR', 'VICE_DEAN'], 
   },
 ];
 
+// --- Main Component ---
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession(); 
   const [openMenus, setOpenMenus] = useState<string[]>([]);
-  const [userRole, setUserRole] = useState<Role | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+
+  // ดึง Role จาก Session (ถ้าสวมรอยอยู่ ค่านี้จะเป็น Role ของคนที่เราสวมรอย)
+  const userRole = (session?.user?.role as Role) || 'USER';
 
   useEffect(() => {
     setIsMounted(true);
-    const storedUser = localStorage.getItem("currentUser");
-    
-    if (storedUser) {
-        try {
-            const user = JSON.parse(storedUser);
-            // ใช้ค่า Role จาก DB โดยตรง (ถ้าไม่มีให้เป็น LECTURER กันเหนียว)
-            if (user.role) {
-                setUserRole(user.role as Role);
-            } else {
-                setUserRole('LECTURER');
-            }
-        } catch (e) {
-            console.error("Error parsing user data");
-        }
-    }
   }, []);
 
-  // เปิดเมนูอัตโนมัติ
+  // เปิดเมนูอัตโนมัติเมื่ออยู่ในหน้านั้นๆ
   useEffect(() => {
     if (!userRole) return;
 
@@ -166,14 +145,11 @@ export function Sidebar() {
   };
 
   const handleLogout = async () => {
-    try {
-        await fetch("/api/auth/logout", { method: "POST" });
-        localStorage.removeItem("currentUser");
-        window.dispatchEvent(new Event("auth-change"));
-        window.location.href = "/auth/login";
-    } catch (error) {
-        window.location.href = "/auth/login";
-    }
+    // ✅ เพิ่ม: ล้าง Cookie สวมรอยด้วย (เพื่อความชัวร์)
+    document.cookie = "impersonateId=; path=/; max-age=0";
+    
+    await signOut({ redirect: false });
+    window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=${window.location.origin}`;
   };
 
   if (!isMounted) return <nav className="group fixed left-0 top-16 h-[calc(100vh-4rem)] w-20 bg-white border-r border-slate-200 z-50"></nav>;
@@ -184,15 +160,15 @@ export function Sidebar() {
       {/* --- MENU LIST --- */}
       <div className="flex-1 px-3 py-4 space-y-2 overflow-y-auto no-scrollbar">
         {menuItems.map((item, index) => {
-          // 1. กรองเมนูหลัก
-          if (!userRole || !item.roles.includes(userRole)) return null;
+          // เช็คสิทธิ์เมนูหลัก
+          if (!item.roles.includes(userRole)) return null;
 
-          // 2. กรองเมนูย่อย
+          // กรอง submenu ตาม role
           const visibleSubmenu = item.submenu?.filter(sub => 
              sub.roles.includes(userRole)
           );
 
-          // ถ้ามี submenu แต่ไม่มีลูกที่แสดงได้เลย และตัวแม่ไม่มี link -> ซ่อน
+          // ถ้ามี submenu แต่ user ไม่มีสิทธิ์เห็นลูกเลย -> ซ่อนแม่ด้วย
           if (item.submenu && (!visibleSubmenu || visibleSubmenu.length === 0)) return null;
 
           const isActive = item.href ? pathname === item.href : false;
@@ -266,8 +242,7 @@ export function Sidebar() {
         })}
       </div>
 
-      {/* --- FOOTER (Settings & Logout Only) --- */}
-      {/* เอา User Info ออกแล้วตามที่ขอ */}
+      {/* --- FOOTER --- */}
       <div className="p-3 border-t border-slate-100 bg-white space-y-1">
           <button className="flex items-center h-12 w-full px-3 rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all relative overflow-hidden whitespace-nowrap">
             <div className="min-w-[2rem] flex justify-center">

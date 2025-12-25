@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { Download, Loader2, Printer } from "lucide-react";
+import { Loader2, Printer, Mail, BookOpen, GraduationCap, Calendar, FileText, Building2 } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
 // --- Types ---
@@ -21,50 +22,58 @@ interface SemesterData {
   courses: ReportCourse[];
 }
 
+interface LecturerProfile {
+    firstName: string;
+    lastName: string;
+    email: string;
+    academicPosition: string;
+    curriculum: string;
+    department: string; // เพิ่ม department
+}
+
 export default function PersonalReportPage() {
+  const { data: session, status } = useSession();
   const [reportData, setReportData] = useState<SemesterData[]>([
     { title: "ภาคการศึกษาต้น", courses: [] },
     { title: "ภาคการศึกษาปลาย", courses: [] },
     { title: "ภาคฤดูร้อน", courses: [] }
   ]);
-  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<LecturerProfile | null>(null);
 
   // ===== FETCH DATA =====
   useEffect(() => {
+    if (status === 'unauthenticated') {
+        setLoading(false);
+        return;
+    }
+    
+    const targetId = session?.user?.id;
+    if (!targetId) return;
+
     const fetchData = async () => {
         setLoading(true);
-        // 1. Get User
-        const storedUser = localStorage.getItem("currentUser");
-        if (!storedUser) {
-            setLoading(false);
-            return;
-        }
-        const userData = JSON.parse(storedUser);
-        setUser(userData);
-
         try {
-            // 2. Fetch Assignments
-            const res = await fetch(`/api/assignments?lecturerId=${userData.id}`);
-            const data = await res.json();
+            const res = await fetch(`/api/report/personal?lecturerId=${targetId}`);
+            if (!res.ok) throw new Error("Failed to fetch");
+            
+            const { lecturer, assignments } = await res.json();
 
-            if (!Array.isArray(data)) return;
+            setProfile(lecturer);
 
-            // 3. Process Data
+            const data = assignments || [];
             const term1: ReportCourse[] = [];
             const term2: ReportCourse[] = [];
             const term3: ReportCourse[] = [];
 
             data.forEach((assign: any) => {
-                // Determine Role
-                const role = assign.lecturerId === assign.subject.responsibleUserId 
-                    ? "ผู้รับผิดชอบรายวิชา" 
-                    : "ผู้สอน";
+                const isResponsible = String(assign.lecturerId) === String(assign.subject.responsibleUserId);
+                const role = isResponsible ? "ผู้รับผิดชอบรายวิชา" : "ผู้สอน";
                 
-                // Determine Note (e.g. status)
                 let note = "";
                 if (assign.lecturerStatus !== 'APPROVED') note = "รอการยืนยัน";
-                else if (assign.headApprovalStatus !== 'APPROVED') note = "รออนุมัติ";
+                else if (assign.headApprovalStatus !== 'APPROVED') note = "รอหัวหน้าฯ อนุมัติ";
+                else if (assign.deanApprovalStatus !== 'APPROVED') note = "รอคณบดีฯ อนุมัติ";
 
                 const courseObj: ReportCourse = {
                     code: assign.subject.code,
@@ -76,13 +85,10 @@ export default function PersonalReportPage() {
                     note: note
                 };
 
-                // Group by Semester (สมมติว่า DB เก็บ semester เป็น 1, 2, 3)
-                // ถ้าไม่มีค่า semester ใน DB ให้ default ลงเทอม 1
-                const sem = assign.semester || 1;
-                
+                const sem = assign.semester;
                 if (sem === 1) term1.push(courseObj);
                 else if (sem === 2) term2.push(courseObj);
-                else term3.push(courseObj);
+                else if (sem === 3) term3.push(courseObj);
             });
 
             setReportData([
@@ -100,9 +106,8 @@ export default function PersonalReportPage() {
     };
 
     fetchData();
-  }, []);
+  }, [status, session?.user?.id]);
 
-  // Handle Print
   const handlePrint = () => {
     window.print();
   };
@@ -111,91 +116,167 @@ export default function PersonalReportPage() {
       return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin w-8 h-8 text-slate-400"/></div>;
   }
 
+  if (!profile) {
+      return (
+        <div className="min-h-screen flex items-center justify-center text-slate-400">
+            กรุณาเข้าสู่ระบบเพื่อดูรายงาน
+        </div>
+      );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6 font-sarabun text-slate-800 print:bg-white print:p-0">
+    <div className="min-h-screen bg-slate-50/30 p-8 font-sarabun text-slate-800 print:bg-white print:p-0">
       <Toaster position="top-center" richColors />
       
-      {/* Header Breadcrumb (Hidden on Print) */}
-      <div className="mb-6 print:hidden">
-        <h1 className="text-xl text-slate-500">รายงานสรุป / รายงานสรุปรายบุคคล</h1>
+      <style jsx global>{`
+        @media print {
+            @page { margin: 10mm; size: landscape; }
+            body { -webkit-print-color-adjust: exact; }
+            .no-print { display: none !important; }
+            .page-break { page-break-before: always; }
+        }
+      `}</style>
+
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 no-print">
+        <div>
+            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                <FileText className="text-purple-600" /> รายงานสรุปภาระงานสอนรายบุคคล
+            </h1>
+            <p className="text-slate-500 text-sm mt-1">
+                ประจำปีการศึกษา 2567 | คณะเภสัชศาสตร์ มหาวิทยาลัยพะเยา
+            </p>
+        </div>
+        <Button onClick={handlePrint} className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm gap-2">
+            <Printer size={18} /> พิมพ์รายงาน
+        </Button>
       </div>
 
-      {/* A4 Paper Container */}
-      <div className="max-w-[210mm] mx-auto bg-white shadow-md p-10 min-h-[297mm] relative flex flex-col print:shadow-none print:w-full print:max-w-none print:min-h-0 print:p-8">
+      {/* Main Content */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:shadow-none print:border-none print:rounded-none">
         
-        {/* Report Header */}
-        <div className="text-center mb-8 space-y-2">
-           <h2 className="text-xl font-bold">รายงานสรุปชั่วโมงสอนประจำปีการศึกษา 2567</h2>
-           <p className="font-bold text-lg">
-             {user ? `${user.academicPosition || ''} ${user.firstName} ${user.lastName}` : "-"}
-           </p>
-           <p className="font-semibold text-lg">สาขาวิชาการบริบาลทางเภสัชกรรม</p>
-           <p className="font-semibold text-slate-600">คณะเภสัชศาสตร์ มหาวิทยาลัยพะเยา</p>
+        {/* Profile Header */}
+        <div className="p-8 border-b border-slate-100 bg-gradient-to-r from-purple-50/50 via-white to-white print:bg-none">
+            <div className="flex flex-col md:flex-row gap-8 items-start md:items-center">
+                <div className="w-24 h-24 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center text-3xl font-bold text-purple-600 shrink-0 print:border-slate-300">
+                    {profile.firstName?.charAt(0)}
+                </div>
+                
+                <div className="flex-1 space-y-3">
+                    <div>
+                        <h2 className="text-3xl font-bold text-slate-800 tracking-tight">
+                            {profile.academicPosition ? profile.academicPosition : ''} {profile.firstName} {profile.lastName}
+                        </h2>
+                        {/* ✅ แก้ไข: แสดงสังกัด/กลุ่มวิชาให้ชัดเจน */}
+                        <div className="flex items-center gap-2 text-slate-500 text-lg font-light mt-1">
+                            <Building2 size={18} className="text-purple-400" />
+                            <span>{profile.department || "ไม่ระบุสังกัด/กลุ่มวิชา"}</span>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-600">
+                        <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                            <Mail size={16} className="text-purple-500" /> 
+                            <span>{profile.email}</span>
+                        </div>
+                        {/* ถ้ามีหลักสูตรด้วย ก็โชว์ด้วย */}
+                        {profile.curriculum && (
+                            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                                <GraduationCap size={16} className="text-purple-500" /> 
+                                <span className="truncate max-w-[250px]">{profile.curriculum}</span>
+                            </div>
+                        )}
+                        <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                            <Calendar size={16} className="text-purple-500" /> 
+                            <span>ปีการศึกษา 2567</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        {/* Content Table */}
-        <div className="border rounded-lg overflow-hidden mb-12 flex-grow print:border-black">
-            <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b print:bg-gray-100 print:border-black">
-                    <tr>
-                        <th className="py-3 px-4 text-left font-semibold border-r print:border-black">รหัสวิชา / ชื่อรายวิชา</th>
-                        <th className="py-3 px-4 text-center font-semibold border-r print:border-black">ตำแหน่ง</th>
-                        <th className="py-3 px-4 text-center font-semibold border-r print:border-black">ชั่วโมงบรรยาย</th>
-                        <th className="py-3 px-4 text-center font-semibold border-r print:border-black">ชั่วโมงปฏิบัติการ</th>
-                        <th className="py-3 px-4 text-center font-semibold border-r print:border-black">คุมสอบนอกตาราง</th>
-                        <th className="py-3 px-4 text-center font-semibold">หมายเหตุ</th>
+        {/* Data Table */}
+        <div className="p-0">
+            <table className="w-full text-left border-collapse">
+                <thead>
+                    <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-sm uppercase tracking-wide font-semibold">
+                        <th className="py-4 px-6 w-[30%]">รหัสวิชา / ชื่อรายวิชา</th>
+                        <th className="py-4 px-6 w-[15%] text-center">บทบาท</th>
+                        <th className="py-4 px-6 w-[10%] text-center">บรรยาย (ชม.)</th>
+                        <th className="py-4 px-6 w-[10%] text-center">ปฏิบัติ (ชม.)</th>
+                        <th className="py-4 px-6 w-[10%] text-center">คุมสอบ</th>
+                        <th className="py-4 px-6 w-[15%] text-center">รวม (ชม.)</th>
+                        <th className="py-4 px-6 w-[10%] text-center">หมายเหตุ</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y print:divide-black">
+                <tbody className="divide-y divide-slate-100">
                     {reportData.map((term, index) => (
                         <React.Fragment key={index}>
-                            <tr className="bg-slate-50/50 print:bg-gray-50">
-                                <td colSpan={6} className="py-3 px-4 font-bold text-slate-700 border-b print:border-black">{term.title}</td>
+                            <tr className="bg-purple-50/30">
+                                <td colSpan={7} className="py-3 px-6 font-bold text-purple-800 text-sm border-b border-slate-100">
+                                    📌 {term.title}
+                                </td>
                             </tr>
                             
                             {term.courses.length > 0 ? (
                                 term.courses.map((course, cIndex) => (
-                                    <tr key={cIndex} className="hover:bg-slate-50/30 print:hover:bg-none border-b print:border-black">
-                                            <td className="py-3 px-4 align-top border-r print:border-black">
-                                                <div className="font-medium">{course.code}</div>
-                                                <div className="text-slate-500 text-xs">{course.name}</div>
+                                    <tr key={cIndex} className="hover:bg-slate-50 transition-colors group text-sm">
+                                            <td className="py-4 px-6 align-top">
+                                                <div className="font-semibold text-slate-800 text-base">{course.code}</div>
+                                                <div className="text-slate-500 font-light">{course.name}</div>
                                             </td>
-                                            <td className="py-3 px-4 text-center align-top border-r print:border-black">{course.role}</td>
-                                            <td className="py-3 px-4 text-center align-top border-r print:border-black">{course.lecture}</td>
-                                            <td className="py-3 px-4 text-center align-top border-r print:border-black">{course.lab}</td>
-                                            <td className="py-3 px-4 text-center align-top border-r print:border-black">{course.exam || '-'}</td>
-                                            <td className="py-3 px-4 text-center align-top text-slate-400 text-xs">{course.note}</td>
+                                            <td className="py-4 px-6 text-center align-top">
+                                                <span className={`px-3 py-1 rounded-full text-xs font-medium border ${course.role.includes('รับผิดชอบ') ? 'bg-orange-50 text-orange-700 border-orange-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
+                                                    {course.role}
+                                                </span>
+                                            </td>
+                                            <td className="py-4 px-6 text-center align-top text-slate-600">{course.lecture}</td>
+                                            <td className="py-4 px-6 text-center align-top text-slate-600">{course.lab}</td>
+                                            <td className="py-4 px-6 text-center align-top text-slate-600">{course.exam || '-'}</td>
+                                            <td className="py-4 px-6 text-center align-top font-bold text-slate-800">
+                                                {(course.lecture + course.lab + (course.exam || 0)).toFixed(2)}
+                                            </td>
+                                            <td className="py-4 px-6 text-center align-top">
+                                                {course.note && <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded border border-red-100">{course.note}</span>}
+                                            </td>
                                     </tr>
                                 ))
                             ) : (
-                                <tr className="border-b print:border-black">
-                                    <td colSpan={6} className="py-4 text-center text-slate-300 italic text-xs print:text-black">ไม่มีรายวิชา</td>
+                                <tr>
+                                    <td colSpan={7} className="py-8 text-center text-slate-300 italic bg-white">
+                                        - ไม่มีรายวิชาในภาคการศึกษานี้ -
+                                    </td>
                                 </tr>
                             )}
 
                             {term.courses.length > 0 && (
-                                <tr className="bg-slate-50/30 font-bold text-slate-700 border-t border-dashed print:border-solid print:border-black print:bg-white">
-                                    <td colSpan={2} className="py-2 px-4 text-right text-xs border-r print:border-black">รวม{term.title}</td>
-                                    <td className="py-2 px-4 text-center text-xs border-r print:border-black">{term.courses.reduce((a, b) => a + b.lecture, 0)}</td>
-                                    <td className="py-2 px-4 text-center text-xs border-r print:border-black">{term.courses.reduce((a, b) => a + b.lab, 0)}</td>
-                                    <td className="py-2 px-4 text-center text-xs border-r print:border-black">{term.courses.reduce((a, b) => a + b.exam, 0)}</td>
+                                <tr className="bg-slate-50/50 font-semibold text-slate-700 border-t border-slate-200">
+                                    <td colSpan={2} className="py-3 px-6 text-right text-xs uppercase tracking-wider">รวมเฉพาะ{term.title}</td>
+                                    <td className="py-3 px-6 text-center">{term.courses.reduce((a, b) => a + b.lecture, 0).toFixed(2)}</td>
+                                    <td className="py-3 px-6 text-center">{term.courses.reduce((a, b) => a + b.lab, 0).toFixed(2)}</td>
+                                    <td className="py-3 px-6 text-center">{term.courses.reduce((a, b) => a + b.exam, 0).toFixed(2)}</td>
+                                    <td className="py-3 px-6 text-center text-purple-700 bg-purple-50/50">
+                                        {(term.courses.reduce((a, b) => a + b.lecture + b.lab + (b.exam || 0), 0)).toFixed(2)}
+                                    </td>
                                     <td></td>
                                 </tr>
                             )}
                         </React.Fragment>
                     ))}
                     
-                    {/* Grand Total */}
-                    <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-300 print:bg-gray-200 print:border-black">
-                        <td colSpan={2} className="py-3 px-4 text-right text-sm border-r print:border-black">รวมตลอดปีการศึกษา</td>
-                        <td className="py-3 px-4 text-center text-sm border-r print:border-black">
-                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.lecture, 0), 0)}
+                    <tr className="bg-slate-800 text-white font-bold text-base print:bg-gray-200 print:text-black print:border-t-2 print:border-black">
+                        <td colSpan={2} className="py-4 px-6 text-right">รวมตลอดปีการศึกษา</td>
+                        <td className="py-4 px-6 text-center">
+                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.lecture, 0), 0).toFixed(2)}
                         </td>
-                        <td className="py-3 px-4 text-center text-sm border-r print:border-black">
-                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.lab, 0), 0)}
+                        <td className="py-4 px-6 text-center">
+                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.lab, 0), 0).toFixed(2)}
                         </td>
-                        <td className="py-3 px-4 text-center text-sm border-r print:border-black">
-                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.exam, 0), 0)}
+                        <td className="py-4 px-6 text-center">
+                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.exam, 0), 0).toFixed(2)}
+                        </td>
+                        <td className="py-4 px-6 text-center bg-slate-700 print:bg-gray-300">
+                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.lecture + b.lab + (b.exam || 0), 0), 0).toFixed(2)}
                         </td>
                         <td></td>
                     </tr>
@@ -203,45 +284,12 @@ export default function PersonalReportPage() {
             </table>
         </div>
 
-        {/* Signatures Section */}
-        <div className="mt-8 grid grid-cols-2 gap-16 px-8 break-inside-avoid">
-            <div className="text-center space-y-12">
-                <div className="space-y-2">
-                    <div className="font-bold text-sm">(ผศ.ดร.ภก ณัฐ นาเอก)</div>
-                    <div className="text-xs font-semibold">ประธานหลักสูตรเภสัชศาสตรบัณฑิต</div>
-                    <div className="text-xs text-slate-400 pt-2 print:text-black">___/___/___</div>
-                </div>
-            </div>
-            <div className="text-center space-y-12">
-                <div className="space-y-2">
-                    <div className="font-bold text-sm">(รศ. ดร. ภญ. สุภางค์ คนดี)</div>
-                    <div className="text-xs font-semibold">รองคณบดีฝ่ายวิชาการ</div>
-                    <div className="text-xs text-slate-400 pt-2 print:text-black">___/___/___</div>
-                </div>
-            </div>
-        </div>
-
-        {/* Bottom Small Text */}
-        <div className="mt-16 text-[10px] text-slate-500 flex flex-col gap-1 print:mt-8">
-            <span>เจ้าหน้าที่ฝ่ายวิชาการผู้ปฏิบัติงาน</span>
-            <div className="flex gap-4">
-                 <span>1. นางสาว ธนารีย์ เครือวัลย์</span>
-                 <span>2. นาง ไพจิตรา อินสุขขิน</span>
-            </div>
-        </div>
-
-        {/* Download Button Section (Hidden on Print) */}
-        <div className="mt-8 flex flex-col items-center gap-2 print:hidden">
-             <Button onClick={handlePrint} variant="outline" className="text-green-600 border-green-200 hover:bg-green-50 flex gap-2 w-fit">
-                <Printer size={16} /> พิมพ์รายงาน / บันทึกเป็น PDF
-             </Button>
-             <p className="text-[10px] text-slate-400 font-light">
-                * ข้อมูลดังกล่าวจะเปิดให้ดาวน์โหลดได้เมื่อสิ้นสุดปีการศึกษา
-             </p>
+        <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-between items-center text-xs text-slate-400">
+            <span>เอกสารสรุปภาระงานสอนออนไลน์</span>
+            <span>Generated on {new Date().toLocaleDateString('th-TH')}</span>
         </div>
 
       </div>
-
     </div>
   );
 }

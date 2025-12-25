@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma"; // ✅ 1. ใช้ singleton prisma เพื่อลดภาระ Connection
 
-const prisma = new PrismaClient();
-
-// GET: ดึงข้อมูล
 // GET: ดึงข้อมูล
 export async function GET() {
   try {
@@ -13,7 +10,7 @@ export async function GET() {
     });
 
     const formattedUsers = users.map((user) => {
-      // รวมชื่อเต็ม (Code เดิม - เก็บไว้เผื่อที่อื่นใช้)
+      // รวมชื่อเต็ม
       const fullName = `${user.academicPosition || user.title || ''} ${user.firstName || ''} ${user.lastName || ''}`.trim();
       
       const managedProgramNames = user.managedPrograms.length > 0 
@@ -26,7 +23,7 @@ export async function GET() {
       else if (ws.includes("ฝึกอบรม")) status = "TRAINING";
 
       return {
-        // --- ส่วนเดิม (KEEP: ห้ามลบ เพื่อไม่ให้กระทบที่อื่น) ---
+        // --- ส่วนเดิม ---
         id: user.id,
         email: user.email,
         name: fullName, 
@@ -38,14 +35,14 @@ export async function GET() {
         createdAt: user.createdAt.toISOString(),
         workStatus: status,
         adminTitle: user.adminTitle || "",
-        position: user.academicPosition || "", // หน้าอื่นอาจใช้ key นี้
+        position: user.academicPosition || "",
 
-        // --- ส่วนที่เพิ่ม (NEW: เพื่อรองรับ Frontend ใหม่) ---
-        firstName: user.firstName || "",       // ส่งแยกให้ Frontend เอาไป search/sort เองได้
-        lastName: user.lastName || "",         // ส่งแยกให้ Frontend
-        type: user.userType || "GENERAL",      // สำคัญ: ใช้สำหรับ Filter 'ACADEMIC'
-        adminPosition: user.adminTitle || "",  // Map ให้ตรงกับ interface Frontend (adminPosition)
-        academicPosition: user.academicPosition || "" // Map ให้ตรงกับ interface Frontend
+        // --- ส่วนที่เพิ่มเพื่อรองรับ Frontend ใหม่ ---
+        firstName: user.firstName || "",       
+        lastName: user.lastName || "",         
+        type: user.userType || "GENERAL",      
+        adminPosition: user.adminTitle || "",  
+        academicPosition: user.academicPosition || "" 
       };
     });
 
@@ -61,7 +58,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     
-    // ใช้รหัสผ่านจำลอง (ตัด bcrypt ออกเพื่อลดปัญหา dependency)
+    // ใช้รหัสผ่านจำลอง
     const defaultPasswordHash = "$2b$10$DUMMYHASHFOREASYDEVNOBCRYPTREQUIRED"; 
 
     // Map status code กลับเป็นภาษาไทย
@@ -72,7 +69,6 @@ export async function POST(request: Request) {
     const newUser = await prisma.user.create({
       data: {
         email: body.email,
-        password: defaultPasswordHash,
         title: body.title,
         academicPosition: body.academicPosition,
         firstName: body.firstName,
@@ -82,7 +78,6 @@ export async function POST(request: Request) {
         adminTitle: body.adminTitle, 
         role: body.role,
         workStatus: workStatusThai,
-        // ถ้าเป็น ADMIN ให้เป็นสายสนับสนุน (SUPPORT)
         userType: body.role === 'ADMIN' ? 'SUPPORT' : 'ACADEMIC' 
       }
     });
@@ -109,7 +104,7 @@ export async function PUT(request: Request) {
     else if (body.workStatus === "TRAINING") workStatusThai = "ฝึกอบรมในประเทศ";
 
     const updatedUser = await prisma.user.update({
-      where: { id: body.id },
+      where: { id: body.id }, // ✅ ใช้ ID เป็น String ได้เลย
       data: {
         email: body.email,
         title: body.title,
@@ -141,11 +136,13 @@ export async function DELETE(request: Request) {
     if (!id) return NextResponse.json({ error: "ID is required" }, { status: 400 });
 
     await prisma.user.delete({
-      where: { id: Number(id) }
+      // ✅ แก้ไข: ลบ Number() ออก เพราะ ID ใน DB เป็น String แล้ว
+      where: { id: id } 
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("Delete Error:", error);
     return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
   }
 }

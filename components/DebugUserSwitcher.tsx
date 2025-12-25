@@ -3,29 +3,26 @@
 import { User, RefreshCcw } from "lucide-react";
 
 type UserData = {
-  id: number;
+  id: string; 
   name: string;
-  role?: string; // สมมติว่าใน UserData มี field role
+  role?: string;
   [key: string]: any;
 };
 
 type DebugUserSwitcherProps = {
-  users: UserData[];          // รายชื่อ User ทั้งหมดที่จะให้เลือก
-  currentUser: UserData | null; // User ที่กำลังถูก Simulate อยู่
-  onUserChange: (userId: number) => void; // ฟังก์ชันเมื่อมีการเปลี่ยน User
-  realUserRole?: string;      // Role ของคน "จริงๆ" ที่กำลังใช้งาน (เพื่อเช็คสิทธิ์ Admin)
+  users: UserData[];            
+  currentUser: UserData | null; 
+  onUserChange: (userId: string) => void; 
+  realUserRole?: string;       
 };
 
 export default function DebugUserSwitcher({ 
   users, 
   currentUser, 
   onUserChange,
-  realUserRole = "ADMIN" // Default ไว้ทดสอบ (ในการใช้งานจริงต้องส่ง Role จริงๆ เข้ามา)
+  realUserRole
 }: DebugUserSwitcherProps) {
 
-  // Logic: ถ้าคนใช้งานจริงๆ ไม่ใช่ ADMIN ให้ return null (ไม่แสดงผลเลย)
-  // ข้อควรระวัง: ต้องใช้ Role ของ "คนจริงๆ" (Real User) ไม่ใช่ Role ของ User ที่เรากำลังสวมรอย (Simulated User)
-  // ไม่งั้นพอสลับไปเป็น Teacher ปุ๊บ กล่องนี้จะหายไปทันที ทำให้สลับกลับไม่ได้
   if (realUserRole !== "ADMIN") {
     return null;
   }
@@ -37,7 +34,8 @@ export default function DebugUserSwitcher({
           <User size={20} /> Admin Debug Mode
         </h3>
         <p className="text-sm text-orange-600">
-          คุณกำลังใช้งานในฐานะ: <span className="font-bold underline">{currentUser?.name || "ยังไม่ระบุ"}</span> (ID: {currentUser?.id})
+          จำลองสถานะเป็น: <span className="font-bold underline">{currentUser?.name || "ยังไม่ระบุ"}</span> 
+          <span className="text-xs ml-2 text-orange-400">(ID: {currentUser?.id})</span>
         </p>
       </div>
       
@@ -45,21 +43,22 @@ export default function DebugUserSwitcher({
         <select
           className="p-2 border border-orange-300 rounded-md text-sm bg-white text-slate-700 outline-none focus:ring-2 focus:ring-orange-500 w-full sm:w-64"
           value={currentUser?.id || ""}
-          onChange={(e) => onUserChange(Number(e.target.value))}
+          onChange={(e) => onUserChange(e.target.value)}
         >
           <option value="">-- เลือก User เพื่อทดสอบ --</option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>
-              [{u.id}] {u.name}
+              {u.name} ({u.role})
             </option>
           ))}
         </select>
         
-        {/* ปุ่ม Reset กลับไปเป็น Admin (Optional) */}
+        {/* ปุ่ม Reset */}
         <button 
-            onClick={() => window.location.reload()} // หรือ Logic อื่นเพื่อ Reset
+            // 🛠️ แก้ตรงนี้ครับ: ส่งค่าว่าง "" เพื่อบอก Navbar ให้ลบ Cookie
+            onClick={() => onUserChange("")} 
             className="p-2 bg-orange-200 text-orange-800 rounded hover:bg-orange-300 transition-colors"
-            title="รีเซ็ตค่า"
+            title="รีเซ็ตค่ากลับเป็นตัวเอง"
         >
             <RefreshCcw size={18}/>
         </button>

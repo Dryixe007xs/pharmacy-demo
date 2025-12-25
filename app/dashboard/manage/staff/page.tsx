@@ -17,14 +17,11 @@ const PHARMACY_GROUPS = [
 
 const CURRICULUM_PHARMA = "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม";
 const CURRICULUM_COSMO = "หลักสูตรวิทยาศาสตร์บัณฑิต สาขาวิทยาศาสตร์เครื่องสำอาง";
-
-// *** แก้ไข: ปรับค่าให้ตรงกับข้อมูลในฐานข้อมูล (users_data.json) ***
-// จากเดิม "สายสนับสนุน / สำนักงานคณะ" -> เป็น "สายสนับสนุน" เพื่อให้ Dropdown จับคู่ได้ถูกต้อง
 const CURRICULUM_SUPPORT = "สายสนับสนุน"; 
 
 // --- Types ---
 type StaffUser = {
-  id: number;
+  id: string; // ✅ แก้เป็น string
   email: string;
   name: string; 
   role: string;
@@ -64,7 +61,6 @@ export default function ManageStaffPage() {
       const res = await fetch("/api/staff", { cache: 'no-store' });
       if (!res.ok) {
         const errorData = await res.json();
-        if (res.status === 403) throw new Error('คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้');
         throw new Error(errorData.error || 'โหลดข้อมูลไม่สำเร็จ');
       }
       const data: StaffUser[] = await res.json();
@@ -79,7 +75,7 @@ export default function ManageStaffPage() {
   };
 
   // --- Action Handlers ---
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => { // ✅ รับ string
     if (!confirm("คุณต้องการลบผู้ใช้นี้ใช่หรือไม่?")) return;
     try {
         await fetch(`/api/staff?id=${id}`, { method: 'DELETE' });
@@ -89,15 +85,14 @@ export default function ManageStaffPage() {
     }
   };
 
-  // ✨ ฟังก์ชันบันทึกของจริง (เชื่อม API) ✨
   const handleSave = async () => {
     try {
-        // Validation: เช็คว่าถ้าเป็นตำแหน่งบริหาร ต้องกรอกชื่อตำแหน่งด้วย
+        // Validation
         const requiredAdminTitleRoles = ['PROGRAM_CHAIR', 'VICE_DEAN', 'ADMIN'];
         if (requiredAdminTitleRoles.includes(formData.role)) {
             if (!formData.jobPosition || formData.jobPosition.trim() === "") {
                 alert("กรุณากรอก 'ชื่อตำแหน่งบริหาร' สำหรับบทบาทที่ท่านเลือก");
-                return; // หยุดการทำงาน ไม่ส่งข้อมูลไป API
+                return; 
             }
         }
 
@@ -107,7 +102,7 @@ export default function ManageStaffPage() {
         const payload = {
             id: isEditMode ? formData.id : undefined,
             email: formData.email,
-            title: formData.title || "", // ใช้ค่าจาก Form หรือว่างไว้
+            title: formData.title || "", 
             academicPosition: formData.academicPosition,
             firstName: formData.firstName,
             lastName: formData.lastName,
@@ -133,7 +128,7 @@ export default function ManageStaffPage() {
 
         // สำเร็จ
         setIsModalOpen(false);
-        fetchStaffData(); // โหลดข้อมูลใหม่ทันที
+        fetchStaffData(); 
         alert(isEditMode ? "แก้ไขข้อมูลเรียบร้อย" : "เพิ่มบุคลากรเรียบร้อย");
 
     } catch (err: any) {
@@ -146,8 +141,13 @@ export default function ManageStaffPage() {
 
   // --- Helper Functions ---
   const splitName = (fullName: string) => {
-    const parts = fullName.split(' ');
-    // Logic แยกชื่อคร่าวๆ (อาจต้องปรับถ้าชื่อซับซ้อน)
+    // Logic แยกชื่อ (ถ้าชื่อมาจาก API รวมกันมาแล้ว อาจต้องใช้ field แยกจาก API ดีกว่า)
+    // แต่ถ้าใน StaffUser ไม่มี field firstName/lastName แยกมา ก็ใช้วิธีนี้แก้ขัดไปก่อน
+    // (แนะนำให้เพิ่ม field firstName, lastName ใน StaffUser type จะชัวร์สุด)
+    
+    // สมมติว่า fullName = "ผศ.ดร. สมชาย ใจดี"
+    const parts = fullName.trim().split(' ');
+    
     if (parts.length >= 2) {
         const lastName = parts.pop() || '';
         const firstName = parts.pop() || '';
@@ -161,8 +161,8 @@ export default function ManageStaffPage() {
     if (!name) return "U";
     const parts = name.trim().split(' ');
     if (parts.length >= 2) {
-        const first = parts[parts.length-2]?.[0] || '';
-        const last = parts[parts.length-1]?.[0] || '';
+        const first = parts[parts.length-2]?.[0] || ''; // เอาตัวแรกของชื่อจริง
+        const last = parts[parts.length-1]?.[0] || '';  // เอาตัวแรกของนามสกุล
         return (first + last).toUpperCase();
     }
     return name.slice(0, 2).toUpperCase();
@@ -193,19 +193,20 @@ export default function ManageStaffPage() {
 
   const openEditModal = (user: StaffUser) => {
     setIsEditMode(true);
+    
+    // ⚠️ ถ้า Backend ส่ง firstName, lastName แยกมาให้ใช้เลย
+    // ถ้าไม่ส่ง ให้ใช้ splitName ช่วย
     const { academicPosition, firstName, lastName } = splitName(user.name);
     
     setFormData({ 
         id: user.id,
         email: user.email,
         role: user.role,
-        workStatus: user.workStatus || 'ACTIVE',
-        academicPosition: academicPosition, 
-        firstName: firstName,
-        lastName: lastName,
+        workStatus: user.workStatus === "ลาศึกษาต่อ" ? "STUDY_LEAVE" : user.workStatus === "ฝึกอบรมในประเทศ" ? "TRAINING" : "ACTIVE", // Map กลับเป็น Code
+        academicPosition: (user as any).academicPosition || academicPosition, 
+        firstName: (user as any).firstName || firstName,
+        lastName: (user as any).lastName || lastName,
         jobPosition: user.adminTitle || "", 
-        // แก้ไข: ถ้าค่า curriculum ตรงกับค่าคงที่ ให้ใช้ค่าคงที่เพื่อเลือก Dropdown ได้ถูกต้อง
-        // ถ้าเป็นสายสนับสนุน ให้ใช้ CURRICULUM_SUPPORT แน่ๆ เพื่อให้ Dropdown เลือกถูก
         curriculum: user.role === 'ADMIN' ? CURRICULUM_SUPPORT : (user.curriculum || user.department), 
         program: user.department, 
     });
@@ -260,6 +261,7 @@ export default function ManageStaffPage() {
   return (
     <>
       <div className="p-8 max-w-7xl mx-auto w-full font-sarabun">
+        {/* ... (ส่วน Header และ Tabs เหมือนเดิม) ... */}
         <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-[#1e3a8a]">จัดการข้อมูล/ข้อมูลบุคลากร</h2>
             <button onClick={openAddModal} className="flex items-center gap-2 border border-green-500 text-green-600 px-6 py-2 rounded hover:bg-green-50 transition bg-white font-bold text-sm whitespace-nowrap h-fit shadow-sm">
@@ -267,7 +269,6 @@ export default function ManageStaffPage() {
             </button>
         </div>
 
-        {/* TABS MENU */}
         <div className="mb-6 border-b border-gray-200">
             <div className="flex gap-8">
                 <button onClick={() => { setActiveTab("ACADEMIC"); setFilterCurriculum(""); setFilterProgram(""); }} className={`pb-3 text-base font-bold transition-all relative ${activeTab === "ACADEMIC" ? "text-[#1e3a8a]" : "text-gray-400 hover:text-gray-600"}`}>
@@ -283,13 +284,13 @@ export default function ManageStaffPage() {
 
         {/* FILTER BAR */}
         <div className="flex flex-col lg:flex-row justify-between items-end lg:items-center mb-6 gap-4">
-            <div className="flex-1 w-full lg:w-auto flex flex-col gap-4">
+            {/* ... (Filter controls เหมือนเดิม) ... */}
+             <div className="flex-1 w-full lg:w-auto flex flex-col gap-4">
                 <h3 className="text-2xl font-bold text-[#1e3a8a]">
                   {activeTab === "ACADEMIC" ? "รายชื่อบุคลากรสายวิชาการ" : "รายชื่อเจ้าหน้าที่และผู้ดูแลระบบ"} 
                   <span className="text-gray-400 text-lg ml-2">({filteredStaff.length} ท่าน)</span>
                 </h3>
                 
-                {/* Z-Index: 20 */}
                 <div className="flex flex-wrap gap-4 w-full items-center relative z-20">
                     <div className="relative w-80">
                         <input type="text" placeholder="ค้นหาชื่อ หรือ อีเมล..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full border border-gray-300 rounded-lg pl-10 pr-4 py-2 text-gray-900 focus:ring-2 focus:ring-purple-200 outline-none" />
@@ -379,6 +380,7 @@ export default function ManageStaffPage() {
                         <td className="py-4 px-4 text-center">
                         <div className="flex justify-center items-center gap-2">
                             <button onClick={() => openEditModal(user)} className="p-2 border border-green-500 rounded text-green-500 hover:bg-green-50 transition"><Pencil className="w-4 h-4" /></button>
+                            {/* ✅ ส่ง string ID */}
                             <button onClick={() => handleDelete(user.id)} className="p-2 border border-red-500 rounded text-red-500 hover:bg-red-50 transition"><Trash2 className="w-4 h-4" /></button>
                         </div>
                         </td>
@@ -469,7 +471,6 @@ export default function ManageStaffPage() {
                 <div>
                     <label className="block text-sm font-bold text-gray-900 mb-1.5">
                       ชื่อตำแหน่งบริหาร 
-                      {/* แสดง * ถ้าเลือก Role ที่บังคับ */}
                       {['PROGRAM_CHAIR', 'VICE_DEAN', 'ADMIN'].includes(formData.role) ? <span className="text-red-500 ml-1">*</span> : " (ถ้ามี)"}
                     </label>
                     <input type="text" value={formData.jobPosition || ""} onChange={(e) => setFormData({...formData, jobPosition: e.target.value})} placeholder="เช่น ประธานหลักสูตรฯ" className="w-full border border-gray-300 rounded px-3 py-2.5 text-gray-900 outline-none focus:border-purple-500" />

@@ -3,7 +3,30 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// PUT: แก้ไขข้อมูลหลักสูตร (เปลี่ยนประธาน)
+// GET: ดึงข้อมูลหลักสูตร (อย่าลืม include ตามที่คุยกันรอบที่แล้ว)
+export async function GET() {
+  try {
+    const programs = await prisma.program.findMany({
+      include: {
+        programChair: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            academicPosition: true,
+            adminTitle: true,
+          },
+        },
+      },
+      orderBy: { year: 'desc' }
+    });
+    return NextResponse.json(programs);
+  } catch (error) {
+    return NextResponse.json({ error: "Failed to fetch programs" }, { status: 500 });
+  }
+}
+
+// PUT: แก้ไขข้อมูลหลักสูตร
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
@@ -14,9 +37,22 @@ export async function PUT(req: Request) {
     }
 
     const updatedProgram = await prisma.program.update({
-      where: { id: Number(id) },
+      where: { id: Number(id) }, // ID ของ Program ยังเป็น Int (ถูกแล้ว)
       data: {
-        programChairId: programChairId ? Number(programChairId) : null
+        // ❌ ของเดิม: programChairId ? Number(programChairId) : null
+        // ✅ แก้ใหม่: ส่ง String ไปตรงๆ (หรือ null ถ้าไม่มีค่า)
+        programChairId: programChairId || null 
+      },
+      include: { // Include เพื่อให้ Frontend ได้ชื่อไปโชว์ทันที
+        programChair: {
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                academicPosition: true,
+                adminTitle: true,
+            }
+        }
       }
     });
 
@@ -42,7 +78,19 @@ export async function POST(req: Request) {
         name_th,
         year: Number(year),
         degree_level: degree_level || "ปริญญาตรี",
-        programChairId: programChairId ? Number(programChairId) : null
+        // ✅ แก้ใหม่: ส่ง String ไปตรงๆ เหมือนกัน
+        programChairId: programChairId || null
+      },
+      include: {
+        programChair: {
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                academicPosition: true,
+                adminTitle: true,
+            }
+        }
       }
     });
 
@@ -53,7 +101,7 @@ export async function POST(req: Request) {
   }
 }
 
-// ✅ DELETE: ลบหลักสูตร (เพิ่มใหม่)
+// DELETE: ลบหลักสูตร (อันนี้ถูกต้องแล้ว)
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -63,7 +111,6 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Program ID is required" }, { status: 400 });
     }
 
-    // ลบหลักสูตร (ระวัง: ถ้ามีวิชาผูกอยู่ อาจจะลบไม่ได้ถ้าไม่ได้ตั้ง cascade ไว้)
     await prisma.program.delete({
       where: { id: Number(id) }
     });
@@ -71,7 +118,6 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ message: "Program deleted successfully" });
   } catch (error) {
     console.error("Error deleting program:", error);
-    // กรณีลบไม่ได้เพราะมีข้อมูลผูกมัด
     return NextResponse.json({ error: "ไม่สามารถลบหลักสูตรได้เนื่องจากมีรายวิชาผูกอยู่" }, { status: 500 });
   }
 }

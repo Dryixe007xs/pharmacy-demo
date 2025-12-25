@@ -88,7 +88,6 @@ export default function StaffSummaryListPage() {
   // Helper Functions
   const getFullName = (staff: Staff) => `${staff.academicPosition || ''} ${staff.firstName} ${staff.lastName}`.trim();
   
-  // ✅ แก้ไข: ไม่ดึง academicPosition มาแสดงในช่องบทบาทแล้ว
   const getDisplayRole = (staff: Staff) => {
     if (staff.adminPosition && staff.adminPosition.trim() !== "") {
         return staff.adminPosition;
@@ -178,7 +177,8 @@ export default function StaffSummaryListPage() {
                         <th className="px-6 py-4 font-bold w-[20%] text-center">E-Mail</th>
                         <th className="px-6 py-4 font-bold w-[20%] text-center">หลักสูตร</th>
                         <th className="px-6 py-4 font-bold w-[20%] text-center">บทบาท</th>
-                        <th className="px-6 py-4 font-bold text-right w-[10%]">จัดการ</th>
+                        {/* ปรับความกว้างตรงนี้เล็กน้อย หรือเอา w-[10%] ออกเพื่อให้มันยืดตามเนื้อหา */}
+                        <th className="px-6 py-4 font-bold text-right">จัดการ</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -193,22 +193,23 @@ export default function StaffSummaryListPage() {
                     ) : filteredStaff.length > 0 ? (
                         filteredStaff.map((staff) => (
                             <tr key={staff.id} className="hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
-                                <td className="px-6 py-4 font-medium text-slate-800 align-top">
+                                <td className="px-6 py-4 font-medium text-slate-800 align-middle">
                                     {getFullName(staff)}
                                 </td>
-                                <td className="px-6 py-4 text-slate-600 text-center align-top">
+                                <td className="px-6 py-4 text-slate-600 text-center align-middle">
                                     {staff.email || "-"}
                                 </td>
-                                <td className="px-6 py-4 text-slate-600 text-center align-top">
+                                <td className="px-6 py-4 text-slate-600 text-center align-middle">
                                     {staff.curriculum || "-"}
                                 </td>
-                                <td className="px-6 py-4 text-slate-600 text-center align-top">
+                                <td className="px-6 py-4 text-slate-600 text-center align-middle">
                                     {getDisplayRole(staff)}
                                 </td>
-                                <td className="px-6 py-4 text-right align-top">
+                                <td className="px-6 py-4 text-right align-middle">
+                                    {/* ✅ จุดที่แก้ไข: เพิ่ม whitespace-nowrap เพื่อไม่ให้คำตกบรรทัด */}
                                     <a 
-                                        href={`/staff/${staff.id}`} 
-                                        className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-orange-600 bg-orange-50 rounded-md hover:bg-orange-100 transition-colors"
+                                        href={`/dashboard/report/staff-summary/${staff.id}`} 
+                                        className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium text-orange-600 bg-orange-50 rounded-md hover:bg-orange-100 transition-colors whitespace-nowrap"
                                     >
                                         รายละเอียด
                                     </a>
