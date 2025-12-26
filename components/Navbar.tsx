@@ -1,8 +1,9 @@
 "use client";
 
 import { Bell, User as UserIcon, BookOpen, LogOut } from "lucide-react"; 
-import { useSession, signOut } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react"; // signOut มาจากตรงนี้
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation"; // เพิ่ม router เพื่อรีเฟรชหน้า
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,21 +13,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// ✅ 1. Import Component DebugUserSwitcher
 import DebugUserSwitcher from "@/components/DebugUserSwitcher";
 
 export function Navbar() {
-  const { data: session } = useSession();
-  const user = session?.user;
+  // 1. ดึง update มาใช้สำหรับฟังก์ชันสวมรอย
+  const { data: session, update } = useSession();
+  const router = useRouter();
   
-  // State สำหรับเก็บรายชื่อ Staff เพื่อส่งให้ Switcher
+  const user = session?.user;
   const [allStaffs, setAllStaffs] = useState<any[]>([]);
 
-  // เช็คว่าตอนนี้กำลังสวมรอยอยู่ไหม? (ดูจาก Flag ที่เราเพิ่มใน route.ts)
+  // เช็ค Flag ที่เราฝังไว้ใน Session (จาก auth.ts ตัวใหม่)
   const isImpersonating = (user as any)?.isImpersonating;
 
   useEffect(() => {
-    // โหลดรายชื่อเฉพาะตอนเป็น Admin หรือตอนกำลังสวมรอยอยู่ (เพื่อให้สลับกลับได้)
+    // โหลดรายชื่อเฉพาะตอนเป็น Admin หรือตอนกำลังสวมรอย
     if (user?.role === 'ADMIN' || isImpersonating) {
         const fetchStaffs = async () => {
             try {
@@ -39,25 +40,27 @@ export function Navbar() {
         };
         fetchStaffs();
     }
-  }, [user, isImpersonating]);
+  }, [user?.role, isImpersonating]); // แก้ dependency เล็กน้อยให้ React ไม่บ่น
 
-  // 🔥 ฟังก์ชันสลับร่าง (เขียน Cookie)
-  const handleUserChange = (newUserId: string) => {
-      if (newUserId) {
-          // ฝัง Cookie (อายุ 1 วัน)
-          document.cookie = `impersonateId=${newUserId}; path=/; max-age=86400`;
-      } else {
-          // ลบ Cookie (กรณีเลือกค่าว่าง)
-          document.cookie = `impersonateId=; path=/; max-age=0`;
-      }
-      window.location.reload(); // รีเฟรชเพื่อให้ NextAuth หลังบ้านอ่าน Cookie ใหม่
+  // 🔥 2. แก้ฟังก์ชันสลับร่าง: เลิกใช้ Cookie -> ใช้ update() แทน
+  const handleUserChange = async (newUserId: string) => {
+      // เรียก update ไปหา auth.ts (เข้า case trigger === "update")
+      await update({ impersonateId: newUserId || null });
+      
+      // รีเฟรชหน้าจอเพื่อให้ UI เปลี่ยนตาม Role ใหม่ทันที
+      router.refresh();
+      window.location.reload(); 
   };
 
+  // 🔥 3. แก้ฟังก์ชัน Logout: เอาบรรทัด Microsoft ออก
   const handleLogout = async () => {
-    // ล้าง Cookie สวมรอยก่อนออก
-    document.cookie = `impersonateId=; path=/; max-age=0`;
-    await signOut({ redirect: false });
-    window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=${window.location.origin}`;
+    // ถ้าสวมรอยอยู่ ให้เลิกสวมรอยก่อนออก (Option เสริม เพื่อความสะอาด)
+    if (isImpersonating) {
+        await update({ impersonateId: null });
+    }
+
+    // สั่ง Logout แค่ Local (ไม่ไป Microsoft)
+    await signOut({ callbackUrl: "/", redirect: true });
   };
 
   const formatCurriculum = (text: string | null | undefined) => {
@@ -90,22 +93,19 @@ export function Navbar() {
       </div>
 
       {/* DEBUG SWITCHER */}
-      {/* โชว์ถ้าเป็น Admin หรือ กำลังสวมรอยอยู่ (จะได้กดออกได้) */}
       <div className="hidden lg:block">
         {(user?.role === 'ADMIN' || isImpersonating) && (
             <DebugUserSwitcher 
                 users={allStaffs}
-                // ส่ง user ปัจจุบัน (ซึ่งอาจจะเป็นตัวปลอมที่สวมรอยแล้ว) ไปแสดง
                 currentUser={(user as any) || null} 
-                realUserRole="ADMIN" // บังคับให้โชว์ตลอดถ้าเข้ามาในเงื่อนไขนี้
-                onUserChange={handleUserChange}
+                realUserRole="ADMIN" 
+                onUserChange={handleUserChange} // ส่งฟังก์ชันตัวใหม่ไป
             />
         )}
       </div>
 
       {/* RIGHT: PROFILE */}
       <div className="flex items-center gap-2 sm:gap-4">
-        {/* ป้ายเตือนว่ากำลังสวมรอย */}
         {isImpersonating && (
              <span className="hidden sm:inline-block text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded-md font-bold border border-red-200 animate-pulse">
                 จำลองสิทธิ์
@@ -153,6 +153,7 @@ export function Navbar() {
                แก้ไขข้อมูลส่วนตัว
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            {/* ปุ่ม Logout ใน Dropdown ก็เรียก handleLogout ตัวใหม่ */}
             <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 cursor-pointer">
               <LogOut className="mr-2 h-4 w-4" />
               <span>ออกจากระบบ</span>

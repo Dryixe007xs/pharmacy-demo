@@ -145,12 +145,14 @@ export function Sidebar() {
   };
 
   const handleLogout = async () => {
-    // ✅ เพิ่ม: ล้าง Cookie สวมรอยด้วย (เพื่อความชัวร์)
+    // 1. ล้าง Cookie สวมรอย (เก็บไว้เหมือนเดิม กันเหนียว)
     document.cookie = "impersonateId=; path=/; max-age=0";
-    
-    await signOut({ redirect: false });
-    window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=${window.location.origin}`;
-  };
+
+    // 2. สั่ง Logout แค่ใน App เราเท่านั้น (Local Logout)
+    // callbackUrl: "/" คือพอลบ session เสร็จ ให้ดีดกลับหน้า Welcome ทันที
+    // ไม่ต้องมีบรรทัด window.location.href ไปหา Microsoft แล้ว
+    await signOut({ callbackUrl: "/", redirect: true });
+};
 
   if (!isMounted) return <nav className="group fixed left-0 top-16 h-[calc(100vh-4rem)] w-20 bg-white border-r border-slate-200 z-50"></nav>;
 

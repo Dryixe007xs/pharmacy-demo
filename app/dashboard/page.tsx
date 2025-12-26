@@ -2,10 +2,20 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react"; // 👈 1. Import พระเอกของเรา
+import { useSession } from "next-auth/react"; 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, Users, BookOpen, Search, Calendar, FileText, ChevronRight, Briefcase, Award } from "lucide-react";
+import { 
+  Clock, 
+  Users, 
+  BookOpen, 
+  Search, 
+  Calendar, 
+  FileText, 
+  ChevronRight, 
+  Workflow, // ไอคอนใหม่
+  HelpCircle // ไอคอนใหม่
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Types
@@ -14,7 +24,7 @@ type Course = {
   code: string;
   name_th: string;
   name_en: string;
-  responsibleUserId: string; // 👈 แก้เป็น String ตาม Database
+  responsibleUserId: string; 
 };
 
 type Assignment = {
@@ -36,7 +46,7 @@ type Assignment = {
 };
 
 export default function DashboardPage() {
-  const { data: session, status } = useSession(); // 👈 2. ดึงข้อมูล Session จากระบบ Login
+  const { data: session, status } = useSession(); 
   const [activeTab, setActiveTab] = useState<"responsible" | "teaching">("responsible");
   
   // Data States
@@ -47,10 +57,10 @@ export default function DashboardPage() {
   // Stats
   const [totalHours, setTotalHours] = useState(0);
 
-  // 3. Load Data เมื่อ Login สำเร็จแล้วเท่านั้น
+  // 3. Load Data 
   useEffect(() => {
     const loadData = async () => {
-        if (status === "loading") return; // รอโหลด Session
+        if (status === "loading") return; 
         if (status === "unauthenticated" || !session?.user) {
             setLoading(false);
             return;
@@ -58,13 +68,12 @@ export default function DashboardPage() {
 
         setLoading(true);
         try {
-            const userId = session.user.id; // 👈 ดึง ID จาก Session จริงๆ
+            const userId = session.user.id; 
 
             // Fetch 1: วิชาที่รับผิดชอบ
             const resCourses = await fetch("/api/courses");
             const allCourses = await resCourses.json();
             if (Array.isArray(allCourses)) {
-                // กรองเฉพาะวิชาที่ฉันรับผิดชอบ
                 const myCourses = allCourses.filter((c: any) => c.responsibleUserId === userId);
                 setResponsibleCourses(myCourses);
             }
@@ -86,14 +95,13 @@ export default function DashboardPage() {
     };
 
     loadData();
-  }, [session, status]); // รันใหม่เมื่อ Session เปลี่ยนสถานะ
+  }, [session, status]); 
 
   const getResponsibleName = (user: any) => {
     if (!user) return "-";
     return `${user.academicPosition || ''} ${user.firstName} ${user.lastName}`.trim();
   };
 
-  // ถ้ายังไม่ Login หรือกำลังโหลด ให้โชว์ Loading
   if (status === "loading") {
       return <div className="flex h-screen items-center justify-center text-slate-400">กำลังโหลดข้อมูล...</div>;
   }
@@ -104,7 +112,6 @@ export default function DashboardPage() {
       {/* 1. Header Section */}
       <div className="text-center pt-0 pb-4 space-y-2">
         <h1 className="text-2xl font-bold text-slate-800">
-          {/* ✅ 4. ดึงชื่อจาก Session โดยตรง (มาจาก route.ts ที่เราแก้) */}
           สวัสดี, <span className="text-purple-600">{session?.user?.name || "อาจารย์"}</span>
         </h1>
         <p className="text-slate-500 text-sm">
@@ -117,7 +124,7 @@ export default function DashboardPage() {
         <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-purple-500 group-hover:bg-purple-600 transition-colors"></div>
         <div className="flex items-center gap-4 p-3 pl-4 w-full md:w-auto">
           <div className="bg-purple-100 p-2.5 rounded-lg text-purple-600 min-w-fit">
-             <Calendar className="w-5 h-5" />
+              <Calendar className="w-5 h-5" />
           </div>
           <div>
             <h3 className="font-bold text-slate-800 text-sm">เปิดให้กรอกภาระงานสอน (ภาคเรียนที่ 1/2567)</h3>
@@ -216,7 +223,6 @@ export default function DashboardPage() {
                                     </span>
                                 </td>
                                 <td className="px-5 py-3.5 text-right">
-                                  {/* ✅ LINK TO COURSE OWNER PAGE */}
                                   <Button asChild size="sm" className="h-8 text-xs bg-purple-600 hover:bg-purple-700 shadow-sm">
                                     <Link href="/dashboard/workload/owner">
                                         <FileText className="w-3.5 h-3.5 mr-1.5" /> กรอกข้อมูล
@@ -267,7 +273,6 @@ export default function DashboardPage() {
                                 <div className="text-xs text-slate-400 mb-1">
                                     สถานะ: {assign.lecturerStatus}
                                 </div>
-                                {/* ✅ LINK TO INSTRUCTOR PAGE */}
                                 <Button asChild variant="ghost" className="text-orange-500 hover:text-orange-600 hover:bg-orange-50 h-8 text-sm font-medium w-full md:w-auto">
                                     <Link href="/dashboard/workload/instructor">
                                         ตรวจสอบ <ChevronRight size={16} />
@@ -290,6 +295,8 @@ export default function DashboardPage() {
 
         {/* Right Column: Stats & Menu */}
         <div className="col-span-1 md:col-span-4 space-y-4">
+            
+            {/* 1. Stat Card */}
             <Card className="shadow-sm">
                 <CardContent className="p-5">
                     <div className="flex justify-between items-start mb-4">
@@ -313,6 +320,7 @@ export default function DashboardPage() {
                 </CardContent>
             </Card>
 
+            {/* 2. Mini Stats */}
             <div className="grid grid-cols-2 gap-4">
                 <Card className="shadow-sm">
                     <CardContent className="p-4 text-center">
@@ -333,6 +341,30 @@ export default function DashboardPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* 3. ✅ Workflow Button (ปุ่มใหม่) */}
+            <Link href="/workflow" className="block">
+                <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-4 text-white shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:scale-[1.02] transition-all cursor-pointer group relative overflow-hidden">
+                    
+                    {/* Background Pattern */}
+                    <div className="absolute top-0 right-0 opacity-10">
+                        <Workflow className="w-24 h-24 -mr-4 -mt-4 transform rotate-12" />
+                    </div>
+
+                    <div className="relative z-10 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-white/20 p-2.5 rounded-lg">
+                                <HelpCircle className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-base">กระบวนการทำงานระบบ</h3>
+                                <p className="text-emerald-100 text-xs">ดูขั้นตอนการทำงานของระบบ</p>
+                            </div>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-white/80 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                </div>
+            </Link>
             
         </div>
 

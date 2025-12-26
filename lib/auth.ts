@@ -3,7 +3,6 @@ import { NextAuthOptions } from "next-auth";
 import AzureADProvider from "next-auth/providers/azure-ad";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -18,80 +17,85 @@ export const authOptions: NextAuthOptions = {
       tenantId: process.env.AZURE_AD_TENANT_ID,
       authorization: { params: { prompt: "select_account" } }, 
       allowDangerousEmailAccountLinking: true, 
+      
       profile(profile) {
         return {
           id: profile.sub,
           email: profile.email || profile.preferred_username || profile.upn, 
           name: profile.name || `${profile.given_name} ${profile.family_name}`,
-          firstName: profile.given_name,
-          lastName: profile.family_name,
-          role: "USER",
+          
+          // ใช้ ?? null เพื่อกัน undefined
+          firstName: profile.given_name ?? null,
+          lastName: profile.family_name ?? null,
+          
+          role: "USER",       // ค่า Default สำหรับคนมาใหม่
+          department: null,   // ค่า Default
           image: null,
-          adminTitle: null,
-          department: null,
-          title: null,
-          academicPosition: null,
-          academicRank: null,
-          workStatus: null,
-          curriculum: null,
         };
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      if (trigger === "update" && session) {
-        return { ...token, ...session.user };
-      }
-
-      if (user) {
-        token.id = user.id;
-        token.role = (user as any).role;
-        token.department = (user as any).department;
-        token.firstName = (user as any).firstName;
-        token.lastName = (user as any).lastName;
-      }
-
-      // ใน Next.js 15 cookies() ต้อง await
-      const cookieStore = await cookies();
-      const impersonateId = cookieStore.get("impersonateId")?.value;
-
-      if (impersonateId) {
+      
+      // ------------------------------------------------------------------
+      // 1. กรณีมีการสั่ง Update (เช่น การกดปุ่ม "สวมรอย" จากหน้าบ้าน)
+      // ------------------------------------------------------------------
+      if (trigger === "update" && session?.impersonateId) {
+        // ค้นหาข้อมูลของคนที่เราจะสวมรอย
         const targetUser = await prisma.user.findUnique({
-          where: { id: impersonateId }
+          where: { id: session.impersonateId },
         });
 
         if (targetUser) {
+          // แทนที่ข้อมูลใน Token ด้วยข้อมูลของคนที่เราสวมรอย
           token.id = targetUser.id;
-          token.role = targetUser.role; 
+          token.role = targetUser.role;
           token.department = targetUser.department;
           token.firstName = targetUser.firstName;
           token.lastName = targetUser.lastName;
-          token.isImpersonating = true;
+          token.isImpersonating = true; // แปะป้ายว่าตอนนี้เป็นตัวปลอมนะ
         }
+        return token;
       }
+
+      // ------------------------------------------------------------------
+      // 2. กรณี Login ครั้งแรก (User จริง login เข้ามา)
+      // ------------------------------------------------------------------
+      if (user) {
+        token.id = user.id;
+        token.role = user.role;
+        token.department = user.department;
+        token.firstName = user.firstName;
+        token.lastName = user.lastName;
+        token.isImpersonating = false;
+      }
+
       return token;
     },
 
     async session({ session, token }) {
       if (session.user && token) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as any;       
-        session.user.department = token.department as any;
-        (session.user as any).isImpersonating = token.isImpersonating;
+        // Map ข้อมูลจาก Token กลับไปที่ Session เพื่อให้หน้าเว็บใช้
+        session.user.id = token.id; 
+        session.user.role = token.role;
+        session.user.department = token.department;
+        session.user.isImpersonating = token.isImpersonating;
 
+        session.user.firstName = token.firstName;
+        session.user.lastName = token.lastName;
+        
+        // จัดการชื่อแสดงผล
         const nameParts = [token.firstName, token.lastName].filter(Boolean);
         if (nameParts.length > 0) {
            session.user.name = nameParts.join(" ");
         }
-
-        (session.user as any).firstName = token.firstName;
-        (session.user as any).lastName = token.lastName;
       }
       return session;
     },
   },
   pages: {
-    signIn: "/",
+    signIn: "/", 
+    error: "/",
   },
 };

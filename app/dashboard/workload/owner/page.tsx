@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react"; // ✅ ใช้ useSession
+import { useSession } from "next-auth/react";
 import { 
   Search, PenLine, Plus, Trash2, Edit2, X, User, Check, Loader2, UserPlus, AlertCircle, CheckCircle, Send, Clock, FileText, AlertTriangle
 } from "lucide-react";
@@ -28,6 +28,17 @@ type Assignment = {
   headApprovalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
 };
 
+// เพิ่ม Type Summary แยกออกมาเพื่อความชัดเจน
+type CourseSummary = {
+  total: number;
+  lecturerPending: number;
+  lecturerRejected: number;
+  isReady: boolean;
+  isSubmitted: boolean;
+  isHeadApproved: boolean;
+  isHeadRejected: boolean;
+};
+
 type Course = {
   id: number;
   code: string;
@@ -40,28 +51,20 @@ type Course = {
     year: number;
     degree_level: string;
   };
-  responsibleUserId: string | null; // ✅ แก้เป็น string
+  responsibleUserId: string | null;
   responsibleUser?: {
-    id: string; // ✅ แก้เป็น string
+    id: string;
     firstName: string | null;
     lastName: string | null;
     academicPosition: string | null;
     title: string | null;
   } | null;
   teachingAssignments?: Assignment[]; 
-  summary?: {
-    total: number;
-    lecturerPending: number;
-    lecturerRejected: number;
-    isReady: boolean;        
-    isSubmitted: boolean;    
-    isHeadApproved: boolean; 
-    isHeadRejected: boolean; 
-  };
+  summary?: CourseSummary; // ใช้ Type ที่สร้างไว้
 };
 
 type UserData = {
-  id: string; // ✅ แก้เป็น string
+  id: string;
   name: string;
   email: string;
   position: string;
@@ -82,14 +85,13 @@ const getStatusBadge = (summary: Course['summary']) => {
 };
 
 const getResponsibleName = (user: any) => {
-  if (!user) return "-";
+  if (!user) return <span className="text-red-400 text-sm">ยังไม่ระบุ</span>;
   const prefix = user.academicPosition || user.title || "";
   return `${prefix} ${user.firstName || ""} ${user.lastName || ""}`.trim();
 };
 
 // ===== COMPONENT =====
 export default function CourseOwnerPage() {
-  // ✅ ใช้ useSession (มันจะอัปเดตอัตโนมัติตาม Cookie สวมรอย)
   const { data: session, status } = useSession();
   const currentUser = session?.user;
 
@@ -112,7 +114,6 @@ export default function CourseOwnerPage() {
 
   // ===== INITIAL FETCH =====
   const initialize = async () => {
-    // รอ Session โหลดเสร็จก่อน
     if (!currentUser) return;
 
     setLoading(true);
@@ -125,18 +126,18 @@ export default function CourseOwnerPage() {
         const dataCourses = await resCourses.json();
         const dataStaff = await resStaff.json();
 
-        // Map ข้อมูลเพื่อคำนวณ Status Badge
         if (Array.isArray(dataCourses)) {
-            const coursesWithSummary = dataCourses.map((c: any) => {
+            // ✅ ใช้ Type Course แทน any เพื่อความปลอดภัย
+            const coursesWithSummary = dataCourses.map((c: Course) => {
                 const assigns = c.teachingAssignments || [];
-                const summary = {
+                const summary: CourseSummary = {
                     total: assigns.length,
-                    lecturerPending: assigns.filter((a: any) => a.lecturerStatus === 'PENDING').length,
-                    lecturerRejected: assigns.filter((a: any) => a.lecturerStatus === 'REJECTED').length,
-                    isReady: assigns.length > 0 && assigns.every((a: any) => a.lecturerStatus === 'APPROVED'),
-                    isSubmitted: assigns.length > 0 && assigns.every((a: any) => a.responsibleStatus === 'APPROVED'),
-                    isHeadApproved: assigns.length > 0 && assigns.every((a: any) => a.headApprovalStatus === 'APPROVED'),
-                    isHeadRejected: assigns.some((a: any) => a.headApprovalStatus === 'REJECTED')
+                    lecturerPending: assigns.filter(a => a.lecturerStatus === 'PENDING').length,
+                    lecturerRejected: assigns.filter(a => a.lecturerStatus === 'REJECTED').length,
+                    isReady: assigns.length > 0 && assigns.every(a => a.lecturerStatus === 'APPROVED'),
+                    isSubmitted: assigns.length > 0 && assigns.every(a => a.responsibleStatus === 'APPROVED'),
+                    isHeadApproved: assigns.length > 0 && assigns.every(a => a.headApprovalStatus === 'APPROVED'),
+                    isHeadRejected: assigns.some(a => a.headApprovalStatus === 'REJECTED')
                 };
                 return { ...c, summary };
             });
@@ -151,7 +152,6 @@ export default function CourseOwnerPage() {
     }
   };
 
-  // โหลดข้อมูลเมื่อ login หรือ ID เปลี่ยน (กรณีสวมรอย)
   useEffect(() => {
     if (status === 'authenticated') {
         initialize();
@@ -185,12 +185,16 @@ export default function CourseOwnerPage() {
     setSubmitStatus('idle'); 
   };
 
-  const handleAddLecturer = async (staffId: string) => { // ✅ รับเป็น String
+  const handleAddLecturer = async (staffId: string) => { 
     if (!selectedCourse) return;
     try {
-      // ✅ เทียบ ID เป็น String
       const isSelf = currentUser && String(staffId) === String(currentUser.id);
-      const payload: any = { subjectId: selectedCourse.id, lecturerId: staffId };
+      
+      const payload: any = { 
+        subjectId: selectedCourse.id, 
+        lecturerId: staffId // ส่งเป็น String หรือ Int ขึ้นอยู่กับ Backend (ปกติ Prisma รับ Int แต่ถ้าตั้งเป็น String ก็ส่ง String)
+      };
+      
       if (isSelf) payload.lecturerStatus = "APPROVED"; 
       
       const res = await fetch("/api/assignments", {
@@ -213,7 +217,6 @@ export default function CourseOwnerPage() {
 
   const handleUpdateHours = async (id: number) => {
     const targetAssign = assignments.find(a => a.id === id);
-    // เช็คสิทธิ์แก้ไข (ว่าเป็นตัวเองไหม) - ใช้ String Comparison
     const isSelf = targetAssign && currentUser && String(targetAssign.lecturerId) === String(currentUser.id);
     try {
       const payload: any = {
@@ -286,10 +289,8 @@ export default function CourseOwnerPage() {
     setTempHours({ lecture: assign.lectureHours || 0, lab: assign.labHours || 0, exam: assign.examHours || 0 });
   };
 
-  // ✅ FILTER: กรองวิชาของคนปัจจุบัน (ตัวจริงหรือตัวสวมรอย)
   const filteredCourses = courses.filter(c => {
     if (!currentUser) return false; 
-    // แปลงเป็น String เพื่อความชัวร์ (เพราะ ID อาจเป็น "user-1" หรือ Int เก่า)
     const isOwner = String(c.responsibleUserId) === String(currentUser.id);
     const searchLower = searchTerm.toLowerCase();
     const matchSearch = c.code.toLowerCase().includes(searchLower) || c.name_th.toLowerCase().includes(searchLower);
@@ -334,7 +335,6 @@ export default function CourseOwnerPage() {
       <div>
         <h1 className="text-xl text-slate-500 mb-2">กรอกชั่วโมงการสอน/ผู้รับผิดชอบรายวิชา</h1>
         <h2 className="text-2xl font-bold text-slate-800">สำหรับผู้รับผิดชอบรายวิชา</h2>
-        {/* ✅ แสดงชื่อผู้ใช้ (เปลี่ยนตาม Session) */}
         {currentUser && (
              <p className="text-sm text-purple-600 mt-1 font-medium">กำลังแสดงรายวิชาของ: {currentUser.name}</p>
         )}
@@ -426,9 +426,6 @@ export default function CourseOwnerPage() {
                 </div>
 
                 <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
-                    {/* ... (ตารางใน Modal เหมือนเดิมครับ ผมละไว้เพื่อความกระชับ) ... */}
-                    {/* ... (ถ้าต้องการโค้ดเต็มส่วนนี้บอกได้ครับ แต่ใช้ของเดิมได้เลย) ... */}
-                    {/* ... แค่ระวังตรงการ map assignments ให้ใช้ key={assign.id} ... */}
                     <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
                         <h3 className="font-bold text-slate-700">รายชื่อผู้สอน</h3>
                     </div>
@@ -448,9 +445,38 @@ export default function CourseOwnerPage() {
                                 </div>
                                 {editingAssignmentId === assign.id ? (
                                     <>
-                                        <div className="col-span-2 px-1"><input type="number" className="w-full text-center border rounded" value={tempHours.lecture} onChange={(e) => setTempHours({...tempHours, lecture: Number(e.target.value)})} /></div>
-                                        <div className="col-span-2 px-1"><input type="number" className="w-full text-center border rounded" value={tempHours.lab} onChange={(e) => setTempHours({...tempHours, lab: Number(e.target.value)})} /></div>
-                                        <div className="col-span-2 px-1"><input type="number" className="w-full text-center border rounded" value={tempHours.exam} onChange={(e) => setTempHours({...tempHours, exam: Number(e.target.value)})} /></div>
+                                        {/* ✅✅✅ จุดที่แก้ไข: เพิ่ม min="0" และ onKeyDown ป้องกันเลขติดลบ */}
+                                        <div className="col-span-2 px-1">
+                                            <input 
+                                                type="number" 
+                                                min="0"
+                                                onKeyDown={(e) => { if (["-", "e", "E", "+"].includes(e.key)) e.preventDefault(); }}
+                                                className="w-full text-center border rounded" 
+                                                value={tempHours.lecture} 
+                                                onChange={(e) => setTempHours({...tempHours, lecture: Number(e.target.value)})} 
+                                            />
+                                        </div>
+                                        <div className="col-span-2 px-1">
+                                            <input 
+                                                type="number" 
+                                                min="0"
+                                                onKeyDown={(e) => { if (["-", "e", "E", "+"].includes(e.key)) e.preventDefault(); }}
+                                                className="w-full text-center border rounded" 
+                                                value={tempHours.lab} 
+                                                onChange={(e) => setTempHours({...tempHours, lab: Number(e.target.value)})} 
+                                            />
+                                        </div>
+                                        <div className="col-span-2 px-1">
+                                            <input 
+                                                type="number" 
+                                                min="0"
+                                                onKeyDown={(e) => { if (["-", "e", "E", "+"].includes(e.key)) e.preventDefault(); }}
+                                                className="w-full text-center border rounded" 
+                                                value={tempHours.exam} 
+                                                onChange={(e) => setTempHours({...tempHours, exam: Number(e.target.value)})} 
+                                            />
+                                        </div>
+                                        {/* ✅✅✅ สิ้นสุดจุดแก้ไข */}
                                         <div className="col-span-2 flex justify-center gap-2">
                                             <button onClick={() => handleUpdateHours(assign.id)} className="text-green-600"><Check size={16}/></button>
                                             <button onClick={() => setEditingAssignmentId(null)} className="text-gray-500"><X size={16}/></button>

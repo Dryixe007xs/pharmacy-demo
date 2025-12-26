@@ -1,57 +1,72 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { useState, useEffect } from "react";
+import { signIn, useSession } from "next-auth/react"; // เพิ่ม useSession
+import { useRouter } from "next/navigation"; // เพิ่ม useRouter
 import { Pill, ArrowRight, Sparkles } from "lucide-react";
-import { motion } from "framer-motion"; // พระเอกของเรา
+import { motion } from "framer-motion";
 
 export default function WelcomePage() {
+  const { data: session, status } = useSession(); // ดึงสถานะการ Login
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+
+  // --- Logic ใหม่: ถ้า Login แล้ว ให้ดีดไปหน้า Dashboard ทันที ---
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.push("/dashboard"); // เปลี่ยนเส้นทางไปหน้า Dashboard
+    }
+  }, [status, router]);
 
   const handleLogin = () => {
     setIsLoading(true);
+    // --- จุดที่แก้: เปลี่ยน callbackUrl เป็น /dashboard ---
     signIn("azure-ad", {
-      callbackUrl: "/",
+      callbackUrl: "/dashboard", 
       redirect: true,
     });
   };
 
+  // ถ้ากำลังเช็ค Session หรือมี Session แล้ว ให้แสดงหน้า Loading ว่างๆ หรือ Spinner
+  // เพื่อกันไม่ให้เห็นหน้า Login แวบหนึ่ง
+  if (status === "loading" || status === "authenticated") {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-slate-50">
+         <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 relative overflow-hidden font-sarabun selection:bg-purple-200 selection:text-purple-900">
       
-      {/* --- 1. Animated Background (พื้นหลังเคลื่อนไหว) --- */}
+      {/* --- 1. Animated Background --- */}
       <div className="absolute inset-0 w-full h-full overflow-hidden z-0 pointer-events-none">
-        {/* Blob 1: Purple */}
         <motion.div 
           animate={{ x: [0, 50, 0], y: [0, 30, 0], scale: [1, 1.1, 1] }}
           transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
           className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-300/40 rounded-full mix-blend-multiply filter blur-[80px]"
         />
-        {/* Blob 2: Emerald */}
         <motion.div 
           animate={{ x: [0, -30, 0], y: [0, 50, 0], scale: [1, 1.2, 1] }}
           transition={{ duration: 18, repeat: Infinity, ease: "easeInOut", delay: 2 }}
           className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-emerald-300/40 rounded-full mix-blend-multiply filter blur-[80px]"
         />
-        {/* Blob 3: Blue */}
         <motion.div 
           animate={{ x: [0, 40, 0], y: [0, -40, 0] }}
           transition={{ duration: 20, repeat: Infinity, ease: "easeInOut", delay: 4 }}
           className="absolute bottom-[-20%] left-[20%] w-[600px] h-[600px] bg-blue-200/40 rounded-full mix-blend-multiply filter blur-[80px]"
         />
-        
-        {/* Grid Pattern Overlay (เพิ่ม Texture ให้ดูไม่โล่ง) */}
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
       </div>
 
-      {/* --- 2. Main Card (Glassmorphism) --- */}
+      {/* --- 2. Main Card --- */}
       <motion.div 
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="relative z-10 w-full max-w-[420px] bg-white/70 backdrop-blur-xl border border-white/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl overflow-hidden p-8 mx-4"
       >
-        
         {/* Logo Section */}
         <div className="flex flex-col items-center justify-center mb-8">
             <motion.div 
@@ -62,8 +77,6 @@ export default function WelcomePage() {
             >
                 <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity rounded-2xl"></div>
                 <Pill className="w-10 h-10 text-white" />
-                
-                {/* Sparkle Icon Decor */}
                 <motion.div 
                   animate={{ rotate: [0, 15, -15, 0] }}
                   transition={{ duration: 5, repeat: Infinity }}
@@ -124,7 +137,7 @@ export default function WelcomePage() {
                     {isLoading ? (
                        <div className="flex items-center gap-2">
                           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          <span className="text-sm font-medium">Connecting to Microsoft...</span>
+                          <span className="text-sm font-medium">Connecting...</span>
                        </div>
                     ) : (
                        <>
