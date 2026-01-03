@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  debug: process.env.NODE_ENV === "development",
+  debug: true, // เปิด debug เพื่อดู error ใน Vercel logs
   session: {
     strategy: "jwt",
   },
@@ -14,22 +14,24 @@ export const authOptions: NextAuthOptions = {
     AzureADProvider({
       clientId: process.env.AZURE_AD_CLIENT_ID!,
       clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
-      tenantId: process.env.AZURE_AD_TENANT_ID,
-      authorization: { params: { prompt: "select_account" } }, 
-      allowDangerousEmailAccountLinking: true, 
+      tenantId: process.env.AZURE_AD_TENANT_ID!,
+      authorization: { 
+        params: { 
+          scope: "openid profile email User.Read",
+          prompt: "select_account" 
+        } 
+      },
       
       profile(profile) {
+        console.log("✅ Azure AD Profile:", JSON.stringify(profile, null, 2));
         return {
           id: profile.sub,
-          email: profile.email || profile.preferred_username || profile.upn, 
-          name: profile.name || `${profile.given_name} ${profile.family_name}`,
-          
-          // ใช้ ?? null เพื่อกัน undefined
+          email: profile.email || profile.preferred_username || profile.upn,
+          name: profile.name || `${profile.given_name || ''} ${profile.family_name || ''}`.trim(),
           firstName: profile.given_name ?? null,
           lastName: profile.family_name ?? null,
-          
-          role: "USER",       // ค่า Default สำหรับคนมาใหม่
-          department: null,   // ค่า Default
+          role: "USER",
+          department: null,
           image: null,
         };
       },
@@ -37,32 +39,31 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      
-      // ------------------------------------------------------------------
-      // 1. กรณีมีการสั่ง Update (เช่น การกดปุ่ม "สวมรอย" จากหน้าบ้าน)
-      // ------------------------------------------------------------------
-      if (trigger === "update" && session?.impersonateId) {
-        // ค้นหาข้อมูลของคนที่เราจะสวมรอย
-        const targetUser = await prisma.user.findUnique({
-          where: { id: session.impersonateId },
-        });
+      console.log("🔑 JWT Callback - Trigger:", trigger, "Has User:", !!user);
 
-        if (targetUser) {
-          // แทนที่ข้อมูลใน Token ด้วยข้อมูลของคนที่เราสวมรอย
-          token.id = targetUser.id;
-          token.role = targetUser.role;
-          token.department = targetUser.department;
-          token.firstName = targetUser.firstName;
-          token.lastName = targetUser.lastName;
-          token.isImpersonating = true; // แปะป้ายว่าตอนนี้เป็นตัวปลอมนะ
+      if (trigger === "update" && session?.impersonateId) {
+        try {
+          const targetUser = await prisma.user.findUnique({
+            where: { id: session.impersonateId },
+          });
+
+          if (targetUser) {
+            console.log("👤 Impersonating:", targetUser.email);
+            token.id = targetUser.id;
+            token.role = targetUser.role;
+            token.department = targetUser.department;
+            token.firstName = targetUser.firstName;
+            token.lastName = targetUser.lastName;
+            token.isImpersonating = true;
+          }
+        } catch (error) {
+          console.error("❌ Error in impersonation:", error);
         }
         return token;
       }
 
-      // ------------------------------------------------------------------
-      // 2. กรณี Login ครั้งแรก (User จริง login เข้ามา)
-      // ------------------------------------------------------------------
       if (user) {
+        console.log("👤 User Login:", user.email);
         token.id = user.id;
         token.role = user.role;
         token.department = user.department;
@@ -75,27 +76,26 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
+      console.log("📝 Session Callback");
+      
       if (session.user && token) {
-        // Map ข้อมูลจาก Token กลับไปที่ Session เพื่อให้หน้าเว็บใช้
-        session.user.id = token.id; 
-        session.user.role = token.role;
-        session.user.department = token.department;
-        session.user.isImpersonating = token.isImpersonating;
-
-        session.user.firstName = token.firstName;
-        session.user.lastName = token.lastName;
+        session.user.id = token.id as string;
+        session.user.role = token.role as string;
+        session.user.department = token.department as string | null;
+        session.user.isImpersonating = token.isImpersonating as boolean;
+        session.user.firstName = token.firstName as string | null;
+        session.user.lastName = token.lastName as string | null;
         
-        // จัดการชื่อแสดงผล
         const nameParts = [token.firstName, token.lastName].filter(Boolean);
         if (nameParts.length > 0) {
-           session.user.name = nameParts.join(" ");
+          session.user.name = nameParts.join(" ");
         }
       }
       return session;
     },
   },
   pages: {
-    signIn: "/", 
-    error: "/",
+    signIn: "/",
+    error: "/auth/error",
   },
 };

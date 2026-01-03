@@ -202,9 +202,9 @@ export default function PersonalReportPage() {
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-sm uppercase tracking-wide font-semibold">
                         <th className="py-4 px-6 w-[30%]">รหัสวิชา / ชื่อรายวิชา</th>
                         <th className="py-4 px-6 w-[15%] text-center">บทบาท</th>
-                        <th className="py-4 px-6 w-[10%] text-center">บรรยาย (ชม.)</th>
-                        <th className="py-4 px-6 w-[10%] text-center">ปฏิบัติ (ชม.)</th>
-                        <th className="py-4 px-6 w-[10%] text-center">คุมสอบ</th>
+                        <th className="py-4 px-6 w-[10%] text-center">ชั่วโมงบรรยาย</th>
+                        <th className="py-4 px-6 w-[10%] text-center">ชั่วโมงปฏิบัติ</th>
+                        <th className="py-4 px-6 w-[10%] text-center">คุมสอบนอกตาราง</th>
                         <th className="py-4 px-6 w-[15%] text-center">รวม (ชม.)</th>
                         <th className="py-4 px-6 w-[10%] text-center">หมายเหตุ</th>
                     </tr>

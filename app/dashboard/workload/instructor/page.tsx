@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react"; // ✅ 1. Import useSession
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label"; // ✅ เพิ่ม Label component (ถ้ามี) หรือใช้ label ธรรมดา
 import {
   Select,
   SelectContent,
@@ -26,11 +27,12 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
-import { Search, CheckCircle, AlertCircle, Plus, Check, ExternalLink, Loader2 } from "lucide-react";
+import { Search, CheckCircle, AlertCircle, Plus, Check, ExternalLink, Loader2, Link as LinkIcon, Building2, BookOpen } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
-// Types (เหมือนเดิม)
+// Types
 type Assignment = {
   id: number;
   subjectId: number;
@@ -46,7 +48,7 @@ type Assignment = {
         name_th: string;
         degree_level: string;
     };
-    responsibleUserId: string | null; // ✅ แก้ Type ให้ตรง DB
+    responsibleUserId: string | null;
   };
 };
 
@@ -61,9 +63,8 @@ type Course = {
 };
 
 export default function InstructorWorkloadPage() {
-  // ✅ 2. ใช้ Session แทน LocalStorage
   const { data: session, status } = useSession();
-  const currentUser = session?.user; // ข้อมูลนี้จะเปลี่ยนตาม Cookie สวมรอยให้อัตโนมัติ
+  const currentUser = session?.user;
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [allCourses, setAllCourses] = useState<Course[]>([]); 
@@ -80,17 +81,19 @@ export default function InstructorWorkloadPage() {
     faculty: "",
     code: "",
     nameTh: "",
-    nameEn: "",
+    nameEn: "", // Optional
     lectureHours: 0,
     labHours: 0,
+    examHours: 0, // Optional
     evidenceLink: ""
   });
+
+  const [isSubmittingExternal, setIsSubmittingExternal] = useState(false);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
 
   // ===== FETCH DATA =====
-  // โหลดข้อมูลเมื่อ Session พร้อม หรือเมื่อ ID เปลี่ยน (สวมรอย)
   useEffect(() => {
     if (status === 'authenticated' && currentUser?.id) {
         fetchData(currentUser.id);
@@ -100,17 +103,18 @@ export default function InstructorWorkloadPage() {
     }
   }, [status, currentUser?.id]); 
 
-  const fetchData = async (userId: string) => { // ✅ รับ String ID
+  const fetchData = async (userId: string) => {
     setLoading(true);
     try {
         const resAssign = await fetch(`/api/assignments?lecturerId=${userId}`);
         const dataAssign = await resAssign.json();
         
-        const resCourses = await fetch("/api/courses");
-        const dataCourses = await resCourses.json();
+        // (Optional) โหลด courses อื่นๆ ถ้าจำเป็น
+        // const resCourses = await fetch("/api/courses");
+        // const dataCourses = await resCourses.json();
 
         setAssignments(Array.isArray(dataAssign) ? dataAssign : []);
-        setAllCourses(Array.isArray(dataCourses) ? dataCourses : []);
+        // setAllCourses(Array.isArray(dataCourses) ? dataCourses : []);
 
     } catch (err) {
         console.error("Error loading data:", err);
@@ -174,13 +178,45 @@ export default function InstructorWorkloadPage() {
     }
   };
 
+  // ✅ ฟังก์ชันบันทึกรายวิชานอกคณะ (พร้อม API Call)
   const handleAddExternalCourse = async () => {
-    console.log("Saving External Course:", externalCourseForm);
-    toast.success("บันทึกข้อมูลรายวิชานอกคณะเรียบร้อย (Mock)");
-    setIsAddOpen(false);
-    setExternalCourseForm({
-        faculty: "", code: "", nameTh: "", nameEn: "", lectureHours: 0, labHours: 0, evidenceLink: ""
-    });
+    // Validate Basic Fields
+    if (!externalCourseForm.faculty || !externalCourseForm.code || !externalCourseForm.nameTh) {
+        toast.error("กรุณากรอกข้อมูลสำคัญให้ครบ (คณะ, รหัสวิชา, ชื่อวิชา)");
+        return;
+    }
+
+    setIsSubmittingExternal(true);
+    try {
+        // ยิงไปที่ API (ต้องสร้าง Route นี้รองรับ หรือใช้ Route เดิมแล้วเช็คเงื่อนไข)
+        // สมมติ: POST /api/assignments/external
+        const res = await fetch("/api/assignments/external", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                ...externalCourseForm,
+                lecturerId: currentUser?.id // ส่ง ID ผู้สอนไปด้วย
+            })
+        });
+
+        if (res.ok) {
+            toast.success("บันทึกข้อมูลรายวิชานอกคณะเรียบร้อย");
+            setIsAddOpen(false);
+            // Reset Form
+            setExternalCourseForm({
+                faculty: "", code: "", nameTh: "", nameEn: "", lectureHours: 0, labHours: 0, examHours: 0, evidenceLink: ""
+            });
+            // Reload Data
+            if (currentUser?.id) fetchData(currentUser.id);
+        } else {
+            const errorData = await res.json();
+            toast.error(errorData.error || "บันทึกไม่สำเร็จ");
+        }
+    } catch (error) {
+        toast.error("เกิดข้อผิดพลาดในการเชื่อมต่อ");
+    } finally {
+        setIsSubmittingExternal(false);
+    }
   };
 
   // ===== FILTER LOGIC =====
@@ -189,13 +225,13 @@ export default function InstructorWorkloadPage() {
     const matchSearch = a.subject.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         a.subject.name_th.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // 2. กรองวิชาที่ตัวเองเป็นเจ้าของออก (เปรียบเทียบ ID แบบ String)
-    const isOwner = currentUser && String(a.subject.responsibleUserId) === String(currentUser.id);
+    // 2. กรองวิชาที่ตัวเองเป็นเจ้าของออก (ถ้ามี Logic นี้)
+    // const isOwner = currentUser && String(a.subject.responsibleUserId) === String(currentUser.id);
 
-    // 3. กรองวิชาที่ชั่วโมงยังเป็น 0 ทั้งหมดออก
-    const hasHours = (a.lectureHours || 0) + (a.labHours || 0) + (a.examHours || 0) > 0;
+    // 3. กรองวิชาที่ชั่วโมงยังเป็น 0 ทั้งหมดออก (Optional)
+    // const hasHours = (a.lectureHours || 0) + (a.labHours || 0) + (a.examHours || 0) > 0;
 
-    return matchSearch && !isOwner && hasHours;
+    return matchSearch; // && !isOwner && hasHours;
   });
 
   // Calculate totals
@@ -216,7 +252,6 @@ export default function InstructorWorkloadPage() {
       <div>
         <h1 className="text-xl text-slate-500 mb-2">กรอกชั่วโมงการสอน/ผู้สอน</h1>
         <h2 className="text-2xl font-bold text-slate-800">ตรวจสอบภาระงานสอน</h2>
-        {/* ✅ แสดงชื่อผู้ใช้ปัจจุบัน */}
         {currentUser && !loading && (
              <p className="text-sm text-purple-600 mt-1 font-medium animate-in fade-in">
                 กำลังแสดงข้อมูลของคุณ: {currentUser.name}
@@ -354,27 +389,116 @@ export default function InstructorWorkloadPage() {
         {/* Action Buttons Area */}
         <div className="flex flex-col md:flex-row justify-between items-center mt-6 gap-4">
             
-            {/* External Course Button */}
+            {/* ✅ ADD EXTERNAL COURSE DIALOG */}
             <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                 <DialogTrigger asChild>
                     <Button variant="outline" className="text-green-600 border-green-600 border-dashed hover:bg-green-50">
                         <Plus className="w-4 h-4 mr-2" /> เพิ่มรายวิชาอื่นๆ (นอกคณะ/ภายใน ม.พะเยา)
                     </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>เพิ่มวิชาอื่นๆ ใน มหาวิทยาลัยพะเยา (นอกคณะเภสัชศาสตร์)</DialogTitle>
+                        <DialogTitle className="text-xl flex items-center gap-2">
+                            <Building2 className="w-6 h-6 text-green-600" />
+                            เพิ่มวิชาอื่นๆ (นอกคณะ/ศึกษาทั่วไป)
+                        </DialogTitle>
+                        <DialogDescription>
+                            กรอกข้อมูลรายวิชาที่ท่านไปสอนนอกคณะเภสัชศาสตร์ หรือวิชาศึกษาทั่วไป (GE)
+                        </DialogDescription>
                     </DialogHeader>
-                    {/* ... (Form Fields เดิม ไม่ต้องแก้) ... */}
-                    <div className="grid grid-cols-2 gap-4 py-4">
-                        {/* ... */}
-                        <div className="col-span-2 text-center text-slate-400 italic">
-                            (ฟอร์มเพิ่มรายวิชานอกคณะ ใช้ Logic เดิมได้เลยครับ)
+                    
+                    {/* ✅✅✅ FORM INPUTS ที่เติมให้ใหม่ ✅✅✅ */}
+                    <div className="grid gap-5 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">คณะ/หน่วยงานที่สอน <span className="text-red-500">*</span></label>
+                                <Input 
+                                    placeholder="เช่น คณะศิลปศาสตร์, สำนักวิชา..." 
+                                    value={externalCourseForm.faculty}
+                                    onChange={(e) => setExternalCourseForm({...externalCourseForm, faculty: e.target.value})}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">รหัสวิชา <span className="text-red-500">*</span></label>
+                                <Input 
+                                    placeholder="เช่น 001101" 
+                                    value={externalCourseForm.code}
+                                    onChange={(e) => setExternalCourseForm({...externalCourseForm, code: e.target.value})}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700">ชื่อรายวิชา (ภาษาไทย) <span className="text-red-500">*</span></label>
+                            <Input 
+                                placeholder="เช่น ภาษาอังกฤษเพื่อการสื่อสาร" 
+                                value={externalCourseForm.nameTh}
+                                onChange={(e) => setExternalCourseForm({...externalCourseForm, nameTh: e.target.value})}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700">ชื่อรายวิชา (ภาษาอังกฤษ)</label>
+                            <Input 
+                                placeholder="Optional" 
+                                value={externalCourseForm.nameEn}
+                                onChange={(e) => setExternalCourseForm({...externalCourseForm, nameEn: e.target.value})}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700 text-center block">ชั่วโมงบรรยาย</label>
+                                <Input 
+                                    type="number" min="0" className="text-center"
+                                    onKeyDown={(e) => ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()}
+                                    value={externalCourseForm.lectureHours}
+                                    onChange={(e) => setExternalCourseForm({...externalCourseForm, lectureHours: Number(e.target.value)})}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700 text-center block">ชั่วโมงปฏิบัติ</label>
+                                <Input 
+                                    type="number" min="0" className="text-center"
+                                    onKeyDown={(e) => ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()}
+                                    value={externalCourseForm.labHours}
+                                    onChange={(e) => setExternalCourseForm({...externalCourseForm, labHours: Number(e.target.value)})}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700 text-center block">ชั่วโมงคุมสอบ</label>
+                                <Input 
+                                    type="number" min="0" className="text-center"
+                                    onKeyDown={(e) => ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()}
+                                    value={externalCourseForm.examHours || 0}
+                                    onChange={(e) => setExternalCourseForm({...externalCourseForm, examHours: Number(e.target.value)})}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                                <LinkIcon size={16} /> ลิงก์เอกสารอ้างอิง/คำสั่งแต่งตั้ง (ถ้ามี)
+                            </label>
+                            <Input 
+                                placeholder="https://..." 
+                                value={externalCourseForm.evidenceLink}
+                                onChange={(e) => setExternalCourseForm({...externalCourseForm, evidenceLink: e.target.value})}
+                            />
                         </div>
                     </div>
+                    {/* ✅✅✅ จบส่วนฟอร์ม ✅✅✅ */}
+
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsAddOpen(false)}>ยกเลิก</Button>
-                        <Button className="bg-green-600 hover:bg-green-700" onClick={handleAddExternalCourse}>บันทึกข้อมูล</Button>
+                        <Button variant="outline" onClick={() => setIsAddOpen(false)} disabled={isSubmittingExternal}>ยกเลิก</Button>
+                        <Button 
+                            className="bg-green-600 hover:bg-green-700 text-white" 
+                            onClick={handleAddExternalCourse}
+                            disabled={isSubmittingExternal}
+                        >
+                            {isSubmittingExternal ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Check className="w-4 h-4 mr-2" />}
+                            บันทึกข้อมูล
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

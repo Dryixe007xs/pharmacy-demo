@@ -115,7 +115,7 @@ export default function DashboardPage() {
           สวัสดี, <span className="text-purple-600">{session?.user?.name || "อาจารย์"}</span>
         </h1>
         <p className="text-slate-500 text-sm">
-          ยินดีต้อนรับสู่ระบบจัดการชั่วโมงสอน ประจำปีการศึกษา 2567
+          ยินดีต้อนรับสู่ระบบจัดการชั่วโมงภาระงานสอน ประจำปีการศึกษา 2567
         </p>
       </div>
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut, useSession } from "next-auth/react"; 
+import { useSession } from "next-auth/react"; 
 import { 
   Home, 
   Database, 
@@ -11,9 +11,7 @@ import {
   PieChart, 
   CalendarDays, 
   ChevronDown, 
-  ChevronRight,
-  Settings,
-  LogOut
+  ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -66,7 +64,7 @@ const menuItems: MenuItem[] = [
       },
       { 
           title: "ประธานหลักสูตร", 
-          href: "/dashboard/workload/program-chair", // ⚠️ แก้ href ให้ตรงกับ Folder จริง (/chair หรือ /program-chair)
+          href: "/dashboard/workload/program-chair", 
           roles: ['ADMIN', 'PROGRAM_CHAIR'] 
       },
       { 
@@ -143,16 +141,6 @@ export function Sidebar() {
         : [...prev, title]
     );
   };
-
-  const handleLogout = async () => {
-    // 1. ล้าง Cookie สวมรอย (เก็บไว้เหมือนเดิม กันเหนียว)
-    document.cookie = "impersonateId=; path=/; max-age=0";
-
-    // 2. สั่ง Logout แค่ใน App เราเท่านั้น (Local Logout)
-    // callbackUrl: "/" คือพอลบ session เสร็จ ให้ดีดกลับหน้า Welcome ทันที
-    // ไม่ต้องมีบรรทัด window.location.href ไปหา Microsoft แล้ว
-    await signOut({ callbackUrl: "/", redirect: true });
-};
 
   if (!isMounted) return <nav className="group fixed left-0 top-16 h-[calc(100vh-4rem)] w-20 bg-white border-r border-slate-200 z-50"></nav>;
 
@@ -242,30 +230,6 @@ export function Sidebar() {
             </div>
           );
         })}
-      </div>
-
-      {/* --- FOOTER --- */}
-      <div className="p-3 border-t border-slate-100 bg-white space-y-1">
-          <button className="flex items-center h-12 w-full px-3 rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all relative overflow-hidden whitespace-nowrap">
-            <div className="min-w-[2rem] flex justify-center">
-              <Settings size={22} />
-            </div>
-            <span className="ml-3 text-sm font-medium opacity-0 group-hover:opacity-100 transform translate-x-[-10px] group-hover:translate-x-0 transition-all duration-300">
-              ตั้งค่าระบบ
-            </span>
-          </button>
-
-          <button 
-             onClick={handleLogout}
-             className="flex items-center h-12 w-full px-3 rounded-xl text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all relative overflow-hidden whitespace-nowrap"
-          >
-            <div className="min-w-[2rem] flex justify-center">
-              <LogOut size={22} />
-            </div>
-            <span className="ml-3 text-sm font-medium opacity-0 group-hover:opacity-100 transform translate-x-[-10px] group-hover:translate-x-0 transition-all duration-300">
-              ออกจากระบบ
-            </span>
-          </button>
       </div>
     </nav>
   );

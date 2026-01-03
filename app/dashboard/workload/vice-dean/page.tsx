@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react"; // ✅ Import useSession
+import { useSession } from "next-auth/react"; 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, CheckCircle, Clock, AlertOctagon, Loader2, FileText, X } from "lucide-react";
+import { Search, CheckCircle, Clock, AlertOctagon, Loader2, FileText, FileCheck } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
 // --- Types ---
@@ -38,9 +38,8 @@ interface CourseWorkload {
 }
 
 export default function ViceDeanPage() {
-  // ✅ ใช้ Session แทน LocalStorage
   const { data: session, status } = useSession();
-  const currentUser = session?.user; // ข้อมูลผู้ใช้ปัจจุบัน (รวมถึงตอนสวมรอย)
+  const currentUser = session?.user;
 
   const [courses, setCourses] = useState<CourseWorkload[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +47,6 @@ export default function ViceDeanPage() {
 
   // ===== FETCH DATA =====
   useEffect(() => {
-    // โหลดข้อมูลเมื่อ Login แล้ว (ไม่จำเป็นต้องเช็ค ID เพราะรองคณบดีเห็นทุกวิชา)
     if (status === 'authenticated') {
         fetchData();
     } else if (status === 'unauthenticated') {
@@ -60,7 +58,6 @@ export default function ViceDeanPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. ดึงรายวิชาทั้งหมด
       const resCourses = await fetch("/api/courses");
       const allCourses = await resCourses.json();
 
@@ -69,7 +66,6 @@ export default function ViceDeanPage() {
         return;
       }
 
-      // 2. Map ข้อมูล
       const workloadData = allCourses
         .map((course: any) => {
              const assignments = course.teachingAssignments || [];
@@ -77,46 +73,42 @@ export default function ViceDeanPage() {
              if (assignments.length === 0) return null;
 
              const instructors: InstructorLoad[] = assignments.map((a: any) => ({
-                id: a.id,
-                name: a.lecturer ? `${a.lecturer.academicPosition || ''}${a.lecturer.firstName} ${a.lecturer.lastName}` : 'Unknown',
-                // เทียบ String ID เพื่อความปลอดภัย
-                role: String(a.lecturerId) === String(course.responsibleUserId) ? 'ผู้รับผิดชอบรายวิชา' : 'ผู้สอน',
-                lecture: a.lectureHours || 0,
-                lab: a.labHours || 0,
-                exam: a.examHours || 0,
-                headStatus: a.headApprovalStatus,
-                deanStatus: a.deanApprovalStatus
+               id: a.id,
+               name: a.lecturer ? `${a.lecturer.academicPosition || ''}${a.lecturer.firstName} ${a.lecturer.lastName}` : 'Unknown',
+               role: String(a.lecturerId) === String(course.responsibleUserId) ? 'ผู้รับผิดชอบรายวิชา' : 'ผู้สอน',
+               lecture: a.lectureHours || 0,
+               lab: a.labHours || 0,
+               exam: a.examHours || 0,
+               headStatus: a.headApprovalStatus,
+               deanStatus: a.deanApprovalStatus
              }));
 
              instructors.sort((a, b) => (a.role === 'ผู้รับผิดชอบรายวิชา' ? -1 : 1));
 
-             // Logic สถานะ
              let status: WorkloadStatus = 'waiting_chair';
              
              const isHeadApproved = instructors.every(i => i.headStatus === 'APPROVED');
              const isDeanApproved = instructors.every(i => i.deanStatus === 'APPROVED');
-             const isDeanRejected = instructors.some(i => i.deanStatus === 'REJECTED');
-
+             
              if (isDeanApproved) {
                 status = 'approved';
-             } else if (isDeanRejected) {
-                status = 'rejected';
              } else if (isHeadApproved) {
-                status = 'pending_approval'; // ประธานอนุมัติครบทุกคน -> ถึงคิวรองคณบดี
+                status = 'pending_approval'; 
              } else {
                 status = 'waiting_chair';
              }
 
              return {
-                id: course.id,
-                code: course.code,
-                name: course.name_th,
-                programName: course.program?.name_th || "-",
-                instructors,
-                status
+               id: course.id,
+               code: course.code,
+               name: course.name_th,
+               programName: course.program?.name_th || "-",
+               instructors,
+               status
              };
         })
-        .filter((item): item is CourseWorkload => item !== null);
+        // ✅✅✅ จุดที่แก้ไข: Cast Type เพื่อแก้ Error ตัวแดง
+        .filter((item: any) => item !== null) as CourseWorkload[];
 
       setCourses(workloadData);
 
@@ -131,7 +123,7 @@ export default function ViceDeanPage() {
   // ===== HANDLERS =====
 
   const handleApprove = async (course: CourseWorkload) => {
-    if (!confirm("ยืนยันการรับรองข้อมูลภาระงานสอนรายวิชานี้?")) return;
+    if (!confirm("ยืนยันการรับรองข้อมูลภาระงานสอนรายวิชานี้ เพื่อนำไปออกรายงาน?")) return;
 
     try {
         const updatePromises = course.instructors.map(inst => 
@@ -153,30 +145,6 @@ export default function ViceDeanPage() {
     }
   };
 
-  const handleReject = async (course: CourseWorkload) => {
-    if (!confirm("ต้องการส่งกลับให้ประธานหลักสูตรตรวจสอบใหม่?")) return;
-
-    try {
-        const updatePromises = course.instructors.map(inst => 
-            fetch("/api/assignments", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    id: inst.id,
-                    deanApprovalStatus: "REJECTED",
-                    headApprovalStatus: "REJECTED" // ตีกลับไปสถานะประธาน
-                })
-            })
-        );
-
-        await Promise.all(updatePromises);
-        toast.success("ส่งกลับเรียบร้อยแล้ว");
-        fetchData();
-    } catch (error) {
-        toast.error("เกิดข้อผิดพลาด");
-    }
-  };
-
   // Filter
   const filteredCourses = courses.filter(c => 
     c.code.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -191,7 +159,6 @@ export default function ViceDeanPage() {
       <div>
         <h1 className="text-xl text-slate-500 mb-2">การจัดการชั่วโมงการสอน/รองคณบดีฝ่ายวิชาการ</h1>
         <h2 className="text-2xl font-bold text-slate-800">สำหรับรองคณบดีฝ่ายวิชาการ</h2>
-        {/* แสดงชื่อผู้ใช้ (ถ้ามีการสวมรอยก็จะเปลี่ยนตาม) */}
         {currentUser && !loading && (
              <p className="text-sm text-purple-600 mt-1 font-medium animate-in fade-in">
                 กำลังแสดงข้อมูลของคุณ: {currentUser.name}
@@ -291,43 +258,30 @@ export default function ViceDeanPage() {
                     
                     {/* 1. รอการรับรอง (Pending Approval) */}
                     {course.status === 'pending_approval' && (
-                        <div className="flex gap-4 items-center animate-in zoom-in duration-300">
-                            <span className="text-sm text-blue-600 font-medium flex items-center gap-2 mr-2">
-                                <AlertOctagon size={18} /> รอการพิจารณา
+                        <div className="flex flex-col sm:flex-row gap-4 items-center animate-in zoom-in duration-300 w-full justify-center">
+                            <span className="text-sm text-slate-500 flex items-center gap-2">
+                                <AlertOctagon size={18} className="text-orange-500" /> 
+                                ข้อมูลผ่านการตรวจสอบแล้ว รอการรับรองจากท่าน
                             </span>
+                            {/* ✅ ปุ่มรับรองปุ่มเดียวโดดๆ */}
                             <Button 
-                                className="bg-lime-600 hover:bg-lime-700 text-white min-w-[140px] shadow-sm transition-all hover:-translate-y-0.5"
+                                className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto px-8 shadow-sm transition-all hover:-translate-y-0.5"
                                 onClick={() => handleApprove(course)}
                             >
-                                <CheckCircle className="mr-2 h-4 w-4" /> รับรองข้อมูล
-                            </Button>
-                            <Button 
-                                variant="outline"
-                                className="border-red-200 text-red-600 hover:bg-red-50 min-w-[140px]"
-                                onClick={() => handleReject(course)}
-                            >
-                                <X className="mr-2 h-4 w-4" /> ส่งกลับแก้ไข
+                                <FileCheck className="mr-2 h-5 w-5" /> รับรองความถูกต้อง (ขั้นตอนสุดท้าย)
                             </Button>
                         </div>
                     )}
 
                     {/* 2. รับรองแล้ว (Approved) */}
                     {course.status === 'approved' && (
-                        <div className="text-lime-700 font-bold flex items-center gap-2 bg-lime-100 px-6 py-2 rounded-full border border-lime-200">
+                        <div className="text-green-700 font-bold flex items-center gap-2 bg-green-100 px-6 py-2 rounded-full border border-green-200">
                             <CheckCircle size={20} />
                             รับรองข้อมูลเรียบร้อยแล้ว
                         </div>
                     )}
 
-                    {/* 3. ถูกส่งกลับ (Rejected) */}
-                    {course.status === 'rejected' && (
-                        <div className="text-red-700 font-bold flex items-center gap-2 bg-red-100 px-6 py-2 rounded-full border border-red-200">
-                            <AlertOctagon size={20} />
-                            ส่งกลับแก้ไขแล้ว
-                        </div>
-                    )}
-
-                    {/* 4. รอประธานหลักสูตร (Waiting Chair) */}
+                    {/* 3. รอประธานหลักสูตร (Waiting Chair) */}
                     {course.status === 'waiting_chair' && (
                         <div className="text-slate-500 font-medium flex items-center gap-2 bg-white px-6 py-2 rounded-full border border-slate-200 shadow-sm">
                             <Clock size={18} className="text-orange-400" />
