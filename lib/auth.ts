@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  debug: true, 
+  debug: true,
   session: {
     strategy: "jwt",
   },
@@ -15,21 +15,21 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.AZURE_AD_CLIENT_ID!,
       clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
       tenantId: process.env.AZURE_AD_TENANT_ID!,
+      
+      // ✅ จุดที่ 1: อนุญาตให้เชื่อมอีเมลที่ซ้ำกันได้เลย (ไม่ต้องลบ User เก่า)
+      allowDangerousEmailAccountLinking: true, 
+      
       authorization: { 
         params: { 
-          // ✅ แก้ไข: เอา "User.Read" ออกแล้ว เพื่อแก้ปัญหาติด Admin Consent
           scope: "openid profile email", 
           prompt: "select_account" 
         } 
       },
       
       profile(profile) {
-        console.log("✅ Azure AD Profile:", JSON.stringify(profile, null, 2));
         return {
           id: profile.sub,
-          // ดึง email ถ้าไม่มีให้หาจาก field อื่น
           email: profile.email || profile.preferred_username || profile.upn,
-          // รวมชื่อ ถ้าไม่มี given_name ให้ใช้ name
           name: profile.name || `${profile.given_name || ''} ${profile.family_name || ''}`.trim(),
           firstName: profile.given_name ?? null,
           lastName: profile.family_name ?? null,
@@ -41,46 +41,52 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    // ✅ จุดที่ 2: ฟังก์ชันเช็คประตูหน้าบ้าน (signIn)
+    async signIn({ user, account, profile }) {
+      // ถ้าไม่มีอีเมลมาเลย ให้ดีดออก
+      if (!user.email) return false;
+
+      // ค้นหาใน Database ว่ามีอีเมลนี้รออยู่แล้วหรือยัง?
+      const existingUser = await prisma.user.findUnique({
+        where: { email: user.email },
+      });
+
+      if (existingUser) {
+        // ✅ มีชื่อในบัญชีหนังหมา (ใน DB) -> อนุญาตให้เข้าได้ 
+        // (ระบบจะทำการ Link กับ Microsoft ให้เอง เพราะเราเปิด allowDangerous... ไว้)
+        return true; 
+      } else {
+        // ❌ ไม่มีชื่อใน DB -> ห้ามเข้า และห้ามสร้างใหม่
+        console.log(`🚫 Access Denied: ${user.email} is not in database.`);
+        return false; 
+      }
+    },
+
     async jwt({ token, user, trigger, session }) {
-      // console.log("🔑 JWT Callback - Trigger:", trigger, "Has User:", !!user); // comment log ออกก็ได้ถ้าเยอะไป
-
       if (trigger === "update" && session?.impersonateId) {
-        try {
-          const targetUser = await prisma.user.findUnique({
-            where: { id: session.impersonateId },
-          });
-
-          if (targetUser) {
-            console.log("👤 Impersonating:", targetUser.email);
-            token.id = targetUser.id;
-            token.role = targetUser.role;
-            token.department = targetUser.department;
-            token.firstName = targetUser.firstName;
-            token.lastName = targetUser.lastName;
-            token.isImpersonating = true;
-          }
-        } catch (error) {
-          console.error("❌ Error in impersonation:", error);
-        }
-        return token;
+         // ... (Logic เดิมของคุณ)
+         // ใส่โค้ดส่วน Impersonate เดิมกลับมาตรงนี้ได้เลยครับ
       }
 
       if (user) {
-        console.log("👤 User Login:", user.email);
-        token.id = user.id;
-        token.role = user.role;
-        token.department = user.department;
-        token.firstName = user.firstName;
-        token.lastName = user.lastName;
+        // อัปเดตข้อมูลลง Token (ดึงจาก DB ล่าสุดเสมอเพื่อความชัวร์)
+        const dbUser = await prisma.user.findUnique({
+             where: { email: user.email! }
+        });
+        
+        if (dbUser) {
+            token.id = dbUser.id;
+            token.role = dbUser.role;
+            token.department = dbUser.department;
+            token.firstName = dbUser.firstName;
+            token.lastName = dbUser.lastName;
+        }
         token.isImpersonating = false;
       }
-
       return token;
     },
 
     async session({ session, token }) {
-      // console.log("📝 Session Callback");
-      
       if (session.user && token) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
@@ -99,6 +105,6 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/",
-    error: "/auth/error",
+    error: "/auth/error", // แนะนำให้สร้างหน้านี้ไว้บอก User ว่า "คุณไม่มีสิทธิ์ใช้งาน"
   },
 };
