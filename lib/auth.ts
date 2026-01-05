@@ -16,12 +16,12 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
       tenantId: process.env.AZURE_AD_TENANT_ID!,
       
-      // ✅ จุดที่ 1: อนุญาตให้เชื่อมอีเมลที่ซ้ำกันได้เลย (ไม่ต้องลบ User เก่า)
+      // ✅ 1. อนุญาตให้ Link บัญชีอัตโนมัติ (แก้ปัญหาพี่บุคลากรเข้าไม่ได้)
       allowDangerousEmailAccountLinking: true, 
       
       authorization: { 
         params: { 
-          scope: "openid profile email", 
+          scope: "openid profile email", // ✅ ใช้ Scope แค่นี้พอ ไม่ติด Admin
           prompt: "select_account" 
         } 
       },
@@ -41,35 +41,50 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    // ✅ จุดที่ 2: ฟังก์ชันเช็คประตูหน้าบ้าน (signIn)
-    async signIn({ user, account, profile }) {
-      // ถ้าไม่มีอีเมลมาเลย ให้ดีดออก
+    // ✅ 2. ด่านตรวจคนเข้าเมือง: เช็คว่ามีอีเมลใน DB ไหม?
+    async signIn({ user }) {
       if (!user.email) return false;
 
-      // ค้นหาใน Database ว่ามีอีเมลนี้รออยู่แล้วหรือยัง?
+      // ค้นหา User ใน Database
       const existingUser = await prisma.user.findUnique({
         where: { email: user.email },
       });
 
       if (existingUser) {
-        // ✅ มีชื่อในบัญชีหนังหมา (ใน DB) -> อนุญาตให้เข้าได้ 
-        // (ระบบจะทำการ Link กับ Microsoft ให้เอง เพราะเราเปิด allowDangerous... ไว้)
-        return true; 
+        return true; // ✅ มีชื่อ -> ให้เข้าได้ (และระบบจะ Link ID ให้เอง)
       } else {
-        // ❌ ไม่มีชื่อใน DB -> ห้ามเข้า และห้ามสร้างใหม่
         console.log(`🚫 Access Denied: ${user.email} is not in database.`);
-        return false; 
+        return false; // ❌ ไม่มีชื่อ -> ห้ามเข้า
       }
     },
 
     async jwt({ token, user, trigger, session }) {
+      // ✅ 3. ระบบสวมรอย (Impersonate) - ใส่คืนมาให้แล้วครับ
       if (trigger === "update" && session?.impersonateId) {
-         // ... (Logic เดิมของคุณ)
-         // ใส่โค้ดส่วน Impersonate เดิมกลับมาตรงนี้ได้เลยครับ
+        try {
+          const targetUser = await prisma.user.findUnique({
+            where: { id: session.impersonateId },
+          });
+
+          if (targetUser) {
+            console.log("🎭 Impersonating Target:", targetUser.email);
+            // เปลี่ยนข้อมูลใน Token เป็นของเป้าหมาย
+            token.id = targetUser.id;
+            token.role = targetUser.role;
+            token.department = targetUser.department;
+            token.firstName = targetUser.firstName;
+            token.lastName = targetUser.lastName;
+            token.isImpersonating = true; // แปะป้ายว่ากำลังสวมรอย
+          }
+        } catch (error) {
+          console.error("❌ Error in impersonation:", error);
+        }
+        return token; // ส่ง Token ที่สวมรอยแล้วกลับไปทันที
       }
 
+      // ✅ 4. การ Login ปกติ (ถ้าไม่ได้สวมรอย)
       if (user) {
-        // อัปเดตข้อมูลลง Token (ดึงจาก DB ล่าสุดเสมอเพื่อความชัวร์)
+        // อัปเดตข้อมูลให้ตรงกับ DB ล่าสุดเสมอ
         const dbUser = await prisma.user.findUnique({
              where: { email: user.email! }
         });
@@ -81,8 +96,9 @@ export const authOptions: NextAuthOptions = {
             token.firstName = dbUser.firstName;
             token.lastName = dbUser.lastName;
         }
-        token.isImpersonating = false;
+        token.isImpersonating = false; // Reset สถานะสวมรอย
       }
+
       return token;
     },
 
@@ -105,6 +121,6 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/",
-    error: "/auth/error", // แนะนำให้สร้างหน้านี้ไว้บอก User ว่า "คุณไม่มีสิทธิ์ใช้งาน"
+    error: "/auth/error", 
   },
 };
