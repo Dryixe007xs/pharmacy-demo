@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  debug: true, // เปิด debug เพื่อดู error ใน Vercel logs
+  debug: true, 
   session: {
     strategy: "jwt",
   },
@@ -17,7 +17,8 @@ export const authOptions: NextAuthOptions = {
       tenantId: process.env.AZURE_AD_TENANT_ID!,
       authorization: { 
         params: { 
-          scope: "openid profile email User.Read",
+          // ✅ แก้ไข: เอา "User.Read" ออกแล้ว เพื่อแก้ปัญหาติด Admin Consent
+          scope: "openid profile email", 
           prompt: "select_account" 
         } 
       },
@@ -26,7 +27,9 @@ export const authOptions: NextAuthOptions = {
         console.log("✅ Azure AD Profile:", JSON.stringify(profile, null, 2));
         return {
           id: profile.sub,
+          // ดึง email ถ้าไม่มีให้หาจาก field อื่น
           email: profile.email || profile.preferred_username || profile.upn,
+          // รวมชื่อ ถ้าไม่มี given_name ให้ใช้ name
           name: profile.name || `${profile.given_name || ''} ${profile.family_name || ''}`.trim(),
           firstName: profile.given_name ?? null,
           lastName: profile.family_name ?? null,
@@ -39,7 +42,7 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      console.log("🔑 JWT Callback - Trigger:", trigger, "Has User:", !!user);
+      // console.log("🔑 JWT Callback - Trigger:", trigger, "Has User:", !!user); // comment log ออกก็ได้ถ้าเยอะไป
 
       if (trigger === "update" && session?.impersonateId) {
         try {
@@ -76,7 +79,7 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      console.log("📝 Session Callback");
+      // console.log("📝 Session Callback");
       
       if (session.user && token) {
         session.user.id = token.id as string;

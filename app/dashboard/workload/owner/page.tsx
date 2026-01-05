@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { 
   Search, PenLine, Plus, Trash2, Edit2, X, User, Check, Loader2, UserPlus, 
   AlertCircle, CheckCircle, Send, Clock, FileText, AlertTriangle, MessageSquare, 
-  RefreshCcw, ShieldCheck
+  RefreshCcw, ShieldCheck, Sparkles, ChevronRight
 } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
@@ -215,12 +215,9 @@ export default function CourseOwnerPage() {
     } catch (error) { toast.error("เกิดข้อผิดพลาด"); }
   };
 
-  // ✅✅✅ 1. แก้ไข Logic: แยกกรณี "กรอกครั้งแรก" กับ "แก้ข้อโต้แย้ง"
   const handleUpdateHours = async (id: number) => {
     const targetAssign = assignments.find(a => a.id === id);
     const isSelf = targetAssign && currentUser && String(targetAssign.lecturerId) === String(currentUser.id);
-    
-    // เช็คว่าตอนนี้กำลังแก้จากสถานะ REJECTED หรือไม่?
     const isFixingDispute = targetAssign?.lecturerStatus === 'REJECTED';
 
     try {
@@ -229,17 +226,8 @@ export default function CourseOwnerPage() {
         lectureHours: tempHours.lecture,
         labHours: tempHours.lab,
         examHours: tempHours.exam,
-        
-        // 🔥 LOGIC ใหม่:
-        // - ถ้าเป็นตัวเอง (isSelf) -> APPROVED
-        // - ถ้าเป็นการแก้ข้อโต้แย้ง (isFixingDispute) -> APPROVED (จบเลย ไม่ต้องส่งกลับ)
-        // - ถ้าเป็นการกรอกครั้งแรก/แก้ไขปกติ (ไม่ใช่แก้ Dispute) -> PENDING (ส่งไปให้อาจารย์ตรวจ)
         lecturerStatus: (isSelf || isFixingDispute) ? "APPROVED" : "PENDING",
-        
-        // ถ้าแก้ Dispute ถือว่าเรา Approved ในฝั่งผู้รับผิดชอบแล้ว (พร้อมส่งประธาน)
         responsibleStatus: isFixingDispute ? "APPROVED" : "PENDING", 
-
-        // ล้าง Feedback เดิมออก
         lecturerFeedback: null 
       };
 
@@ -252,20 +240,16 @@ export default function CourseOwnerPage() {
       if (res.ok) {
         setEditingAssignmentId(null);
         await fetchAssignments(selectedCourse!.id);
-        
-        // แจ้งเตือนข้อความให้ตรงกับสิ่งที่เกิดขึ้น
         if (isFixingDispute) {
             toast.success("แก้ไขข้อมูลเรียบร้อย (อนุมัติทันที)");
         } else {
             toast.info("บันทึกข้อมูลแล้ว (ส่งให้อาจารย์ตรวจสอบ)");
         }
-        
         initialize(); 
       } else { toast.error("บันทึกไม่สำเร็จ"); }
     } catch (error) { toast.error("บันทึกไม่สำเร็จ"); }
   };
 
-  // ✅ 2. ยืนยันข้อมูลเดิม (ไม่แก้ -> ตัดสินใจจบเลย)
   const handleInsistOriginal = async (id: number) => {
     if(!resolveReason.trim()) {
         toast.error("กรุณาระบุเหตุผลที่ยืนยันข้อมูลเดิม");
@@ -275,11 +259,8 @@ export default function CourseOwnerPage() {
     try {
         const payload: any = {
             id,
-            // 🔥 เปลี่ยนสถานะเป็น APPROVED ทันที (ผู้รับผิดชอบยืนยันแล้ว ไม่ต้องส่งกลับไปมา)
             lecturerStatus: "APPROVED",
-            responsibleStatus: "APPROVED", // พร้อมส่งประธาน
-
-            // บันทึกเหตุผลเก็บไว้ใน feedback
+            responsibleStatus: "APPROVED", 
             lecturerFeedback: `[ยืนยันข้อมูลเดิม]: ${resolveReason}`
         };
 
@@ -329,13 +310,15 @@ export default function CourseOwnerPage() {
             })
         );
         await Promise.all(updatePromises);
+        
         setSubmitStatus('success');
-        toast.success("ส่งข้อมูลให้ประธานหลักสูตรเรียบร้อยแล้ว");
+        
         setTimeout(() => {
             setIsModalOpen(false);
             initialize(); 
             setTimeout(() => setSubmitStatus('idle'), 300);
-        }, 1500);
+        }, 2000);
+
     } catch (error) {
         setSubmitStatus('idle');
         toast.error("ส่งข้อมูลไม่สำเร็จ");
@@ -387,38 +370,48 @@ export default function CourseOwnerPage() {
   }
 
   return (
-    <div className="space-y-6 font-sarabun p-6 bg-gray-50 min-h-screen relative">
+    <div className="space-y-6 font-sarabun p-6 bg-slate-50/50 min-h-screen relative">
       <Toaster position="top-center" richColors />
 
-      {/* Header */}
-      <div>
-        <h1 className="text-xl text-slate-500 mb-2">กรอกชั่วโมงการสอน/ผู้รับผิดชอบรายวิชา</h1>
-        <h2 className="text-2xl font-bold text-slate-800">สำหรับผู้รับผิดชอบรายวิชา</h2>
-        {currentUser && (
-             <p className="text-sm text-purple-600 mt-1 font-medium">กำลังแสดงรายวิชาของ: {currentUser.name}</p>
+      {/* ✅ Header (แก้ไขให้เหมือนหน้าอื่น) */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 text-slate-400 mb-1 text-sm font-medium">
+             <span>จัดการชั่วโมงการสอน</span>
+             <ChevronRight size={14}/>
+             <span>ผู้รับผิดชอบรายวิชา</span>
+        </div>
+        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">บันทึกผู้สอนและชั่วโมงสอน</h1>
+        {currentUser && !loading && (
+             <p className="text-slate-500 mt-2 font-light">
+                ยินดีต้อนรับ, <span className="font-medium text-purple-600">{currentUser.name}</span>
+             </p>
         )}
       </div>
 
-      {/* Filters */}
-      <div className="bg-white p-6 rounded-xl border shadow-sm space-y-6">
-        <h3 className="font-bold text-lg text-slate-700">ค้นหารายวิชา</h3>
+      {/* Filters (ปรับสไตล์ให้เหมือน Glassmorphism) */}
+      <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border border-slate-200/60 shadow-sm space-y-6 mb-6 sticky top-4 z-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="space-y-2">
+          <div className="space-y-2 col-span-2">
             <label className="text-sm font-medium text-slate-600">รหัสวิชา/ชื่อวิชา</label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <input className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-md bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" placeholder="ค้นหา..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <input 
+                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl bg-slate-50/50 outline-none focus:ring-2 focus:ring-purple-100 transition-all" 
+                placeholder="ค้นหา..." 
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)} 
+              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             </div>
           </div>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border shadow-sm p-6">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h3 className="font-bold text-lg text-slate-700 mb-4">รายชื่อรายวิชาที่คุณรับผิดชอบ ({filteredCourses.length} รายการ)</h3>
-        <div className="rounded-lg border overflow-hidden">
+        <div className="rounded-xl border overflow-hidden">
           <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b">
+            <thead className="bg-slate-50/80 border-b">
               <tr>
                 <th className="p-4 font-bold text-slate-700 w-[10%]">รหัสวิชา</th>
                 <th className="p-4 font-bold text-slate-700 w-[30%]">ชื่อรายวิชา</th>
@@ -432,7 +425,7 @@ export default function CourseOwnerPage() {
                 <tr><td colSpan={5} className="p-12 text-center text-gray-400"><div className="flex justify-center items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" /> กำลังโหลดข้อมูล...</div></td></tr>
               ) : filteredCourses.length > 0 ? (
                 filteredCourses.map(course => (
-                  <tr key={course.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={course.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="p-4 font-medium text-slate-700">{course.code}</td>
                     <td className="p-4 text-slate-700">
                       <div>{course.name_th}</div>
@@ -441,7 +434,7 @@ export default function CourseOwnerPage() {
                     <td className="p-4 text-slate-600">{course.program.name_th}</td>
                     <td className="p-4 text-center align-middle">{getStatusBadge(course.summary)}</td>
                     <td className="p-4 text-right">
-                      <button onClick={() => handleOpenModal(course)} className="h-9 px-3 flex items-center justify-center rounded-md bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition-colors inline-flex ml-auto text-sm font-medium gap-2">
+                      <button onClick={() => handleOpenModal(course)} className="h-9 px-3 flex items-center justify-center rounded-lg bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition-colors inline-flex ml-auto text-sm font-medium gap-2">
                         <PenLine className="w-4 h-4" /> จัดการ
                       </button>
                     </td>
@@ -458,7 +451,21 @@ export default function CourseOwnerPage() {
       {/* Modal Content */}
       {isModalOpen && selectedCourse && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in zoom-in-95 duration-200">
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden relative">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden relative">
+            
+            {/* Success Overlay */}
+            {submitStatus === 'success' && (
+                <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-white/95 backdrop-blur-md animate-in fade-in duration-300">
+                    <div className="flex flex-col items-center animate-in zoom-in-50 slide-in-from-bottom-10 duration-500">
+                        <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-blue-100">
+                            <Send className="w-10 h-10 text-blue-600 animate-bounce" />
+                        </div>
+                        <h3 className="text-3xl font-bold text-slate-800 mb-2">ส่งข้อมูลเรียบร้อย!</h3>
+                        <p className="text-slate-500 text-lg">ระบบได้ส่งข้อมูลให้ประธานหลักสูตรแล้ว</p>
+                    </div>
+                </div>
+            )}
+
             <div className="p-6 border-b flex justify-between items-start bg-slate-50">
               <div>
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">{selectedCourse.code} {selectedCourse.name_th}</h2>
@@ -476,7 +483,7 @@ export default function CourseOwnerPage() {
 
             <div className="p-6 overflow-y-auto bg-gray-50/50">
               <div className="flex flex-col gap-6">
-                <div className="bg-white p-4 rounded-lg border border-purple-100 shadow-sm flex items-center gap-4">
+                <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm flex items-center gap-4">
                       <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600"><User size={20} /></div>
                       <div>
                         <p className="text-xs text-slate-500 uppercase font-semibold">ผู้รับผิดชอบรายวิชา</p>
@@ -484,22 +491,21 @@ export default function CourseOwnerPage() {
                       </div>
                 </div>
 
-                <div className="bg-white border rounded-lg overflow-hidden shadow-sm">
+                <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
                     <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
                         <h3 className="font-bold text-slate-700">รายชื่อผู้สอน</h3>
                     </div>
                     <div className="bg-slate-100 p-2 grid grid-cols-12 gap-2 text-xs font-bold text-slate-600 border-b uppercase">
                         <div className="col-span-4 pl-2">ชื่อ-สกุล</div>
-                        <div className="col-span-2 text-center">บรรยาย</div>
-                        <div className="col-span-2 text-center">ปฏิบัติ</div>
-                        <div className="col-span-2 text-center">คุมสอบ</div>
+                        <div className="col-span-2 text-center">บรรยาย (ชม.)</div>
+                        <div className="col-span-2 text-center">ปฏิบัติ (ชม.)</div>
+                        <div className="col-span-2 text-center">คุมสอบนอกตาราง (ชม.)</div>
                         <div className="col-span-2 text-center">จัดการ</div>
                     </div>
                     <div className="divide-y">
                         {assignments.map((assign) => (
                             <div key={assign.id} className={`grid grid-cols-12 gap-2 items-center text-sm ${assign.lecturerStatus === 'REJECTED' ? 'bg-red-50 border-l-4 border-red-500' : 'hover:bg-slate-50'} p-3 transition-colors`}>
                                 
-                                {/* CASE: ถูก Reject */}
                                 {assign.lecturerStatus === 'REJECTED' && editingAssignmentId !== assign.id && resolvingId !== assign.id ? (
                                    <div className="col-span-12 flex flex-col gap-3 py-2">
                                       <div className="flex justify-between items-start">
@@ -511,7 +517,7 @@ export default function CourseOwnerPage() {
                                         </div>
                                       </div>
                                       
-                                      <div className="bg-white p-3 rounded border border-red-100 text-red-800 text-sm flex gap-2">
+                                      <div className="bg-white p-3 rounded-lg border border-red-100 text-red-800 text-sm flex gap-2">
                                          <MessageSquare size={16} className="mt-0.5 shrink-0 opacity-50"/>
                                          <span>"{assign.lecturerFeedback || "ไม่ระบุเหตุผล"}"</span>
                                       </div>
@@ -519,35 +525,31 @@ export default function CourseOwnerPage() {
                                       <div className="flex items-center gap-3 mt-1">
                                           <button 
                                             onClick={() => startEditing(assign)}
-                                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium flex items-center gap-2 shadow-sm"
+                                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm"
                                           >
                                             <Edit2 size={14} /> แก้ไขข้อมูลให้ (จบ)
                                           </button>
                                           
                                           <button 
                                             onClick={() => { setResolvingId(assign.id); setResolveReason(""); }}
-                                            className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-md text-sm font-medium flex items-center gap-2 shadow-sm"
+                                            className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm"
                                           >
                                             <ShieldCheck size={14} /> ยืนยันข้อมูลเดิม (จบ)
                                           </button>
                                       </div>
                                    </div>
                                 ) : (
-                                    // Default Row Display
                                     <>
                                         <div className="col-span-4">
                                             <div className="font-medium">{assign.lecturer.firstName} {assign.lecturer.lastName}</div>
                                             <div className={`text-xs ${assign.lecturerStatus === 'APPROVED' ? 'text-green-600' : 'text-slate-400'}`}>{assign.lecturerStatus}</div>
                                         </div>
                                         
-                                        {/* Edit Mode */}
                                         {editingAssignmentId === assign.id ? (
                                             <>
-                                                {/* ✅✅✅ จุดที่แก้ไข: เพิ่ม min="0" และ onKeyDown ป้องกันเลขติดลบ */}
                                                 <div className="col-span-2 px-1"><input type="number" min="0" onKeyDown={(e) => { if (["-", "e", "E", "+"].includes(e.key)) e.preventDefault(); }} className="w-full text-center border rounded" value={tempHours.lecture} onChange={(e) => setTempHours({...tempHours, lecture: Number(e.target.value)})} /></div>
                                                 <div className="col-span-2 px-1"><input type="number" min="0" onKeyDown={(e) => { if (["-", "e", "E", "+"].includes(e.key)) e.preventDefault(); }} className="w-full text-center border rounded" value={tempHours.lab} onChange={(e) => setTempHours({...tempHours, lab: Number(e.target.value)})} /></div>
                                                 <div className="col-span-2 px-1"><input type="number" min="0" onKeyDown={(e) => { if (["-", "e", "E", "+"].includes(e.key)) e.preventDefault(); }} className="w-full text-center border rounded" value={tempHours.exam} onChange={(e) => setTempHours({...tempHours, exam: Number(e.target.value)})} /></div>
-                                                {/* ✅✅✅ สิ้นสุดจุดแก้ไข */}
                                                 
                                                 <div className="col-span-2 flex justify-center gap-2">
                                                     <button onClick={() => handleUpdateHours(assign.id)} className="text-green-600 bg-green-50 p-1 rounded hover:bg-green-100" title="บันทึก"><Check size={18}/></button>
@@ -555,7 +557,6 @@ export default function CourseOwnerPage() {
                                                 </div>
                                             </>
                                         ) : resolvingId === assign.id ? (
-                                            // Resolve Mode (Insist Original)
                                             <div className="col-span-8 flex flex-col gap-2 bg-orange-50 p-2 rounded border border-orange-200">
                                                 <p className="text-xs font-bold text-orange-800">ระบุเหตุผลที่ยืนยันข้อมูลเดิม (บันทึก):</p>
                                                 <div className="flex gap-2">
@@ -571,7 +572,6 @@ export default function CourseOwnerPage() {
                                                 </div>
                                             </div>
                                         ) : (
-                                            // View Mode
                                             <>
                                                 <div className="col-span-2 text-center">{assign.lectureHours}</div>
                                                 <div className="col-span-2 text-center">{assign.labHours}</div>
