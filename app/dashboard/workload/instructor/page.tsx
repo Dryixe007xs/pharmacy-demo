@@ -6,13 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -29,7 +22,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Search, CheckCircle, AlertCircle, Plus, Check, Loader2, Link as LinkIcon, Building2, ChevronRight } from "lucide-react"; // ✅ เพิ่ม ChevronRight
+import { Search, CheckCircle, AlertCircle, Plus, Check, Loader2, Link as LinkIcon, Building2, ChevronRight } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
 // Types
@@ -44,22 +37,14 @@ type Assignment = {
   subject: {
     code: string;
     name_th: string;
+    // ✅ 1. เพิ่ม Field credit ตรงนี้
+    credit: string;
     program: {
         name_th: string;
         degree_level: string;
     };
     responsibleUserId: string | null;
   };
-};
-
-type Course = {
-    id: number;
-    code: string;
-    name_th: string;
-    program: {
-        name_th: string;
-        year: number;
-    }
 };
 
 export default function InstructorWorkloadPage() {
@@ -116,11 +101,9 @@ export default function InstructorWorkloadPage() {
     }
   };
 
-  // --- Handlers ---
-
+  // --- Handlers --- (คงเดิม)
   const handleVerify = async (id: number) => {
     if(!confirm("ยืนยันว่าข้อมูลชั่วโมงสอนถูกต้อง?")) return;
-
     try {
         const res = await fetch("/api/assignments", {
             method: "PUT",
@@ -131,7 +114,6 @@ export default function InstructorWorkloadPage() {
                 lecturerFeedback: null 
             })
         });
-
         if (res.ok && currentUser?.id) {
             fetchData(currentUser.id); 
             toast.success("ยืนยันข้อมูลเรียบร้อย");
@@ -145,7 +127,6 @@ export default function InstructorWorkloadPage() {
 
   const handleDisputeSubmit = async () => {
     if (!selectedItem) return;
-    
     try {
         const res = await fetch("/api/assignments", {
             method: "PUT",
@@ -156,7 +137,6 @@ export default function InstructorWorkloadPage() {
                 lecturerFeedback: disputeNote
             })
         });
-
         if (res.ok && currentUser?.id) {
             setIsDisputeOpen(false);
             setDisputeNote("");
@@ -175,7 +155,6 @@ export default function InstructorWorkloadPage() {
         toast.error("กรุณากรอกข้อมูลสำคัญให้ครบ (คณะ, รหัสวิชา, ชื่อวิชา)");
         return;
     }
-
     setIsSubmittingExternal(true);
     try {
         const res = await fetch("/api/assignments/external", {
@@ -186,7 +165,6 @@ export default function InstructorWorkloadPage() {
                 lecturerId: currentUser?.id 
             })
         });
-
         if (res.ok) {
             toast.success("บันทึกข้อมูลรายวิชานอกคณะเรียบร้อย");
             setIsAddOpen(false);
@@ -221,15 +199,15 @@ export default function InstructorWorkloadPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6 font-sarabun"> {/* ✅ ใช้ bg และ font เหมือนหน้าอื่น */}
+    <div className="min-h-screen bg-slate-50/50 p-6 font-sarabun">
       <Toaster position="top-center" richColors />
 
-      {/* ✅ Header (แก้ไขให้เหมือนหน้าอื่น) */}
+      {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 text-slate-400 mb-1 text-sm font-medium">
              <span>จัดการชั่วโมงการสอน</span>
              <ChevronRight size={14}/>
-             <span>ผู้สอน</span>
+             <span className="text-purple-600">ผู้สอน</span>
         </div>
         <h1 className="text-3xl font-bold text-slate-800 tracking-tight">ตรวจสอบภาระงานสอน</h1>
         {currentUser && !loading && (
@@ -239,14 +217,14 @@ export default function InstructorWorkloadPage() {
         )}
       </div>
 
-      {/* Filters Section (ปรับสไตล์ให้เหมือน Glassmorphism) */}
-      <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border border-slate-200/60 shadow-sm space-y-6 mb-6 sticky top-4 z-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-           <div className="space-y-2 col-span-2">
-              <Label className="text-sm font-medium text-slate-600">รหัสวิชา / ชื่อวิชา</Label>
+      {/* Filters Section */}
+      <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border border-slate-200/60 shadow-sm mb-6 sticky top-4 z-10">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+           <div className="w-full md:max-w-md space-y-2">
+              <Label className="text-sm font-medium text-slate-600">ค้นหารหัสวิชา / ชื่อวิชา</Label>
               <div className="relative">
                 <input 
-                    placeholder="พิมพ์คำค้นหา..." 
+                    placeholder="พิมพ์เพื่อค้นหา..." 
                     className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl bg-slate-50/50 outline-none focus:ring-2 focus:ring-purple-100 transition-all" 
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
@@ -254,15 +232,11 @@ export default function InstructorWorkloadPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
               </div>
            </div>
-           <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-600">หลักสูตร</Label>
-              <Select><SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 focus:ring-purple-100"><SelectValue placeholder="ทุกหลักสูตร"/></SelectTrigger><SelectContent/></Select>
-           </div>
         </div>
       </div>
 
       {/* Table Section */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6"> {/* ✅ ปรับ rounded และ border */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="text-center mb-6">
             <h3 className="font-bold text-lg text-slate-800">ตรวจสอบข้อมูลชั่วโมงปฏิบัติการ/บรรยาย ปีการศึกษา 2567</h3>
             <p className="text-slate-600">สถานะข้อมูล: <span className="text-green-600 font-medium">กำลังดำเนินการ</span></p>
@@ -274,6 +248,8 @@ export default function InstructorWorkloadPage() {
                 <TableHeader className="bg-slate-50/80">
                   <TableRow>
                     <TableHead className="font-bold text-slate-700">รหัสวิชา / ชื่อรายวิชา</TableHead>
+                    {/* ✅ 2. เพิ่มหัวตารางหน่วยกิต */}
+                    <TableHead className="text-center font-bold text-slate-700">หน่วยกิต</TableHead>
                     <TableHead className="text-center font-bold text-slate-700">บทบาท</TableHead>
                     <TableHead className="text-center font-bold text-slate-700">บรรยาย (ชม.)</TableHead>
                     <TableHead className="text-center font-bold text-slate-700">ปฏิบัติ (ชม.)</TableHead>
@@ -284,7 +260,7 @@ export default function InstructorWorkloadPage() {
                 <TableBody>
                   
                   {loading ? (
-                      <TableRow><TableCell colSpan={6} className="text-center p-8 text-slate-400">
+                      <TableRow><TableCell colSpan={7} className="text-center p-8 text-slate-400">
                           <div className="flex justify-center items-center gap-2">
                             <Loader2 className="w-5 h-5 animate-spin" /> กำลังโหลดข้อมูล...
                           </div>
@@ -296,6 +272,12 @@ export default function InstructorWorkloadPage() {
                                 <div className="font-medium text-slate-800">{item.subject.code}</div>
                                 <div className="text-slate-600">{item.subject.name_th}</div>
                                 <div className="text-xs text-slate-400 mt-1 inline-block bg-slate-100 px-2 py-0.5 rounded">{item.subject.program?.name_th}</div>
+                            </TableCell>
+                            {/* ✅ 3. แสดงข้อมูลหน่วยกิต */}
+                            <TableCell className="text-center">
+                                <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-medium border border-slate-200">
+                                    {item.subject.credit || '-'}
+                                </span>
                             </TableCell>
                             <TableCell className="text-center text-slate-600">
                                 <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded text-xs font-medium">ผู้สอน</span>
@@ -345,7 +327,7 @@ export default function InstructorWorkloadPage() {
                         </TableRow>
                       ))
                   ) : (
-                      <TableRow><TableCell colSpan={6} className="text-center p-8 text-slate-400">
+                      <TableRow><TableCell colSpan={7} className="text-center p-8 text-slate-400">
                           {currentUser 
                             ? "ไม่พบรายวิชาที่ต้องยืนยัน (หรือยังไม่มีการกรอกชั่วโมงสอนเข้ามา)" 
                             : "กรุณาเลือกผู้ใช้งานจาก Navbar เพื่อดูข้อมูล"}
@@ -353,7 +335,7 @@ export default function InstructorWorkloadPage() {
                   )}
 
                   <TableRow className="bg-slate-50/50 font-bold border-t-2 border-slate-200">
-                    <TableCell colSpan={2} className="text-right pr-6 text-slate-500">รวมชั่วโมงทั้งหมด</TableCell>
+                    <TableCell colSpan={3} className="text-right pr-6 text-slate-500">รวมชั่วโมงทั้งหมด</TableCell>
                     <TableCell className="text-center text-blue-700">{totalLecture}</TableCell>
                     <TableCell className="text-center text-blue-700">{totalLab}</TableCell>
                     <TableCell className="text-center text-blue-700">{totalExam}</TableCell>

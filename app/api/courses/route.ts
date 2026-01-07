@@ -1,9 +1,10 @@
+// app/api/courses/route.ts
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// GET: ดึงข้อมูลรายวิชาทั้งหมด
+// GET: Fetch all courses
 export async function GET() {
   try {
     const courses = await prisma.subject.findMany({
@@ -15,7 +16,7 @@ export async function GET() {
         credit: true,
         instructor: true,
         program_full_name: true,
-        responsibleUserId: true, // User ID เป็น String (ถูกต้อง)
+        responsibleUserId: true, 
         program: {
             select: {
                 id: true,
@@ -28,7 +29,8 @@ export async function GET() {
                         id: true,
                         firstName: true,
                         lastName: true,
-                        academicPosition: true,
+                        // ❌ Removed: academicPosition 
+                        title: true, // ✅ Use title instead
                         email: true,
                         adminTitle: true
                     }
@@ -41,13 +43,31 @@ export async function GET() {
                 firstName: true,
                 lastName: true,
                 email: true,
-                academicPosition: true,
-                title: true,
+                // ❌ Removed: academicPosition
+                title: true, // ✅ Keep only title
             }
         },
         teachingAssignments: {
            include: {
-             lecturer: true, 
+             lecturer: {
+                // ✅ Add custom selection for Lecturer details
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    title: true, // Use title
+                    // academicPosition: true, // Removed
+                    email: true,
+                    // ✅ NEW: Include new Curriculum relation
+                    curriculumRef: {
+                        select: {
+                            id: true,
+                            name: true,
+                            chairId: true
+                        }
+                    }
+                }
+             }, 
            },
            orderBy: {
              id: 'asc' 
@@ -63,7 +83,7 @@ export async function GET() {
   }
 }
 
-// POST: สร้างรายวิชาใหม่
+// POST: Create a new course
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -83,12 +103,8 @@ export async function POST(req: Request) {
             name_th,
             name_en,
             credit,
-            programId: Number(programId), // Program ID เป็น Int (ถูกต้อง)
-            
-            // ❌ เดิม: responsibleUserId ? Number(responsibleUserId) : null
-            // ✅ แก้ใหม่: ส่ง String ตรงๆ (เพราะ User ID เป็น String แล้ว)
+            programId: Number(programId), 
             responsibleUserId: responsibleUserId || null, 
-            
             instructor,
         }
     });
@@ -99,7 +115,7 @@ export async function POST(req: Request) {
   }
 }
 
-// PUT: แก้ไขรายวิชา
+// PUT: Update a course
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
@@ -119,18 +135,14 @@ export async function PUT(req: Request) {
     }
 
     const updatedCourse = await prisma.subject.update({
-        where: { id: Number(id) }, // Subject ID เป็น Int (ถูกต้อง)
+        where: { id: Number(id) }, 
         data: {
             code,
             name_th,
             name_en,
             credit,
             programId: Number(programId),
-            
-            // ❌ เดิม: responsibleUserId ? Number(responsibleUserId) : null
-            // ✅ แก้ใหม่: ส่ง String ตรงๆ
             responsibleUserId: responsibleUserId || null,
-            
             instructor,
         }
     });
@@ -141,7 +153,7 @@ export async function PUT(req: Request) {
   }
 }
 
-// DELETE: ลบรายวิชา
+// DELETE: Delete a course
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -151,12 +163,12 @@ export async function DELETE(req: Request) {
         return NextResponse.json({ error: 'ID is required' }, { status: 400 });
     }
 
-    // ลบ Assignments ที่เกี่ยวข้องก่อน (Subject ID เป็น Int ถูกต้องแล้ว)
+    // Delete related assignments first
     await prisma.teachingAssignment.deleteMany({
         where: { subjectId: Number(id) }
     });
 
-    // ลบวิชา
+    // Delete course
     await prisma.subject.delete({
         where: { id: Number(id) }
     });

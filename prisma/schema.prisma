@@ -14,11 +14,11 @@ datasource db {
 
 // 2.1 User Roles
 enum Role {
-  ADMIN            // System Admin / Support Staff
-  LECTURER         // General Lecturer
-  PROGRAM_CHAIR    // Program Chair (1st Approval)
-  VICE_DEAN        // Vice Dean (2nd Approval)
-  USER             // Default role for new users
+  ADMIN             // System Admin / Support Staff
+  LECTURER          // General Lecturer
+  PROGRAM_CHAIR     // Program Chair (1st Approval)
+  VICE_DEAN         // Vice Dean (2nd Approval)
+  USER              // Default role for new users
 }
 
 // 2.2 User Types
@@ -29,65 +29,91 @@ enum UserType {
 
 // 2.3 Approval Status
 enum ApprovalStatus {
-  PENDING   
-  APPROVED  
-  REJECTED  
-  DRAFT     
+  PENDING
+  APPROVED
+  REJECTED
+  DRAFT
 }
 
 // ====================================================================
 // 3. MODELS
 // ====================================================================
 
-// 3.1 User Model (Updated for NextAuth)
+// [NEW] Curriculum Model (Master Curriculum)
+// This model acts as a "Master" to group specific Programs (by year) and Users together.
+// Example: "Doctor of Pharmacy Program"
+model Curriculum {
+  id        Int      @id @default(autoincrement())
+  name      String   // Curriculum Name
+  
+  // Curriculum Chair (Head)
+  chairId   String?  @unique
+  chair     User?    @relation("CurriculumChair", fields: [chairId], references: [id])
+
+  // Related sub-programs (legacy programs by year)
+  programs  Program[] 
+
+  // Staff members belonging to this curriculum
+  staffs    User[]    @relation("CurriculumStaff")
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("curriculum_master") // Map to "curriculum_master" in DB to avoid confusion
+}
+
+// 3.1 User Model (Updated)
 model User {
-  id        String   @id @default(cuid()) // Changed to String (cuid) for NextAuth compliance
-  email     String?  @unique             
-  name      String?  // Combined firstName + lastName for NextAuth
-  emailVerified DateTime?
-  image         String?
+  id               String    @id @default(cuid())
+  email            String?   @unique
+  name             String?
+  emailVerified    DateTime?
+  image            String?
   
-  // --- Personal Info (Matches JSON) ---
-  title            String?  // Matches JSON: title
-  academicPosition String?  // Matches JSON: academicPosition
-  firstName        String?  // Matches JSON: firstName
-  lastName         String?  // Matches JSON: lastName
-  academicRank     String?  // Matches JSON: academicRank
-  workStatus       String?  // Matches JSON: workStatus
+  // --- Personal Info ---
+  title            String?
+  firstName        String?
+  lastName         String?
+  academicRank     String?
+  workStatus       String?
   
-  // --- Department & Admin Title ---
-  department       String?  // Matches JSON: department (Subject Group)
-  curriculum       String?  // Matches JSON: curriculum (Full Program Name for Type check)
-  adminTitle       String?  // Matches JSON: role (Admin Position e.g., Program Chair)
+  // --- Legacy Fields (Kept for reference) ---
+  department       String? // Subject Group (e.g., Clinical Pharmacy)
+  curriculum       String? // Curriculum Name (Text)
+  adminTitle       String? // Admin Position
 
   // --- System Data ---
-  role       Role      @default(USER)     // System Role
-  userType   UserType  @default(ACADEMIC) // Personnel Type
+  role             Role      @default(USER)
+  userType         UserType  @default(ACADEMIC)
   
-  // --- Relations (Existing) ---
-  managedPrograms     Program[]             @relation("ProgramChair")
+  // [NEW] Relation to the new Curriculum table
+  // 1. Which curriculum does this user belong to?
+  curriculumId     Int?
+  curriculumRef    Curriculum? @relation("CurriculumStaff", fields: [curriculumId], references: [id])
+  
+  // 2. Is this user the Chair of a Curriculum?
+  managedCurriculum Curriculum? @relation("CurriculumChair")
+
+  // --- Legacy Relations ---
+  managedPrograms  Program[]            @relation("ProgramChair")
   teachingAssignments TeachingAssignment[]
+  responsibleSubjects Subject[]         @relation("SubjectResponsible")
   
-  responsibleSubjects Subject[]             @relation("SubjectResponsible")
-  
-  // Approval Rights (Reverse Relations)
-  chairApprovals TeachingAssignment[] @relation("ChairApprovals")
-  deanApprovals  TeachingAssignment[] @relation("DeanApprovals")
+  // --- Approval Rights ---
+  chairApprovals   TeachingAssignment[] @relation("ChairApprovals")
+  deanApprovals    TeachingAssignment[] @relation("DeanApprovals")
 
-  // --- NextAuth Relations (NEW) ---
-  accounts      Account[]
-  sessions      Session[]
+  // --- NextAuth Relations ---
+  accounts         Account[]
+  sessions         Session[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@map("user")
 }
 
-// ====================================================================
-// NEXTAUTH REQUIRED MODELS (NEW)
-// ====================================================================
-
+// NextAuth Account
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -101,7 +127,7 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
-  ext_expires_in     Int?
+  ext_expires_in    Int?
   
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -109,6 +135,7 @@ model Account {
   @@map("account")
 }
 
+// NextAuth Session
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
@@ -119,6 +146,7 @@ model Session {
   @@map("session")
 }
 
+// Verification Token
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -128,21 +156,21 @@ model VerificationToken {
   @@map("verificationtoken")
 }
 
-// ====================================================================
-// YOUR EXISTING MODELS (Adjusted for User ID type change)
-// ====================================================================
-
-// 3.2 Program Model
+// 3.2 Program Model (Specific by Year)
 model Program {
-  id              Int       @id @default(autoincrement())
-  name_th         String    // Program Name (TH)
-  degree_level    String    // Degree Level
-  year            Int       // Year (B.E.)
+  id             Int      @id @default(autoincrement())
+  name_th        String   // Program Name (TH)
+  degree_level   String   // Degree Level
+  year           Int      // Year (B.E.)
   
-  programChairId       String?   // Changed to String to match User.id
-  programChair         User?     @relation("ProgramChair", fields: [programChairId], references: [id])
+  programChairId String?
+  programChair   User?    @relation("ProgramChair", fields: [programChairId], references: [id])
   
-  subjects         Subject[]
+  // [NEW] Linked to the Master Curriculum
+  curriculumId   Int?
+  curriculumRef  Curriculum? @relation(fields: [curriculumId], references: [id])
+
+  subjects       Subject[]
 
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -152,79 +180,74 @@ model Program {
 
 // 3.3 Subject Model
 model Subject {
-  id                Int        @id @default(autoincrement())
-  code              String     // Subject Code
-  name_th           String     // Subject Name (TH)
-  name_en           String?    // Subject Name (EN)
-  credit            String     // Credit (Stored as String e.g. "3(2-3-5)")
+  id                Int      @id @default(autoincrement())
+  code              String
+  name_th           String
+  name_en           String?
+  credit            String
   
-  // Quick text display. Approval logic resides in TeachingAssignment
-  instructor        String?    @db.Text 
+  instructor        String?  @db.Text
+  program_full_name String?
   
-  program_full_name String?    // Full Program Name (For validation)
+  programId         Int
+  program           Program  @relation(fields: [programId], references: [id])
   
-  programId       Int
-  program         Program  @relation(fields: [programId], references: [id])
-  
-  responsibleUserId String?  // Changed to String to match User.id
-  responsibleUser   User?      @relation("SubjectResponsible", fields: [responsibleUserId], references: [id])
+  responsibleUserId String?
+  responsibleUser   User?    @relation("SubjectResponsible", fields: [responsibleUserId], references: [id])
 
   teachingAssignments TeachingAssignment[]
 
-  // Unique constraint for code within a program
-  @@unique([code, programId]) 
-
+  @@unique([code, programId])
   @@map("subject")
 }
 
-// 3.4 Teaching Assignment (Core of the flow)
+// 3.4 Teaching Assignment (Workload)
 model TeachingAssignment {
-  id              Int        @id @default(autoincrement())
+  id               Int      @id @default(autoincrement())
   
-  academicYear    Int        
-  semester        Int        
-  section         String?    
+  academicYear     Int
+  semester         Int
+  section          String?
   
   // --- Teaching Hours ---
-  lectureHours    Float      @default(0.0) 
-  labHours        Float      @default(0.0) 
-  examHours       Float      @default(0)
+  lectureHours     Float    @default(0.0)
+  labHours         Float    @default(0.0)
+  examHours        Float    @default(0)
 
   // =================================================================
   // 4-STEP APPROVAL FLOW
   // =================================================================
 
   // STEP 1: Lecturer Verification
-  lecturerStatus        ApprovalStatus @default(PENDING) 
-  lecturerFeedback      String?        @db.Text // Feedback message for correction
-  lecturerActionAt      DateTime?
+  lecturerStatus   ApprovalStatus @default(PENDING)
+  lecturerFeedback String?        @db.Text // Feedback message for correction
+  lecturerActionAt DateTime?
 
   // STEP 2: Responsible Subject User Review
-  responsibleStatus     ApprovalStatus @default(PENDING)
-  responsibleActionAt   DateTime?
+  responsibleStatus   ApprovalStatus @default(PENDING)
+  responsibleActionAt DateTime?
 
   // STEP 3: Program Chair Approval
-  headApprovalStatus ApprovalStatus @default(PENDING) 
+  headApprovalStatus ApprovalStatus @default(PENDING)
   headApprovedAt     DateTime?
-  headApproverId     String?  // Changed to String
-  headApprover       User?       @relation("ChairApprovals", fields: [headApproverId], references: [id])
+  headApproverId     String?
+  headApprover       User?          @relation("ChairApprovals", fields: [headApproverId], references: [id])
 
   // STEP 4: Vice Dean Approval
-  deanApprovalStatus ApprovalStatus @default(PENDING) 
+  deanApprovalStatus ApprovalStatus @default(PENDING)
   deanApprovedAt     DateTime?
-  deanApproverId     String?  // Changed to String
-  deanApprover       User?       @relation("DeanApprovals", fields: [deanApproverId], references: [id])
+  deanApproverId     String?
+  deanApprover       User?          @relation("DeanApprovals", fields: [deanApproverId], references: [id])
 
   // --- Relations ---
-  lecturerId      String   // Changed to String
-  lecturer        User        @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
-  subjectId       Int
-  subject         Subject     @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  lecturerId       String
+  lecturer         User           @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+  subjectId        Int
+  subject          Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([lecturerId, academicYear, semester])
-
   @@map("teachingassignment")
 }

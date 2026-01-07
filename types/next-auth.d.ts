@@ -13,6 +13,12 @@ declare module "next-auth" {
       department: string | null
       firstName: string | null
       lastName: string | null
+      
+      // ✅ เพิ่ม 3 ตัวนี้ครับ
+      title: string | null          // คำนำหน้า (นาย, ผศ. ดร.)
+      curriculumId?: number | null  // ID สังกัดใหม่
+      curriculumName?: string | null // ชื่อสังกัดใหม่
+      
       isImpersonating?: boolean
     } & DefaultSession["user"]
   }
@@ -26,8 +32,10 @@ declare module "next-auth" {
     department: string | null
     firstName: string | null
     lastName: string | null
-    // ถ้าใน Database schema คุณมี field อื่นๆ อีก ให้มาเติมตรงนี้
-    // เช่น adminTitle?: string | null
+    
+    // ✅ เพิ่มตรงนี้ด้วยเพื่อให้รับค่าจาก Database ได้
+    title?: string | null
+    curriculumId?: number | null 
   }
 }
 
@@ -41,6 +49,12 @@ declare module "next-auth/jwt" {
     department: string | null
     firstName: string | null
     lastName: string | null
+    
+    // ✅ เพิ่ม 3 ตัวนี้ให้ตรงกับ Session
+    title?: string | null
+    curriculumId?: number | null
+    curriculumName?: string | null
+    
     isImpersonating?: boolean
   }
 }

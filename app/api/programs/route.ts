@@ -1,9 +1,10 @@
+// app/api/programs/route.ts
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// GET: ดึงข้อมูลหลักสูตร (อย่าลืม include ตามที่คุยกันรอบที่แล้ว)
+// GET: ดึงข้อมูลหลักสูตร
 export async function GET() {
   try {
     const programs = await prisma.program.findMany({
@@ -13,10 +14,16 @@ export async function GET() {
             id: true,
             firstName: true,
             lastName: true,
-            academicPosition: true,
+            // ✅ แก้ไข: ใช้ title แทน academicPosition
+            title: true, 
+            // academicPosition: true, // ❌ ลบทิ้ง
             adminTitle: true,
           },
         },
+        // ✅ เพิ่ม: ดึงข้อมูล Curriculum (ตัวแม่) มาแสดงด้วย
+        curriculumRef: {
+            select: { id: true, name: true }
+        }
       },
       orderBy: { year: 'desc' }
     });
@@ -30,29 +37,31 @@ export async function GET() {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { id, programChairId } = body;
+    const { id, programChairId, curriculumId } = body; // ✅ รับ curriculumId มาด้วย
 
     if (!id) {
       return NextResponse.json({ error: "Program ID is required" }, { status: 400 });
     }
 
     const updatedProgram = await prisma.program.update({
-      where: { id: Number(id) }, // ID ของ Program ยังเป็น Int (ถูกแล้ว)
-      data: {
-        // ❌ ของเดิม: programChairId ? Number(programChairId) : null
-        // ✅ แก้ใหม่: ส่ง String ไปตรงๆ (หรือ null ถ้าไม่มีค่า)
-        programChairId: programChairId || null 
+      where: { id: Number(id) }, 
+      data: {  
+        programChairId: programChairId || null,
+        // ✅ เพิ่ม: อัปเดตการผูกกับ Curriculum ตัวแม่ (ถ้ามีการส่งค่ามา)
+        ...(curriculumId ? { curriculumId: Number(curriculumId) } : {})
       },
-      include: { // Include เพื่อให้ Frontend ได้ชื่อไปโชว์ทันที
+      include: { 
         programChair: {
             select: {
                 id: true,
                 firstName: true,
                 lastName: true,
-                academicPosition: true,
+                title: true, // ✅ ใช้ title
+                // academicPosition: true, // ❌ ลบทิ้ง
                 adminTitle: true,
             }
-        }
+        },
+        curriculumRef: { select: { id: true, name: true } }
       }
     });
 
@@ -67,7 +76,7 @@ export async function PUT(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name_th, year, degree_level, programChairId } = body;
+    const { name_th, year, degree_level, programChairId, curriculumId } = body; // ✅ รับ curriculumId
 
     if (!name_th || !year) {
       return NextResponse.json({ error: "Name and Year are required" }, { status: 400 });
@@ -78,8 +87,9 @@ export async function POST(req: Request) {
         name_th,
         year: Number(year),
         degree_level: degree_level || "ปริญญาตรี",
-        // ✅ แก้ใหม่: ส่ง String ไปตรงๆ เหมือนกัน
-        programChairId: programChairId || null
+        programChairId: programChairId || null,
+        // ✅ เพิ่ม: บันทึกว่าหลักสูตรปีนี้ สังกัด Curriculum ไหน
+        curriculumId: curriculumId ? Number(curriculumId) : null
       },
       include: {
         programChair: {
@@ -87,10 +97,12 @@ export async function POST(req: Request) {
                 id: true,
                 firstName: true,
                 lastName: true,
-                academicPosition: true,
+                title: true, // ✅ ใช้ title
+                // academicPosition: true, // ❌ ลบทิ้ง
                 adminTitle: true,
             }
-        }
+        },
+        curriculumRef: { select: { id: true, name: true } }
       }
     });
 
@@ -101,7 +113,7 @@ export async function POST(req: Request) {
   }
 }
 
-// DELETE: ลบหลักสูตร (อันนี้ถูกต้องแล้ว)
+// DELETE: ลบหลักสูตร
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);

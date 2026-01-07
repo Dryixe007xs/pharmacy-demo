@@ -1,5 +1,8 @@
+// app/api/report/personal/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -10,39 +13,48 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. ดึงข้อมูลอาจารย์เจ้าของรายงาน (Profile)
-    const lecturer = await prisma.user.findUnique({
-        where: { id: lecturerId }, // ใช้ String ID ได้เลย
-        select: {
-            firstName: true,
-            lastName: true,
-            email: true,
-            academicPosition: true,
-            curriculum: true,
-            department: true
+    // 1. ดึงข้อมูลอาจารย์
+    const lecturerRaw = await prisma.user.findUnique({
+        where: { id: lecturerId },
+        include: {
+            curriculumRef: true, 
         }
     });
 
-    // 2. ดึงภาระงานสอน (Assignments)
+    if (!lecturerRaw) {
+        return NextResponse.json({ error: "Lecturer not found" }, { status: 404 });
+    }
+
+    const lecturer = {
+        firstName: lecturerRaw.firstName,
+        lastName: lecturerRaw.lastName,
+        email: lecturerRaw.email,
+        academicPosition: lecturerRaw.title,
+        curriculum: lecturerRaw.curriculumRef?.name || "-",
+        department: "คณะเภสัชศาสตร์"
+    };
+
+    // 2. ดึงภาระงานสอน
     const assignments = await prisma.teachingAssignment.findMany({
       where: {
         lecturerId: lecturerId,
       },
       include: {
         subject: {
-            include: {
-                program: true 
+            select: {
+                code: true,
+                name_th: true,
+                responsibleUserId: true,
+                // ✅ เพิ่มบรรทัดนี้ครับ (ตรวจสอบชื่อ field ใน DB ว่าเป็น 'credit' หรือ 'credits')
+                credit: true, 
             }
         }, 
       },
       orderBy: {
-        subject: {
-          code: 'asc'
-        }
+        semester: 'asc'
       }
     });
 
-    // ส่งกลับไปทั้งคู่
     return NextResponse.json({ lecturer, assignments });
 
   } catch (error) {

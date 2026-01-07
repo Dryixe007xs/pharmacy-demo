@@ -1,9 +1,10 @@
+// app/api/assignments/route.ts
 import { NextResponse } from "next/server";
 import { PrismaClient, ApprovalStatus } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// GET: ดึงรายการผู้สอนและชั่วโมงสอน
+// GET: Fetch assignments
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const subjectId = searchParams.get('subjectId');
@@ -13,15 +14,11 @@ export async function GET(request: Request) {
     let whereClause: any = {};
 
     if (subjectId) {
-      whereClause.subjectId = Number(subjectId); // Subject ID ยังเป็น Int
+      whereClause.subjectId = Number(subjectId); 
     } 
     else if (lecturerId) {
-      // ✅ แก้ไข: ไม่ต้องแปลงเป็น Number() แล้ว เพราะ ID คนเป็น String
       whereClause.lecturerId = lecturerId; 
     } 
-    else {
-      return NextResponse.json({ error: "Either Subject ID or Lecturer ID is required" }, { status: 400 });
-    }
 
     const assignments = await prisma.teachingAssignment.findMany({
       where: whereClause,
@@ -32,7 +29,14 @@ export async function GET(request: Request) {
                 firstName: true,
                 lastName: true,
                 email: true,
-                academicPosition: true,
+                title: true, 
+                curriculumRef: {
+                    select: {
+                        id: true,
+                        name: true,
+                        chairId: true
+                    }
+                }
             }
         },
         subject: { 
@@ -40,13 +44,19 @@ export async function GET(request: Request) {
                 code: true,
                 name_th: true,
                 name_en: true,
-                // program: true, // ถ้าไม่ได้ใช้ program แนะนำให้ปิดไว้ก่อน กัน error
+                // ✅ เพิ่มบรรทัดนี้ เพื่อดึงหน่วยกิต
+                credit: true, 
                 responsibleUserId: true,
+                program: {
+                    select: {
+                        name_th: true,
+                    }
+                },
                 responsibleUser: {
                     select: {
                         firstName: true,
                         lastName: true,
-                        academicPosition: true
+                        title: true,
                     }
                 }
             }
@@ -61,7 +71,7 @@ export async function GET(request: Request) {
   }
 }
 
-// POST: เพิ่มผู้สอนเข้าในรายวิชา
+// POST: Add lecturer to course
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -75,8 +85,8 @@ export async function POST(request: Request) {
 
     const existing = await prisma.teachingAssignment.findFirst({
       where: {
-        subjectId: Number(subjectId), // Subject เป็น Int
-        lecturerId: lecturerId        // ✅ แก้ไข: Lecturer เป็น String (ไม่ต้องใส่ Number)
+        subjectId: Number(subjectId),
+        lecturerId: lecturerId 
       }
     });
 
@@ -87,7 +97,7 @@ export async function POST(request: Request) {
     const newAssignment = await prisma.teachingAssignment.create({
       data: {
         subjectId: Number(subjectId),
-        lecturerId: lecturerId, // ✅ แก้ไข: ใส่ String ตรงๆ
+        lecturerId: lecturerId,
         academicYear,
         semester,
         lectureHours: 0,
@@ -108,7 +118,7 @@ export async function POST(request: Request) {
   }
 }
 
-// PUT: บันทึกแก้ไขชั่วโมงสอน (อันนี้ถูกต้องแล้ว เพราะ ID ของ Assignment เป็น Int)
+// PUT: Update workload/status
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
@@ -125,7 +135,6 @@ export async function PUT(request: Request) {
 
     const dataToUpdate: any = {};
 
-    // 1. อัปเดตชั่วโมงสอน
     let hoursUpdated = false;
     if (lectureHours !== undefined) {
         dataToUpdate.lectureHours = Number(lectureHours);
@@ -140,7 +149,6 @@ export async function PUT(request: Request) {
         hoursUpdated = true;
     }
 
-    // 2. Logic การ Reset สถานะเมื่อมีการแก้ตัวเลข
     if (hoursUpdated) {
         if (!lecturerStatus) {
             dataToUpdate.lecturerStatus = ApprovalStatus.PENDING;
@@ -153,14 +161,13 @@ export async function PUT(request: Request) {
         }
     }
 
-    // 3. อัปเดตสถานะต่างๆ
     if (lecturerStatus) dataToUpdate.lecturerStatus = lecturerStatus;
     if (lecturerFeedback !== undefined) dataToUpdate.lecturerFeedback = lecturerFeedback;
     if (responsibleStatus) dataToUpdate.responsibleStatus = responsibleStatus;
     if (headApprovalStatus) dataToUpdate.headApprovalStatus = headApprovalStatus;
 
     const updated = await prisma.teachingAssignment.update({
-      where: { id: Number(id) }, // ID ของ TeachingAssignment เป็น Int ถูกแล้ว
+      where: { id: Number(id) },
       data: dataToUpdate
     });
 
@@ -171,7 +178,7 @@ export async function PUT(request: Request) {
   }
 }
 
-// DELETE: ลบผู้สอน (ถูกต้องแล้ว ID เป็น Int)
+// DELETE: Remove lecturer
 export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -180,7 +187,7 @@ export async function DELETE(request: Request) {
 
   try {
     await prisma.teachingAssignment.delete({
-      where: { id: Number(id) } // ID ของ TeachingAssignment เป็น Int ถูกแล้ว
+      where: { id: Number(id) }
     });
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -13,8 +13,8 @@ import {
   Calendar, 
   FileText, 
   ChevronRight, 
-  Workflow, // ไอคอนใหม่
-  HelpCircle // ไอคอนใหม่
+  Workflow, 
+  HelpCircle 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +38,7 @@ type Assignment = {
     responsibleUser?: {
         firstName: string;
         lastName: string;
-        academicPosition: string;
+        title: string; // ✅ แก้ไข: ใช้ title แทน academicPosition
     };
   };
   lecturerStatus: string;
@@ -97,9 +97,10 @@ export default function DashboardPage() {
     loadData();
   }, [session, status]); 
 
+  // ✅ แก้ไข: ใช้ title แทน academicPosition
   const getResponsibleName = (user: any) => {
     if (!user) return "-";
-    return `${user.academicPosition || ''} ${user.firstName} ${user.lastName}`.trim();
+    return `${user.title || ''} ${user.firstName} ${user.lastName}`.trim();
   };
 
   if (status === "loading") {
@@ -274,9 +275,9 @@ export default function DashboardPage() {
                                     สถานะ: {assign.lecturerStatus}
                                 </div>
                                 <Button asChild variant="ghost" className="text-orange-500 hover:text-orange-600 hover:bg-orange-50 h-8 text-sm font-medium w-full md:w-auto">
-                                    <Link href="/dashboard/workload/instructor">
-                                        ตรวจสอบ <ChevronRight size={16} />
-                                    </Link>
+                                  <Link href="/dashboard/workload/instructor">
+                                      ตรวจสอบ <ChevronRight size={16} />
+                                  </Link>
                                 </Button>
                             </div>
                           </div>

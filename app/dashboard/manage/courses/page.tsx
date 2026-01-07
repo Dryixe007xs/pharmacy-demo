@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, ReactNode } from "react";
+import { useState, useEffect, useRef, ReactNode, useMemo } from "react";
 import { 
-  Plus, Search, Edit, Trash2, X, ChevronLeft, ChevronRight, User, ChevronsUpDown, Briefcase, Loader2, FolderPlus
+  Plus, Search, Edit, Trash2, X, ChevronLeft, ChevronRight, 
+  User, ChevronsUpDown, Briefcase, Loader2, FolderPlus, BookOpen
 } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
@@ -12,20 +13,18 @@ type UserData = {
   name: string;
   email: string;
   position: string;
+  academicPosition?: string;
+  title?: string;
+  adminTitle?: string;
 };
 
 type Program = {
   id: number;
   name_th: string;
   year: number;
+  degree_level?: string;
   programChairId?: number | null; 
-  programChair?: {
-    id: number;
-    firstName: string;
-    lastName: string;
-    academicPosition: string;
-    adminTitle?: string;
-  } | null;
+  programChair?: UserData | null;
 };
 
 type Course = {
@@ -36,33 +35,115 @@ type Course = {
   credit: string;
   instructor?: string;
   program_full_name?: string;
-  program: {
-    id: number;
-    name_th: string;
-    year: number;
-    degree_level?: string;
-    programChairId?: number | null;
-    programChair?: any; 
-  };
+  program: Program;
   responsibleUserId?: number;
-  responsibleUser?: {
-    id: number;
-    firstName: string;
-    lastName: string;
-    email: string;
-    academicRank?: string;
-    academicPosition?: string;
-    title?: string;
-  };
+  responsibleUser?: UserData;
 };
 
+type CourseFormData = {
+    id?: number;
+    code: string;
+    name_th: string;
+    name_en: string;
+    credit: string;
+    programId: string;
+};
+
+// --- Helper Functions ---
 const getFullName = (user: any) => {
   if (!user) return "-";
+  // รองรับ structure ข้อมูลที่อาจจะต่างกันเล็กน้อยจาก API
   const prefix = user.academicPosition || user.title || "";
-  return `${prefix} ${user.firstName || ""} ${user.lastName || ""}`.trim();
+  const firstName = user.firstName || user.name?.split(" ")[0] || ""; // Fallback logic
+  const lastName = user.lastName || user.name?.split(" ").slice(1).join(" ") || "";
+  
+  // ถ้ามี field name เต็มๆ มาแล้วให้ใช้เลย ถ้าไม่มีให้ประกอบใหม่
+  if (user.name && !user.firstName) return user.name;
+  
+  return `${prefix} ${firstName} ${lastName}`.trim();
 };
 
-// --- ✨ ANIMATED MODAL WRAPPER (Fixed: High Z-Index) ✨ ---
+// --- ✨ Components ---
+
+// 1. SearchableUserSelect (Moved outside for performance)
+const SearchableUserSelect = ({ 
+    users, 
+    onSelect, 
+    placeholder = "ค้นหา...", 
+    initialValue = "" 
+}: { 
+    users: UserData[]; 
+    onSelect: (user: UserData) => void; 
+    placeholder?: string; 
+    initialValue?: string; 
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    // Filter users using useMemo for performance
+    const filteredUsers = useMemo(() => {
+        if (!search) return users;
+        const lowerSearch = search.toLowerCase();
+        return users.filter(u => 
+            (u.name && u.name.toLowerCase().includes(lowerSearch)) || 
+            (u.email && u.email.toLowerCase().includes(lowerSearch))
+        );
+    }, [users, search]);
+
+    useEffect(() => {
+        function handleClickOutside(event: any) {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target)) setIsOpen(false);
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    return (
+        <div className="relative w-full" ref={wrapperRef}>
+            <div 
+                className="flex items-center justify-between w-full p-2.5 border border-slate-200 rounded-lg bg-white cursor-pointer hover:border-purple-400 hover:ring-2 hover:ring-purple-100 transition-all shadow-sm h-11" 
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <span className={`text-sm truncate ${initialValue ? 'text-slate-800 font-medium' : 'text-slate-400'}`}>
+                    {initialValue || placeholder}
+                </span>
+                <ChevronsUpDown size={16} className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+            </div>
+            {isOpen && (
+                <div className="absolute z-[100] w-full min-w-[300px] mt-1.5 bg-white border border-slate-100 rounded-xl shadow-2xl max-h-72 overflow-y-auto animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top custom-scrollbar">
+                    <div className="p-2 sticky top-0 bg-white/95 backdrop-blur border-b z-10">
+                        <div className="relative">
+                            <Search size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"/>
+                            <input 
+                                autoFocus 
+                                type="text" 
+                                className="w-full pl-9 p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500" 
+                                placeholder="พิมพ์ชื่อเพื่อค้นหา..." 
+                                value={search} 
+                                onChange={(e) => setSearch(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    {filteredUsers.length > 0 ? (
+                        filteredUsers.map(user => (
+                            <div 
+                                key={user.id} 
+                                className="px-4 py-2.5 text-sm hover:bg-purple-50 cursor-pointer flex flex-col border-b border-slate-50 last:border-none transition-colors" 
+                                onClick={() => { onSelect(user); setIsOpen(false); setSearch(""); }}
+                            >
+                                <span className="font-medium text-slate-700">{user.name}</span>
+                                <span className="text-xs text-slate-400">{user.position}</span>
+                            </div>
+                        ))
+                    ) : <div className="p-4 text-center text-xs text-slate-400">ไม่พบรายชื่อ</div>}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// 2. Modal Component
 const Modal = ({ 
     isOpen, 
     onClose, 
@@ -71,7 +152,7 @@ const Modal = ({
     colorClass = "text-slate-800",
     children,
     maxWidth = "max-w-xl",
-    zIndex = 9999 // ✅ แก้จุดที่ 1: Default สูงทะลุ Navbar (9999)
+    zIndex = 50 // Default z-index adjusted
 }: { 
     isOpen: boolean; 
     onClose: () => void; 
@@ -102,9 +183,8 @@ const Modal = ({
     if (!isVisible) return null;
 
     return (
-        // ✅ ใช้ style={{ zIndex }} บังคับค่าโดยตรง
         <div 
-            className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md transition-opacity duration-200"
+            className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-200"
             style={{ zIndex: zIndex }}
         >
             <div className={`bg-white rounded-2xl shadow-2xl w-full flex flex-col ring-1 ring-black/5 overflow-hidden transition-all duration-200 ${maxWidth} ${isAnimatingOut ? 'scale-95 opacity-0' : 'scale-100 opacity-100 animate-in zoom-in-95 slide-in-from-bottom-8'}`}>
@@ -124,28 +204,34 @@ const Modal = ({
     );
 };
 
+// --- Main Page Component ---
 export default function CourseDataPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [users, setUsers] = useState<UserData[]>([]); 
   const [loading, setLoading] = useState(true);
   
+  // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProgram, setSelectedProgram] = useState("");
   const [selectedLevel, setSelectedLevel] = useState("");
 
+  // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProgramModalOpen, setIsProgramModalOpen] = useState(false);
   const [isAddProgramModalOpen, setIsAddProgramModalOpen] = useState(false); 
   const [isEditChairModalOpen, setIsEditChairModalOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
   
-  const [formData, setFormData] = useState<any>({});
+  // Forms & Edit Mode
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [formData, setFormData] = useState<CourseFormData>({ code: "", name_th: "", name_en: "", credit: "", programId: "" });
   const [programFormData, setProgramFormData] = useState({ name_th: "", year: "", degree_level: "ปริญญาตรี" });
   
+  // Selections
   const [selectedResponsible, setSelectedResponsible] = useState<UserData | null>(null);
   const [selectedProgramChair, setSelectedProgramChair] = useState<UserData | null>(null);
 
+  // Temporary State for Edit Program Chair
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [tempChair, setTempChair] = useState<UserData | null>(null); 
 
@@ -160,12 +246,19 @@ export default function CourseDataPage() {
           fetch("/api/courses", { cache: 'no-store' }),
           fetch("/api/staff", { cache: 'no-store' })
       ]);
+      
       const dataCourses = await resCourses.json();
       const dataStaff = await resStaff.json();
 
       setCourses(Array.isArray(dataCourses) ? dataCourses : []);
-      setUsers(Array.isArray(dataStaff) ? dataStaff : []);
+      // Map staff data to UserData structure if needed
+      const formattedStaff = Array.isArray(dataStaff) ? dataStaff.map((s:any) => ({
+          ...s,
+          name: getFullName(s)
+      })) : [];
+      setUsers(formattedStaff);
 
+      // Extract unique programs from courses (or fetch from api/programs if available)
       const uniquePrograms = new Map();
       if (Array.isArray(dataCourses)) {
         dataCourses.forEach((c: any) => {
@@ -177,6 +270,7 @@ export default function CourseDataPage() {
       setPrograms(Array.from(uniquePrograms.values()));
     } catch (err) {
       console.error("Error fetching data:", err);
+      toast.error("ไม่สามารถโหลดข้อมูลได้");
       setCourses([]); 
     } finally {
       setLoading(false);
@@ -210,7 +304,7 @@ export default function CourseDataPage() {
               toast.error("เพิ่มหลักสูตรไม่สำเร็จ");
           }
       } catch (error) {
-          toast.error("เกิดข้อผิดพลาด");
+          toast.error("เกิดข้อผิดพลาดในการเชื่อมต่อ");
       }
   };
 
@@ -260,10 +354,8 @@ export default function CourseDataPage() {
       setEditingProgram(program);
       if (program.programChair) {
           setTempChair({
-              id: program.programChair.id,
+              ...program.programChair,
               name: getFullName(program.programChair),
-              email: "",
-              position: program.programChair.academicPosition || ""
           });
       } else {
           setTempChair(null);
@@ -303,7 +395,7 @@ export default function CourseDataPage() {
       if (!res.ok) throw new Error("บันทึกไม่สำเร็จ");
 
       setIsModalOpen(false);
-      setFormData({});
+      setFormData({ code: "", name_th: "", name_en: "", credit: "", programId: "" });
       setSelectedResponsible(null);
       fetchInitialData();
       toast.success(isEditMode ? "แก้ไขข้อมูลเรียบร้อย" : "เพิ่มรายวิชาเรียบร้อย");
@@ -331,10 +423,8 @@ export default function CourseDataPage() {
     });
     if (course.responsibleUser) {
         setSelectedResponsible({
-            id: course.responsibleUser.id,
-            name: getFullName(course.responsibleUser),
-            email: course.responsibleUser.email,
-            position: course.responsibleUser.academicPosition || ""
+            ...course.responsibleUser,
+            name: getFullName(course.responsibleUser)
         });
     } else {
         setSelectedResponsible(null);
@@ -342,52 +432,7 @@ export default function CourseDataPage() {
     setIsModalOpen(true);
   };
 
-  const SearchableUserSelect = ({ onSelect, placeholder = "ค้นหา...", initialValue = "" }: { onSelect: (user: UserData) => void, placeholder?: string, initialValue?: string }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [search, setSearch] = useState("");
-    const wrapperRef = useRef<HTMLDivElement>(null);
-    const filteredUsers = users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()));
-
-    useEffect(() => {
-        function handleClickOutside(event: any) {
-            if (wrapperRef.current && !wrapperRef.current.contains(event.target)) setIsOpen(false);
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [wrapperRef]);
-
-    return (
-        <div className="relative w-full" ref={wrapperRef}>
-            <div 
-                className="flex items-center justify-between w-full p-2.5 border border-slate-200 rounded-lg bg-white cursor-pointer hover:border-purple-400 hover:ring-2 hover:ring-purple-100 transition-all shadow-sm h-11" 
-                onClick={() => setIsOpen(!isOpen)}
-            >
-                <span className={`text-sm truncate ${initialValue ? 'text-slate-800 font-medium' : 'text-slate-400'}`}>{initialValue || placeholder}</span>
-                <ChevronsUpDown size={16} className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-            </div>
-            {isOpen && (
-                // ✅ Z-Index 1000 เพื่อให้ Dropdown ลอยเหนือทุกสิ่งใน Modal
-                <div className="absolute z-[1000] w-full min-w-[300px] mt-1.5 bg-white border border-slate-100 rounded-xl shadow-2xl max-h-72 overflow-y-auto animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top custom-scrollbar">
-                    <div className="p-2 sticky top-0 bg-white/95 backdrop-blur border-b z-10">
-                        <div className="relative">
-                            <Search size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"/>
-                            <input autoFocus type="text" className="w-full pl-9 p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500" placeholder="พิมพ์ชื่อเพื่อค้นหา..." value={search} onChange={(e) => setSearch(e.target.value)}/>
-                        </div>
-                    </div>
-                    {filteredUsers.length > 0 ? (
-                        filteredUsers.map(user => (
-                            <div key={user.id} className="px-4 py-2.5 text-sm hover:bg-purple-50 cursor-pointer flex flex-col border-b border-slate-50 last:border-none transition-colors" onClick={() => { onSelect(user); setIsOpen(false); setSearch(""); }}>
-                                <span className="font-medium text-slate-700">{user.name}</span>
-                                <span className="text-xs text-slate-400">{user.position}</span>
-                            </div>
-                        ))
-                    ) : <div className="p-4 text-center text-xs text-slate-400">ไม่พบรายชื่อ</div>}
-                </div>
-            )}
-        </div>
-    );
-  };
-
+  // --- Filtering Logic ---
   const filteredCourses = courses.filter((c) => {
     const matchesProgram = selectedProgram ? c.program?.id.toString() === selectedProgram : true;
     let matchesLevel = true;
@@ -398,29 +443,42 @@ export default function CourseDataPage() {
         else if (selectedLevel === "doctor") matchesLevel = degree.includes("เอก") || degree.toLowerCase().includes("doctor");
     }
     const searchLower = searchTerm.toLowerCase();
-    const responsibleName = getFullName(c.responsibleUser).toLowerCase();
-    const matchesSearch = c.code.toLowerCase().includes(searchLower) || c.name_th.toLowerCase().includes(searchLower) || (c.name_en && c.name_en.toLowerCase().includes(searchLower)) || responsibleName.includes(searchLower);
+    const responsibleName = c.responsibleUser ? getFullName(c.responsibleUser).toLowerCase() : "";
+    const matchesSearch = 
+        c.code.toLowerCase().includes(searchLower) || 
+        c.name_th.toLowerCase().includes(searchLower) || 
+        (c.name_en && c.name_en.toLowerCase().includes(searchLower)) || 
+        responsibleName.includes(searchLower);
+        
     return matchesProgram && matchesLevel && matchesSearch;
   });
 
   return (
-    <div className="space-y-8 font-sarabun p-8 bg-slate-50/50 min-h-screen">
+    <div className="min-h-screen bg-slate-50/50 p-6 font-sarabun"> {/* ✅ ปรับ p-8 -> p-6 และ class ให้เหมือนต้นแบบ */}
       <Toaster position="top-center" richColors />
       
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">จัดการข้อมูลรายวิชา</h1>
+      <div className="mb-6">
+        <div className="flex items-center gap-2 text-slate-400 mb-1 text-sm font-medium">
+             <span>ตั้งค่าระบบ</span>
+             <ChevronRight size={14}/>
+             <span className="text-purple-600">จัดการข้อมูลรายวิชา</span>
+        </div>
+        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">จัดการข้อมูลรายวิชา</h1>
+        <p className="text-slate-500 mt-2 font-light">
+             บริหารจัดการรายวิชา หลักสูตร และกำหนดอาจารย์ผู้รับผิดชอบรายวิชา
+        </p>
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60 mb-8"> {/* ✅ เพิ่ม mb-8 เพื่อดัน Table ลงไป (แทน space-y-8 ที่เอาออก) */}
         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
             <Search className="w-5 h-5 text-purple-600" /> ค้นหาและกรองข้อมูล
         </h2>
         <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
             <div className="w-full md:w-80">
                  <div className="relative group">
-                    <input type="text" placeholder="พิมพ์รหัสวิชา, ชื่อวิชา, หรือชื่อผู้รับผิดชอบ..." className="w-full pl-10 pr-4 h-11 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm bg-slate-50/30 focus:bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
+                    <input type="text" placeholder="พิมพ์รหัสวิชา, ชื่อวิชา, หรือผู้รับผิดชอบ..." className="w-full pl-10 pr-4 h-11 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm bg-slate-50/30 focus:bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}/>
                     <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-slate-400 group-focus-within:text-purple-500 transition-colors" size={18} />
                 </div>
             </div>
@@ -442,9 +500,10 @@ export default function CourseDataPage() {
       </div>
 
       {/* Table Section */}
-      <div className="space-y-4">
+      <div className="space-y-4 mb-8"> {/* ✅ เพิ่ม mb-8 เผื่อไว้ */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <BookOpen size={24} className="text-slate-700"/>
                 รายวิชาทั้งหมด 
                 <span className="text-sm font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
                     {filteredCourses.length} รายการ
@@ -472,11 +531,11 @@ export default function CourseDataPage() {
                 <thead>
                     <tr className="bg-slate-50/50 border-b border-slate-200 text-slate-700 text-sm uppercase tracking-wide">
                         <th className="py-4 px-6 font-semibold w-[10%]">รหัสวิชา</th>
-                        <th className="py-4 px-6 font-semibold w-[35%]">ชื่อรายวิชา</th>
+                        <th className="py-4 px-6 font-semibold w-[30%]">ชื่อรายวิชา</th>
                         <th className="py-4 px-6 font-semibold w-[10%]">ระดับ</th>
                         <th className="py-4 px-6 font-semibold w-[20%]">หลักสูตร</th>
                         <th className="py-4 px-6 font-semibold w-[20%]">ผู้รับผิดชอบ</th>
-                        <th className="py-4 px-6 font-semibold w-[5%] text-center">จัดการ</th>
+                        <th className="py-4 px-6 font-semibold w-[10%] text-center">จัดการ</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -511,13 +570,6 @@ export default function CourseDataPage() {
                 </tbody>
             </table>
             
-            <div className="flex justify-end items-center p-4 gap-4 text-xs text-slate-500 bg-slate-50/50 border-t border-slate-100">
-                <span>แสดงผล {filteredCourses.length} รายการ</span>
-                <div className="flex gap-1">
-                    <button className="p-1 hover:bg-slate-200 rounded transition-colors disabled:opacity-50"><ChevronLeft size={16} /></button>
-                    <button className="p-1 hover:bg-slate-200 rounded transition-colors disabled:opacity-50"><ChevronRight size={16} /></button>
-                </div>
-            </div>
         </div>
       </div>
 
@@ -528,6 +580,7 @@ export default function CourseDataPage() {
         title={isEditMode ? "แก้ไขข้อมูลรายวิชา" : "เพิ่มรายวิชาใหม่"}
         icon={isEditMode ? Edit : Plus}
         colorClass={isEditMode ? "text-purple-700" : "text-green-700"}
+        zIndex={50}
       >
           {/* ... Content ... */}
            <div className="p-6 space-y-6 overflow-y-auto max-h-[80vh] custom-scrollbar">
@@ -539,7 +592,6 @@ export default function CourseDataPage() {
                   </div>
                   <div className="space-y-2">
                       <label className="text-sm font-semibold text-slate-700">หน่วยกิต</label>
-                      {/* ✅ Placeholder */}
                       <input type="text" placeholder="เช่น 3 (2-2-5)" className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" value={formData.credit || ""} onChange={e => setFormData({...formData, credit: e.target.value})}/>
                   </div>
               </div>
@@ -569,19 +621,19 @@ export default function CourseDataPage() {
 
               <div className="space-y-2 pb-24"> 
                     <label className="text-sm font-semibold text-slate-800 flex items-center gap-2"><User size={18} className="text-purple-600" /> ผู้รับผิดชอบรายวิชา</label>
-                  <div className="w-full">
+                  <div className="w-full relative z-10"> {/* Added z-index context */}
                         {selectedResponsible ? (
                           <div className="flex items-center justify-between bg-purple-50/50 p-2.5 rounded-lg border border-purple-100">
                               <div className="flex flex-col"><span className="font-semibold text-slate-700 text-sm">{selectedResponsible.name}</span><span className="text-xs text-slate-400">{selectedResponsible.email}</span></div>
                               <button onClick={() => setSelectedResponsible(null)} className="text-slate-400 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50 transition-colors" title="ลบ"><Trash2 size={16} /></button>
                           </div>
                         ) : (
-                          <SearchableUserSelect placeholder="ค้นหาและเลือกผู้รับผิดชอบ..." onSelect={(user) => setSelectedResponsible(user)} />
+                          <SearchableUserSelect users={users} placeholder="ค้นหาและเลือกผู้รับผิดชอบ..." onSelect={(user) => setSelectedResponsible(user)} />
                         )}
                   </div>
               </div>
           </div>
-          <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 sticky bottom-0 bg-white z-10">
+          <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 sticky bottom-0 bg-white z-20">
               <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm hover:bg-white hover:text-slate-700 text-slate-600 font-medium transition-all shadow-sm">ยกเลิก</button>
               <button onClick={handleSaveCourse} className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium shadow-md shadow-green-200 hover:shadow-lg transition-all active:scale-95">บันทึกข้อมูล</button>
           </div>
@@ -595,6 +647,7 @@ export default function CourseDataPage() {
         icon={FolderPlus}
         colorClass="text-blue-700"
         maxWidth="max-w-md"
+        zIndex={50}
       >
           <div className="p-6 space-y-6 overflow-y-auto max-h-[80vh] min-h-[400px] pb-32 custom-scrollbar">
               <div className="space-y-2">
@@ -643,7 +696,7 @@ export default function CourseDataPage() {
                       <User size={18} className="text-blue-600" /> 
                       ประธานหลักสูตร (ถ้ามี)
                   </label>
-                  <div className="w-full">
+                  <div className="w-full relative z-10">
                         {selectedProgramChair ? (
                           <div className="flex items-center justify-between bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
                               <div className="flex flex-col">
@@ -656,6 +709,7 @@ export default function CourseDataPage() {
                           </div>
                         ) : (
                           <SearchableUserSelect 
+                              users={users}
                               placeholder="ค้นหาอาจารย์ที่เป็นประธาน..."
                               onSelect={(user) => setSelectedProgramChair(user)} 
                           />
@@ -664,7 +718,7 @@ export default function CourseDataPage() {
               </div>
 
           </div>
-          <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 sticky bottom-0 bg-white z-10">
+          <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 sticky bottom-0 bg-white z-20">
               <button onClick={() => setIsAddProgramModalOpen(false)} className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm hover:bg-white hover:text-slate-700 text-slate-600 font-medium transition-all shadow-sm">ยกเลิก</button>
               <button onClick={handleAddProgram} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 font-medium shadow-md shadow-blue-200 hover:shadow-lg transition-all active:scale-95">บันทึกหลักสูตร</button>
           </div>
@@ -678,7 +732,7 @@ export default function CourseDataPage() {
         icon={Briefcase}
         colorClass="text-purple-800"
         maxWidth="max-w-4xl"
-        zIndex={9999} // ✅ Default High Z-Index
+        zIndex={60} // Higher than other modals
       >
           <div className="p-0 overflow-y-auto custom-scrollbar max-h-[70vh]">
               <table className="w-full text-left text-sm">
@@ -734,12 +788,12 @@ export default function CourseDataPage() {
                   </tbody>
               </table>
           </div>
-          <div className="p-5 bg-slate-50 text-right border-t sticky bottom-0 bg-white z-10">
+          <div className="p-5 bg-slate-50 text-right border-t sticky bottom-0 bg-white z-20">
               <button onClick={() => setIsProgramModalOpen(false)} className="px-5 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-600 text-sm hover:bg-white hover:text-slate-800 font-medium shadow-sm transition-all">ปิดหน้าต่าง</button>
           </div>
       </Modal>
 
-      {/* --- ✅ NEW: EDIT PROGRAM CHAIR MODAL (Modal ซ้อน Modal) --- */}
+      {/* --- ✅ NEW: EDIT PROGRAM CHAIR MODAL (Nested Modal) --- */}
       <Modal
         isOpen={isEditChairModalOpen}
         onClose={() => setIsEditChairModalOpen(false)}
@@ -747,7 +801,7 @@ export default function CourseDataPage() {
         icon={Briefcase}
         colorClass="text-purple-800"
         maxWidth="max-w-md"
-        zIndex={10000} // ✅ จุดแก้จุดที่ 2: สูงกว่า 9999
+        zIndex={70} // Highest z-index
       >
         <div className="p-6 space-y-4 overflow-y-auto max-h-[80vh] min-h-[300px] pb-32 custom-scrollbar">
             <div className="p-3 bg-purple-50 rounded-lg border border-purple-100 text-sm text-purple-700">
@@ -756,7 +810,7 @@ export default function CourseDataPage() {
             
             <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">เลือกประธานคนใหม่</label>
-                <div className="w-full">
+                <div className="w-full relative z-10">
                     {tempChair ? (
                         <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-purple-100 shadow-sm ring-1 ring-purple-50">
                             <div className="flex flex-col">
@@ -769,6 +823,7 @@ export default function CourseDataPage() {
                         </div>
                     ) : (
                         <SearchableUserSelect 
+                            users={users}
                             placeholder="ค้นหาอาจารย์..."
                             onSelect={(user) => setTempChair(user)} 
                         />
@@ -776,7 +831,7 @@ export default function CourseDataPage() {
                 </div>
             </div>
         </div>
-        <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 sticky bottom-0 z-10 bg-white">
+        <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 sticky bottom-0 z-20 bg-white">
               <button onClick={() => setIsEditChairModalOpen(false)} className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm hover:bg-white hover:text-slate-700 text-slate-600 font-medium transition-all shadow-sm">ยกเลิก</button>
               <button onClick={handleSaveProgramChair} className="px-5 py-2.5 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 font-medium shadow-md shadow-purple-200 hover:shadow-lg transition-all active:scale-95">บันทึกการเปลี่ยนแปลง</button>
         </div>

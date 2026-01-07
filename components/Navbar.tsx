@@ -1,9 +1,9 @@
 "use client";
 
 import { Bell, User as UserIcon, BookOpen, LogOut } from "lucide-react"; 
-import { useSession, signOut } from "next-auth/react"; // signOut มาจากตรงนี้
+import { useSession, signOut } from "next-auth/react"; 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation"; // เพิ่ม router เพื่อรีเฟรชหน้า
+import { useRouter } from "next/navigation"; 
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,21 +13,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+// ✅ เพิ่ม Import Avatar
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 import DebugUserSwitcher from "@/components/DebugUserSwitcher";
 
 export function Navbar() {
-  // 1. ดึง update มาใช้สำหรับฟังก์ชันสวมรอย
   const { data: session, update } = useSession();
   const router = useRouter();
   
   const user = session?.user;
   const [allStaffs, setAllStaffs] = useState<any[]>([]);
 
-  // เช็ค Flag ที่เราฝังไว้ใน Session (จาก auth.ts ตัวใหม่)
   const isImpersonating = (user as any)?.isImpersonating;
 
   useEffect(() => {
-    // โหลดรายชื่อเฉพาะตอนเป็น Admin หรือตอนกำลังสวมรอย
     if (user?.role === 'ADMIN' || isImpersonating) {
         const fetchStaffs = async () => {
             try {
@@ -40,26 +40,18 @@ export function Navbar() {
         };
         fetchStaffs();
     }
-  }, [user?.role, isImpersonating]); // แก้ dependency เล็กน้อยให้ React ไม่บ่น
+  }, [user?.role, isImpersonating]); 
 
-  // 🔥 2. แก้ฟังก์ชันสลับร่าง: เลิกใช้ Cookie -> ใช้ update() แทน
   const handleUserChange = async (newUserId: string) => {
-      // เรียก update ไปหา auth.ts (เข้า case trigger === "update")
       await update({ impersonateId: newUserId || null });
-      
-      // รีเฟรชหน้าจอเพื่อให้ UI เปลี่ยนตาม Role ใหม่ทันที
       router.refresh();
       window.location.reload(); 
   };
 
-  // 🔥 3. แก้ฟังก์ชัน Logout: เอาบรรทัด Microsoft ออก
   const handleLogout = async () => {
-    // ถ้าสวมรอยอยู่ ให้เลิกสวมรอยก่อนออก (Option เสริม เพื่อความสะอาด)
     if (isImpersonating) {
         await update({ impersonateId: null });
     }
-
-    // สั่ง Logout แค่ Local (ไม่ไป Microsoft)
     await signOut({ callbackUrl: "/", redirect: true });
   };
 
@@ -72,6 +64,16 @@ export function Navbar() {
   };
 
   const displayCurriculum = formatCurriculum(user?.department);
+
+  // Helper สำหรับดึงตัวย่อชื่อ (เผื่อใช้)
+  const getInitials = (name: string) => {
+    if (!name) return "";
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
 
   return (
     <nav className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-[60] px-4 flex items-center justify-between font-sarabun shadow-sm">
@@ -99,7 +101,7 @@ export function Navbar() {
                 users={allStaffs}
                 currentUser={(user as any) || null} 
                 realUserRole="ADMIN" 
-                onUserChange={handleUserChange} // ส่งฟังก์ชันตัวใหม่ไป
+                onUserChange={handleUserChange} 
             />
         )}
       </div>
@@ -122,13 +124,15 @@ export function Navbar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <div className="flex items-center gap-3 pl-1 pr-2 py-1 rounded-full hover:bg-slate-50 transition-colors cursor-pointer border border-transparent hover:border-slate-100 outline-none">
-                {user?.image ? (
-                    <img src={user.image} alt="Profile" className="h-9 w-9 rounded-full object-cover border-2 border-white shadow-sm"/>
-                ) : (
-                    <div className="h-9 w-9 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center border-2 border-white shadow-sm shrink-0">
+                
+                {/* ✅ เปลี่ยนส่วนแสดงรูปภาพเป็น Avatar Component */}
+                <Avatar className="h-9 w-9 border-2 border-white shadow-sm cursor-pointer">
+                    <AvatarImage src={user?.image || ""} alt="Profile" className="object-cover" />
+                    <AvatarFallback className="bg-purple-100 text-purple-600">
+                        {/* ถ้าไม่มีรูป แสดง UserIcon หรือ ตัวย่อชื่อก็ได้ */}
                         <UserIcon size={18} />
-                    </div>
-                )}
+                    </AvatarFallback>
+                </Avatar>
                 
                 <div className="hidden md:block text-left">
                     <p className="text-sm font-semibold text-slate-700 leading-tight whitespace-nowrap">
@@ -153,7 +157,6 @@ export function Navbar() {
                แก้ไขข้อมูลส่วนตัว
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {/* ปุ่ม Logout ใน Dropdown ก็เรียก handleLogout ตัวใหม่ */}
             <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 cursor-pointer">
               <LogOut className="mr-2 h-4 w-4" />
               <span>ออกจากระบบ</span>

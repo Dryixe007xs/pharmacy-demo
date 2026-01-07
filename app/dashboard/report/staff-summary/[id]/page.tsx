@@ -3,26 +3,24 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, BookOpen, Loader2, Printer } from "lucide-react";
+import { ArrowLeft, Mail, BookOpen, Loader2, Printer, Building2 } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
 // --- Interfaces ---
 interface StaffProfile {
-  id: string; // ✅ แก้เป็น string
   firstName: string;
   lastName: string;
   email: string;
-  type: string;
+  title: string; 
   department: string;
   curriculum: string;
-  adminPosition: string;
-  academicPosition: string;
-  workStatus: string;
+  adminPosition?: string;
 }
 
 interface ReportCourse {
   code: string;
   name: string;
+  credit: string | number; // ✅ เพิ่ม Field หน่วยกิต
   role: string;
   lecture: number;
   lab: number;
@@ -38,99 +36,84 @@ interface SemesterData {
 export default function StaffIndividualReportPage() {
   const params = useParams();
   const router = useRouter();
-  // แปลงเป็น string ให้ชัวร์ (บางที params.id อาจจะเป็น array ถ้าใช้ catch-all routes)
   const staffId = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const [staff, setStaff] = useState<StaffProfile | null>(null);
-  const [reportData, setReportData] = useState<SemesterData[]>([
-    { title: "ภาคการศึกษาต้น", courses: [] },
-    { title: "ภาคการศึกษาปลาย", courses: [] },
-    { title: "ภาคฤดูร้อน", courses: [] }
-  ]);
+  const [reportData, setReportData] = useState<SemesterData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!staffId) return;
 
     const fetchData = async () => {
-        setLoading(true);
-        try {
-            // ---------------------------------------------------------
-            // 1. Fetch Staff Profile
-            // ---------------------------------------------------------
-            const staffRes = await fetch("/api/staff");
-            const staffData = await staffRes.json();
-            
-            let staffList: any[] = [];
-
-            if (Array.isArray(staffData)) {
-                staffList = staffData;
-            } else if (staffData && Array.isArray(staffData.data)) {
-                staffList = staffData.data;
-            }
-
-            // ✅ แก้ไข: เทียบ ID เป็น String (เพราะใน DB เป็น String แล้ว)
-            const foundStaff = staffList.find((s: any) => String(s.id) === String(staffId));
-            
-            if (foundStaff) {
-                setStaff(foundStaff);
-            } else {
-                toast.error("ไม่พบข้อมูลบุคลากรในระบบ");
-            }
-
-            // ---------------------------------------------------------
-            // 2. Fetch Assignments
-            // ---------------------------------------------------------
-            // ส่ง staffId ไปตรงๆ (API รองรับ String แล้ว)
-            const assignRes = await fetch(`/api/report/personal?lecturerId=${staffId}`);
-            const assignData = await assignRes.json();
-
-            if (Array.isArray(assignData)) {
-                const term1: ReportCourse[] = [];
-                const term2: ReportCourse[] = [];
-                const term3: ReportCourse[] = [];
-
-                assignData.forEach((assign: any) => {
-                    // ✅ แก้ไข: เทียบ ID เป็น String
-                    const isResponsible = String(assign.lecturerId) === String(assign.subject.responsibleUserId);
-                    const role = isResponsible ? "ผู้รับผิดชอบรายวิชา" : "ผู้สอน";
-                    
-                    let note = "";
-                    if (assign.lecturerStatus !== 'APPROVED') note = "รอการยืนยัน";
-                    else if (assign.headApprovalStatus !== 'APPROVED') note = "รอหน.อนุมัติ";
-                    else if (assign.deanApprovalStatus !== 'APPROVED') note = "รอคณบดีอนุมัติ";
-
-                    const courseObj: ReportCourse = {
-                        code: assign.subject.code,
-                        name: assign.subject.name_th,
-                        role: role,
-                        lecture: assign.lectureHours || 0,
-                        lab: assign.labHours || 0,
-                        exam: assign.examHours || 0,
-                        note: note
-                    };
-
-                    const sem = assign.semester;
-                    if (sem === 1) term1.push(courseObj);
-                    else if (sem === 2) term2.push(courseObj);
-                    else if (sem === 3) term3.push(courseObj);
-                });
-
-                setReportData([
-                    { title: "ภาคการศึกษาต้น", courses: term1 },
-                    { title: "ภาคการศึกษาปลาย", courses: term2 },
-                    { title: "ภาคฤดูร้อน", courses: term3 }
-                ]);
-            } else {
-                 console.warn("API Report Personal ไม่ได้ส่งกลับมาเป็น Array", assignData);
-            }
-
-        } catch (error) {
-            console.error("Fetch Error:", error);
-            toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
-        } finally {
-            setLoading(false);
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/report/personal?lecturerId=${staffId}`);
+        
+        if (!res.ok) {
+            throw new Error("ไม่สามารถดึงข้อมูลได้");
         }
+
+        const data = await res.json();
+        const { lecturer, assignments } = data;
+
+        // Set Profile
+        if (lecturer) {
+            setStaff({
+                ...lecturer,
+                title: lecturer.title || lecturer.academicPosition || '' 
+            });
+        } else {
+            toast.error("ไม่พบข้อมูลอาจารย์ท่านนี้");
+        }
+
+        // Process Assignments
+        const assignList = Array.isArray(assignments) ? assignments : [];
+        const term1: ReportCourse[] = [];
+        const term2: ReportCourse[] = [];
+        const term3: ReportCourse[] = [];
+
+        assignList.forEach((assign: any) => {
+            const isResponsible = String(assign.lecturerId) === String(assign.subject.responsibleUserId);
+            const role = isResponsible ? "ผู้รับผิดชอบรายวิชา" : "ผู้สอน";
+            
+            // Logic สถานะ
+            let note = "";
+            if (assign.deanApprovalStatus === 'APPROVED') note = "อนุมัติแล้ว";
+            else if (assign.headApprovalStatus === 'APPROVED') note = "รอรองฯ อนุมัติ";
+            else if (assign.lecturerStatus === 'APPROVED') note = "รอประธานฯ";
+            else note = "-";
+
+            const courseObj: ReportCourse = {
+                code: assign.subject.code,
+                name: assign.subject.name_th,
+                // ✅ ดึงหน่วยกิตมาใส่ตรงนี้
+                credit: assign.subject.credit || assign.subject.credits || "-",
+                role: role,
+                lecture: assign.lectureHours || 0,
+                lab: assign.labHours || 0,
+                exam: assign.examHours || 0,
+                note: note
+            };
+
+            const sem = assign.semester;
+            if (sem === 1) term1.push(courseObj);
+            else if (sem === 2) term2.push(courseObj);
+            else if (sem === 3) term3.push(courseObj);
+        });
+
+        setReportData([
+            { title: "ภาคการศึกษาต้น", courses: term1 },
+            { title: "ภาคการศึกษาปลาย", courses: term2 },
+            { title: "ภาคฤดูร้อน", courses: term3 }
+        ]);
+
+      } catch (error) {
+        console.error("Fetch Error:", error);
+        toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
@@ -141,147 +124,182 @@ export default function StaffIndividualReportPage() {
   };
 
   if (loading) {
-      return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin w-8 h-8 text-slate-400"/></div>;
-  }
-
-  if (!staff && !loading) {
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-slate-500">
-            <p>ไม่พบข้อมูลผู้ใช้งาน หรือ เกิดข้อผิดพลาด (ID: {staffId})</p>
-            <Button onClick={() => router.back()}>กลับไปหน้าก่อนหน้า</Button>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-3">
+            <Loader2 className="animate-spin w-10 h-10 text-purple-600"/>
+            <p className="text-slate-400 text-sm animate-pulse">กำลังดึงข้อมูลรายงาน...</p>
         </div>
       );
   }
 
-  // --- ส่วนแสดงผล UI (เหมือนเดิม) ---
+  if (!staff) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 text-slate-500">
+            <p>ไม่พบข้อมูลผู้ใช้งาน</p>
+            <Button onClick={() => router.back()} variant="outline">กลับไปหน้าก่อนหน้า</Button>
+        </div>
+      );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6 font-sarabun text-slate-800 print:bg-white print:p-0">
+    <div className="min-h-screen bg-slate-100/50 p-6 font-sarabun text-slate-800 print:bg-white print:p-0">
       <Toaster position="top-center" richColors />
 
+      {/* Styles for Print */}
       <style jsx global>{`
         @media print {
-            thead { display: table-header-group; }
-            tr { page-break-inside: avoid; }
+            @page { margin: 10mm; size: A4; }
+            body { -webkit-print-color-adjust: exact; }
+            .no-print { display: none !important; }
+            .page-break { page-break-before: always; }
+            tr.bg-slate-100 { background-color: #f1f5f9 !important; }
         }
       `}</style>
 
-      {/* Navigation */}
-      <div className="max-w-[210mm] mx-auto mb-6 flex justify-between items-center print:hidden">
-          <Button variant="ghost" onClick={() => router.back()} className="text-slate-500 hover:text-slate-800 gap-2 pl-0 hover:bg-transparent">
-              <ArrowLeft size={20} /> ย้อนกลับหน้ารายชื่อ
+      {/* Navigation Bar */}
+      <div className="max-w-[210mm] mx-auto mb-6 flex justify-between items-center no-print">
+          <Button 
+            variant="ghost" 
+            onClick={() => router.back()} 
+            className="text-slate-500 hover:text-slate-800 hover:bg-white/50 transition-all gap-2 pl-2"
+          >
+              <ArrowLeft size={18} /> ย้อนกลับ
           </Button>
-          <Button onClick={handlePrint} variant="outline" className="gap-2">
-              <Printer size={16} /> พิมพ์รายงาน
+          <Button onClick={handlePrint} className="bg-purple-600 hover:bg-purple-700 text-white shadow-md gap-2 rounded-full px-6">
+              <Printer size={18} /> พิมพ์รายงาน
           </Button>
       </div>
 
-      {/* A4 Paper */}
-      <div className="max-w-[210mm] mx-auto bg-white shadow-md p-10 min-h-[297mm] relative flex flex-col print:shadow-none print:w-full print:max-w-none print:min-h-0 print:p-8">
+      {/* A4 Paper Simulation */}
+      <div className="max-w-[210mm] mx-auto bg-white shadow-xl shadow-slate-200/60 p-[15mm] min-h-[297mm] relative flex flex-col rounded-xl print:shadow-none print:w-full print:max-w-none print:min-h-0 print:p-0 print:rounded-none">
         
-        {/* Header */}
-        <div className="border-b-2 border-slate-100 pb-6 mb-8 flex flex-col md:flex-row gap-6 items-start md:items-center print:border-black">
-            <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center text-2xl font-bold text-slate-400 print:border print:border-slate-300 print:text-black">
-                {staff?.firstName?.charAt(0)}
-            </div>
-            
-            <div className="flex-1 space-y-1">
-                <h1 className="text-2xl font-bold text-slate-800">
-                    {staff?.academicPosition && staff.academicPosition !== 'NULL' ? staff.academicPosition : ''} {staff?.firstName} {staff?.lastName}
-                </h1>
-                <div className="flex flex-wrap gap-4 text-sm text-slate-600 print:text-black">
-                    <div className="flex items-center gap-1">
-                        <Mail size={14} /> {staff?.email}
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <BookOpen size={14} /> {staff?.curriculum || "ไม่ระบุหลักสูตร"}
+        {/* --- Header Section --- */}
+        <div className="flex justify-between items-start border-b border-slate-200 pb-6 mb-6">
+            <div className="flex items-center gap-5">
+                {/* Avatar Placeholder */}
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-100 to-indigo-50 border border-purple-100 flex items-center justify-center text-2xl font-bold text-purple-700 shadow-sm print:border-slate-300 print:bg-none print:text-black">
+                    {staff.firstName?.charAt(0)}
+                </div>
+                <div>
+                    <h1 className="text-xl font-bold text-slate-800 mb-1">
+                        {staff.title && staff.title !== 'NULL' ? staff.title : ''} {staff.firstName} {staff.lastName}
+                    </h1>
+                    <div className="text-sm text-slate-500 space-y-1">
+                        <div className="flex items-center gap-2">
+                            <Building2 size={14} className="text-purple-400 print:text-slate-400"/> 
+                            {staff.department || "คณะเภสัชศาสตร์"}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <BookOpen size={14} className="text-purple-400 print:text-slate-400"/> 
+                            {staff.curriculum || "-"}
+                        </div>
                     </div>
                 </div>
-                {staff?.adminPosition && staff.adminPosition !== 'NULL' && (
-                    <div className="inline-block bg-purple-50 text-purple-700 text-xs px-2 py-1 rounded mt-2 font-medium print:border print:border-black print:text-black print:bg-white">
-                        {staff.adminPosition}
-                    </div>
-                )}
             </div>
-
             <div className="text-right">
-                <div className="text-sm text-slate-500 mb-1">ปีการศึกษา</div>
-                <div className="text-3xl font-bold text-slate-200 print:text-black">2567</div>
+                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">ปีการศึกษา</div>
+                <div className="text-3xl font-bold text-slate-700">2567</div>
             </div>
         </div>
 
-        {/* Content Table */}
-        <div className="border rounded-lg overflow-hidden mb-12 flex-grow print:border-black">
-            <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b print:bg-gray-100 print:border-black">
-                    <tr>
-                        <th className="py-3 px-4 text-left font-semibold border-r print:border-black">รหัสวิชา / ชื่อรายวิชา</th>
-                        <th className="py-3 px-4 text-center font-semibold border-r print:border-black">สถานะ</th>
-                        <th className="py-3 px-4 text-center font-semibold border-r print:border-black">บรรยาย</th>
-                        <th className="py-3 px-4 text-center font-semibold border-r print:border-black">ปฏิบัติการ</th>
-                        <th className="py-3 px-4 text-center font-semibold border-r print:border-black">คุมสอบ</th>
-                        <th className="py-3 px-4 text-center font-semibold">หมายเหตุ</th>
+        {/* --- Content Table --- */}
+        <div className="flex-grow">
+            <table className="w-full text-sm border-collapse">
+                <thead>
+                    <tr className="bg-slate-50 border-y border-slate-200 text-slate-600 font-semibold uppercase tracking-wide text-[11px] print:bg-slate-100">
+                        <th className="py-3 px-2 text-left w-[35%]">วิชา</th>
+                        <th className="py-3 px-2 text-center w-[15%]">สถานะ</th>
+                        <th className="py-3 px-2 text-center w-[10%]">บรรยาย</th>
+                        <th className="py-3 px-2 text-center w-[10%]">ปฏิบัติ</th>
+                        <th className="py-3 px-2 text-center w-[10%]">คุมสอบ</th>
+                        <th className="py-3 px-2 text-center w-[20%]">หมายเหตุ</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y print:divide-black">
+                <tbody className="divide-y divide-slate-100">
                     {reportData.map((term, index) => (
                         <React.Fragment key={index}>
-                            <tr className="bg-slate-50/50 print:bg-gray-50">
-                                <td colSpan={6} className="py-3 px-4 font-bold text-slate-700 border-b print:border-black">{term.title}</td>
+                            {/* Semester Header */}
+                            <tr className="bg-slate-50/50 print:bg-white">
+                                <td colSpan={6} className="py-3 px-2 font-bold text-purple-700 text-xs border-b border-slate-100 print:text-black mt-4">
+                                    {term.title}
+                                </td>
                             </tr>
                             
                             {term.courses.length > 0 ? (
                                 term.courses.map((course, cIndex) => (
-                                    <tr key={cIndex} className="hover:bg-slate-50/30 print:hover:bg-none border-b print:border-black">
-                                            <td className="py-3 px-4 align-top border-r print:border-black">
-                                                <div className="font-medium">{course.code}</div>
-                                                <div className="text-slate-500 text-xs">{course.name}</div>
+                                    <tr key={cIndex} className="group">
+                                            <td className="py-3 px-2 align-top">
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="font-semibold text-slate-700">{course.code}</span>
+                                                        {/* ✅ Badge หน่วยกิต */}
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100 print:border-indigo-300 print:text-black">
+                                                            <BookOpen size={10} /> {course.credit} หน่วยกิต
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-slate-500 text-xs font-light">{course.name}</div>
+                                                </div>
                                             </td>
-                                            <td className="py-3 px-4 text-center align-top border-r print:border-black">{course.role}</td>
-                                            <td className="py-3 px-4 text-center align-top border-r print:border-black">{course.lecture}</td>
-                                            <td className="py-3 px-4 text-center align-top border-r print:border-black">{course.lab}</td>
-                                            <td className="py-3 px-4 text-center align-top border-r print:border-black">{course.exam || '-'}</td>
-                                            <td className="py-3 px-4 text-center align-top text-slate-400 text-xs">{course.note}</td>
+                                            <td className="py-3 px-2 text-center align-top">
+                                                <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                                                    course.role === 'ผู้รับผิดชอบรายวิชา' 
+                                                    ? 'bg-orange-50 text-orange-700 border-orange-100' 
+                                                    : 'bg-slate-50 text-slate-600 border-slate-100'
+                                                }`}>
+                                                    {course.role}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 px-2 text-center align-top text-slate-600 font-medium">{course.lecture}</td>
+                                            <td className="py-3 px-2 text-center align-top text-slate-600 font-medium">{course.lab}</td>
+                                            <td className="py-3 px-2 text-center align-top text-slate-600 font-medium">{course.exam || '-'}</td>
+                                            <td className="py-3 px-2 text-center align-top text-xs text-slate-400">{course.note}</td>
                                     </tr>
                                 ))
                             ) : (
-                                <tr className="border-b print:border-black">
-                                    <td colSpan={6} className="py-4 text-center text-slate-300 italic text-xs print:text-black">ไม่มีรายวิชา</td>
+                                <tr>
+                                    <td colSpan={6} className="py-4 text-center text-slate-300 text-xs italic">
+                                        - ไม่มีรายวิชา -
+                                    </td>
                                 </tr>
                             )}
 
+                            {/* Subtotal */}
                             {term.courses.length > 0 && (
-                                <tr className="bg-slate-50/30 font-bold text-slate-700 border-t border-dashed print:border-solid print:border-black print:bg-white">
-                                    <td colSpan={2} className="py-2 px-4 text-right text-xs border-r print:border-black">รวม{term.title}</td>
-                                    <td className="py-2 px-4 text-center text-xs border-r print:border-black">{term.courses.reduce((a, b) => a + b.lecture, 0).toFixed(2)}</td>
-                                    <td className="py-2 px-4 text-center text-xs border-r print:border-black">{term.courses.reduce((a, b) => a + b.lab, 0).toFixed(2)}</td>
-                                    <td className="py-2 px-4 text-center text-xs border-r print:border-black">{term.courses.reduce((a, b) => a + b.exam, 0).toFixed(2)}</td>
+                                <tr className="border-t border-slate-200 border-dashed">
+                                    <td colSpan={2} className="py-2 px-2 text-right text-[10px] text-slate-400 font-medium uppercase">รวม{term.title}</td>
+                                    <td className="py-2 px-2 text-center text-xs font-bold text-slate-700">{term.courses.reduce((a, b) => a + b.lecture, 0).toFixed(1)}</td>
+                                    <td className="py-2 px-2 text-center text-xs font-bold text-slate-700">{term.courses.reduce((a, b) => a + b.lab, 0).toFixed(1)}</td>
+                                    <td className="py-2 px-2 text-center text-xs font-bold text-slate-700">{term.courses.reduce((a, b) => a + b.exam, 0).toFixed(1)}</td>
                                     <td></td>
                                 </tr>
                             )}
                         </React.Fragment>
                     ))}
-                    
-                    <tr className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-300 print:bg-gray-200 print:border-black">
-                        <td colSpan={2} className="py-3 px-4 text-right text-sm border-r print:border-black">รวมตลอดปีการศึกษา</td>
-                        <td className="py-3 px-4 text-center text-sm border-r print:border-black">
-                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.lecture, 0), 0).toFixed(2)}
-                        </td>
-                        <td className="py-3 px-4 text-center text-sm border-r print:border-black">
-                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.lab, 0), 0).toFixed(2)}
-                        </td>
-                        <td className="py-3 px-4 text-center text-sm border-r print:border-black">
-                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.exam, 0), 0).toFixed(2)}
-                        </td>
-                        <td></td>
-                    </tr>
                 </tbody>
+                
+                {/* Grand Total */}
+                <tfoot className="border-t-2 border-slate-800 bg-slate-50 print:bg-slate-100 print:border-black mt-4">
+                    <tr>
+                        <td colSpan={2} className="py-3 px-4 text-right font-bold text-slate-800">รวมทั้งสิ้น</td>
+                        <td className="py-3 px-2 text-center font-bold text-purple-700 text-base">
+                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.lecture, 0), 0).toFixed(1)}
+                        </td>
+                        <td className="py-3 px-2 text-center font-bold text-purple-700 text-base">
+                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.lab, 0), 0).toFixed(1)}
+                        </td>
+                        <td className="py-3 px-2 text-center font-bold text-purple-700 text-base">
+                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.exam, 0), 0).toFixed(1)}
+                        </td>
+                        <td className="py-3 px-2 text-center text-xs text-slate-500">ชั่วโมง</td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
 
-        <div className="mt-8 text-center print:text-left">
-            <div className="text-[10px] text-slate-400 print:text-black">
-                เอกสารสรุปภาระงานสอน ออกจากระบบออนไลน์
-            </div>
+        {/* Footer Signature Area */}
+        <div className="mt-12 pt-8 border-t border-slate-100 flex justify-between items-end text-xs text-slate-400 no-print">
+            <div>เอกสารสรุปภาระงานสอนออนไลน์</div>
+            <div>พิมพ์เมื่อ: {new Date().toLocaleDateString('th-TH')}</div>
         </div>
 
       </div>

@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { 
   Search, PenLine, Plus, Trash2, Edit2, X, User, Check, Loader2, UserPlus, 
   AlertCircle, CheckCircle, Send, Clock, FileText, AlertTriangle, MessageSquare, 
-  RefreshCcw, ShieldCheck, Sparkles, ChevronRight
+  ChevronRight, BookOpen, ShieldCheck
 } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
@@ -45,7 +45,7 @@ type Course = {
   code: string;
   name_th: string;
   name_en: string | null;
-  credit: string;
+  credit: string; // ✅ มี field นี้อยู่แล้ว
   program: {
     id: number;
     name_th: string;
@@ -370,15 +370,15 @@ export default function CourseOwnerPage() {
   }
 
   return (
-    <div className="space-y-6 font-sarabun p-6 bg-slate-50/50 min-h-screen relative">
+    <div className="min-h-screen bg-slate-50/50 p-6 font-sarabun">
       <Toaster position="top-center" richColors />
 
-      {/* ✅ Header (แก้ไขให้เหมือนหน้าอื่น) */}
+      {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 text-slate-400 mb-1 text-sm font-medium">
              <span>จัดการชั่วโมงการสอน</span>
              <ChevronRight size={14}/>
-             <span>ผู้รับผิดชอบรายวิชา</span>
+             <span className="text-purple-600">ผู้รับผิดชอบรายวิชา</span>
         </div>
         <h1 className="text-3xl font-bold text-slate-800 tracking-tight">บันทึกผู้สอนและชั่วโมงสอน</h1>
         {currentUser && !loading && (
@@ -388,60 +388,73 @@ export default function CourseOwnerPage() {
         )}
       </div>
 
-      {/* Filters (ปรับสไตล์ให้เหมือน Glassmorphism) */}
-      <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border border-slate-200/60 shadow-sm space-y-6 mb-6 sticky top-4 z-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="space-y-2 col-span-2">
-            <label className="text-sm font-medium text-slate-600">รหัสวิชา/ชื่อวิชา</label>
-            <div className="relative">
-              <input 
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl bg-slate-50/50 outline-none focus:ring-2 focus:ring-purple-100 transition-all" 
-                placeholder="ค้นหา..." 
-                value={searchTerm} 
-                onChange={(e) => setSearchTerm(e.target.value)} 
-              />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            </div>
-          </div>
+      {/* Filters */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60 mb-8">
+        <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <Search className="w-5 h-5 text-purple-600" /> ค้นหาและเลือกรายวิชา
+        </h2>
+        <div className="relative max-w-md">
+            <input 
+              className="w-full pl-10 pr-4 h-11 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm bg-slate-50/30 focus:bg-white" 
+              placeholder="พิมพ์รหัสวิชา หรือ ชื่อวิชาเพื่อค้นหา..." 
+              value={searchTerm} 
+              onChange={(e) => setSearchTerm(e.target.value)} 
+            />
+            <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-bold text-lg text-slate-700 mb-4">รายชื่อรายวิชาที่คุณรับผิดชอบ ({filteredCourses.length} รายการ)</h3>
-        <div className="rounded-xl border overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden mb-8">
+        <div className="p-6 border-b border-slate-100 flex items-center gap-2">
+             <BookOpen className="text-slate-700" size={20} />
+             <h3 className="font-bold text-lg text-slate-800">รายวิชาที่รับผิดชอบ ({filteredCourses.length} รายการ)</h3>
+        </div>
+        
+        <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-slate-50/80 border-b">
+            <thead className="bg-slate-50/50 border-b border-slate-200 text-slate-700 text-sm font-semibold uppercase tracking-wider">
               <tr>
-                <th className="p-4 font-bold text-slate-700 w-[10%]">รหัสวิชา</th>
-                <th className="p-4 font-bold text-slate-700 w-[30%]">ชื่อรายวิชา</th>
-                <th className="p-4 font-bold text-slate-700 w-[20%]">หลักสูตร</th>
-                <th className="p-4 font-bold text-slate-700 w-[20%] text-center">สถานะปัจจุบัน</th>
-                <th className="p-4 font-bold text-slate-700 w-[20%] text-right">จัดการ</th>
+                <th className="p-4 pl-6 w-[10%]">รหัสวิชา</th>
+                <th className="p-4 w-[25%]">ชื่อรายวิชา</th>
+                {/* ✅ เพิ่มคอลัมน์หน่วยกิต */}
+                <th className="p-4 w-[10%] text-center">หน่วยกิต</th>
+                <th className="p-4 w-[20%]">หลักสูตร</th>
+                <th className="p-4 w-[15%] text-center">สถานะปัจจุบัน</th>
+                <th className="p-4 pr-6 w-[20%] text-center">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-slate-100 text-sm">
               {loading ? (
-                <tr><td colSpan={5} className="p-12 text-center text-gray-400"><div className="flex justify-center items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" /> กำลังโหลดข้อมูล...</div></td></tr>
+                <tr><td colSpan={6} className="p-12 text-center text-slate-400"><div className="flex justify-center items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" /> กำลังโหลดข้อมูล...</div></td></tr>
               ) : filteredCourses.length > 0 ? (
                 filteredCourses.map(course => (
-                  <tr key={course.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="p-4 font-medium text-slate-700">{course.code}</td>
-                    <td className="p-4 text-slate-700">
-                      <div>{course.name_th}</div>
-                      <div className="text-xs text-slate-500">{course.name_en}</div>
+                  <tr key={course.id} className="hover:bg-slate-50/80 transition-colors group">
+                    <td className="p-4 pl-6 font-medium text-slate-700">{course.code}</td>
+                    <td className="p-4">
+                      <div className="font-semibold text-slate-800">{course.name_th}</div>
+                      <div className="text-xs text-slate-500 font-light mt-0.5">{course.name_en}</div>
+                    </td>
+                    {/* ✅ แสดงหน่วยกิต */}
+                    <td className="p-4 text-center">
+                        <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-medium border border-slate-200">
+                            {course.credit}
+                        </span>
                     </td>
                     <td className="p-4 text-slate-600">{course.program.name_th}</td>
                     <td className="p-4 text-center align-middle">{getStatusBadge(course.summary)}</td>
-                    <td className="p-4 text-right">
-                      <button onClick={() => handleOpenModal(course)} className="h-9 px-3 flex items-center justify-center rounded-lg bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition-colors inline-flex ml-auto text-sm font-medium gap-2">
-                        <PenLine className="w-4 h-4" /> จัดการ
+                    <td className="p-4 pr-6 text-center">
+                      <button 
+                        onClick={() => handleOpenModal(course)} 
+                        className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-purple-600 hover:border-purple-200 hover:bg-purple-50 transition-all shadow-sm text-sm font-medium"
+                      >
+                        <PenLine size={16} /> จัดการ
                       </button>
                     </td>
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan={5} className="p-12 text-center text-gray-400">{currentUser ? "ไม่พบรายวิชาที่คุณรับผิดชอบ" : "ไม่พบข้อมูลผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่"}</td></tr>
+                <tr><td colSpan={6} className="p-16 text-center text-slate-400 flex flex-col items-center justify-center gap-2"><Search size={32} className="opacity-20"/>{currentUser ? "ไม่พบรายวิชาที่คุณรับผิดชอบ" : "ไม่พบข้อมูลผู้ใช้งาน"}</td></tr>
               )}
             </tbody>
           </table>
@@ -466,73 +479,89 @@ export default function CourseOwnerPage() {
                 </div>
             )}
 
-            <div className="p-6 border-b flex justify-between items-start bg-slate-50">
+            <div className="p-6 border-b flex justify-between items-start bg-white sticky top-0 z-20">
               <div>
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">{selectedCourse.code} {selectedCourse.name_th}</h2>
-                <p className="text-sm text-slate-500 mt-1">{selectedCourse.program.name_th}</p>
+                {/* ✅ เพิ่มหน่วยกิตใน Modal Header ด้วย */}
+                <div className="flex items-center gap-2 mt-1">
+                     <span className="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded border border-purple-200 font-medium">
+                        {selectedCourse.credit} หน่วยกิต
+                     </span>
+                     <p className="text-sm text-slate-500">{selectedCourse.program.name_th}</p>
+                </div>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition"><X size={24} /></button>
             </div>
 
             {isRejectedByChair && (
-                <div className="bg-red-50 border-b border-red-200 p-3 flex items-center gap-3 text-red-700">
+                <div className="bg-red-50 border-b border-red-200 p-3 flex items-center gap-3 text-red-700 animate-in slide-in-from-top-2">
                     <AlertTriangle className="h-5 w-5 shrink-0" />
-                    <div><p className="font-bold text-sm">ถูกส่งกลับแก้ไข</p><p className="text-xs">กรุณาแก้ไขข้อมูลและส่งใหม่</p></div>
+                    <div><p className="font-bold text-sm">ถูกส่งกลับแก้ไขโดยประธานหลักสูตร</p><p className="text-xs">กรุณาตรวจสอบและแก้ไขข้อมูลที่มีปัญหา แล้วกดส่งอีกครั้ง</p></div>
                 </div>
             )}
 
-            <div className="p-6 overflow-y-auto bg-gray-50/50">
+            <div className="p-6 overflow-y-auto bg-slate-50/50 custom-scrollbar">
               <div className="flex flex-col gap-6">
+                
+                {/* Responsible Person Card */}
                 <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600"><User size={20} /></div>
+                      <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 border border-purple-100 shadow-sm"><User size={24} /></div>
                       <div>
-                        <p className="text-xs text-slate-500 uppercase font-semibold">ผู้รับผิดชอบรายวิชา</p>
+                        <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-0.5">ผู้รับผิดชอบรายวิชา</p>
                         <p className="text-base font-bold text-slate-800">{getResponsibleName(selectedCourse.responsibleUser)}</p>
                       </div>
                 </div>
 
-                <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
-                    <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
-                        <h3 className="font-bold text-slate-700">รายชื่อผู้สอน</h3>
+                {/* Lecturers Table */}
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <div className="p-4 border-b bg-slate-50/50 flex justify-between items-center">
+                        <h3 className="font-bold text-slate-700 flex items-center gap-2"><User size={18}/> รายชื่อผู้สอน</h3>
                     </div>
-                    <div className="bg-slate-100 p-2 grid grid-cols-12 gap-2 text-xs font-bold text-slate-600 border-b uppercase">
+                    
+                    {/* Table Header */}
+                    <div className="bg-slate-100/50 p-3 grid grid-cols-12 gap-2 text-xs font-bold text-slate-500 border-b uppercase tracking-wider">
                         <div className="col-span-4 pl-2">ชื่อ-สกุล</div>
                         <div className="col-span-2 text-center">บรรยาย (ชม.)</div>
                         <div className="col-span-2 text-center">ปฏิบัติ (ชม.)</div>
-                        <div className="col-span-2 text-center">คุมสอบนอกตาราง (ชม.)</div>
+                        <div className="col-span-2 text-center">คุมสอบ (ชม.)</div>
                         <div className="col-span-2 text-center">จัดการ</div>
                     </div>
-                    <div className="divide-y">
+                    
+                    <div className="divide-y divide-slate-100">
                         {assignments.map((assign) => (
-                            <div key={assign.id} className={`grid grid-cols-12 gap-2 items-center text-sm ${assign.lecturerStatus === 'REJECTED' ? 'bg-red-50 border-l-4 border-red-500' : 'hover:bg-slate-50'} p-3 transition-colors`}>
+                            <div key={assign.id} className={`grid grid-cols-12 gap-2 items-center text-sm ${assign.lecturerStatus === 'REJECTED' ? 'bg-red-50/60' : 'hover:bg-slate-50'} p-3 transition-colors`}>
                                 
+                                {/* Case: Rejected (Dispute) */}
                                 {assign.lecturerStatus === 'REJECTED' && editingAssignmentId !== assign.id && resolvingId !== assign.id ? (
-                                   <div className="col-span-12 flex flex-col gap-3 py-2">
+                                   <div className="col-span-12 flex flex-col gap-3 py-2 pl-2">
                                       <div className="flex justify-between items-start">
                                         <div className="flex items-center gap-2">
-                                            <div className="font-bold text-red-700 flex items-center gap-2 text-base">
+                                            <div className="font-bold text-red-600 flex items-center gap-2 text-base">
                                                 <AlertCircle size={18} /> แจ้งขอแก้ไขข้อมูล
                                             </div>
-                                            <span className="text-slate-600 font-medium">({assign.lecturer.firstName} {assign.lecturer.lastName})</span>
+                                            <span className="text-slate-700 font-semibold">โดย: {assign.lecturer.firstName} {assign.lecturer.lastName}</span>
                                         </div>
                                       </div>
                                       
-                                      <div className="bg-white p-3 rounded-lg border border-red-100 text-red-800 text-sm flex gap-2">
-                                         <MessageSquare size={16} className="mt-0.5 shrink-0 opacity-50"/>
-                                         <span>"{assign.lecturerFeedback || "ไม่ระบุเหตุผล"}"</span>
+                                      <div className="bg-white p-3 rounded-lg border border-red-200 text-red-800 text-sm flex gap-3 shadow-sm">
+                                         <MessageSquare size={18} className="mt-0.5 shrink-0 opacity-60"/>
+                                         <div>
+                                            <span className="font-bold text-xs uppercase text-red-400 block mb-1">เหตุผลที่แจ้งมา:</span>
+                                            <span>"{assign.lecturerFeedback || "ไม่ระบุเหตุผล"}"</span>
+                                         </div>
                                       </div>
 
                                       <div className="flex items-center gap-3 mt-1">
                                           <button 
                                             onClick={() => startEditing(assign)}
-                                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm"
+                                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm transition-all active:scale-95"
                                           >
                                             <Edit2 size={14} /> แก้ไขข้อมูลให้ (จบ)
                                           </button>
                                           
                                           <button 
                                             onClick={() => { setResolvingId(assign.id); setResolveReason(""); }}
-                                            className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm"
+                                            className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm transition-all active:scale-95"
                                           >
                                             <ShieldCheck size={14} /> ยืนยันข้อมูลเดิม (จบ)
                                           </button>
@@ -540,47 +569,51 @@ export default function CourseOwnerPage() {
                                    </div>
                                 ) : (
                                     <>
-                                        <div className="col-span-4">
-                                            <div className="font-medium">{assign.lecturer.firstName} {assign.lecturer.lastName}</div>
-                                            <div className={`text-xs ${assign.lecturerStatus === 'APPROVED' ? 'text-green-600' : 'text-slate-400'}`}>{assign.lecturerStatus}</div>
+                                        {/* Name Column */}
+                                        <div className="col-span-4 pl-2">
+                                            <div className="font-medium text-slate-700">{assign.lecturer.firstName} {assign.lecturer.lastName}</div>
+                                            <div className={`text-xs font-semibold mt-0.5 ${assign.lecturerStatus === 'APPROVED' ? 'text-green-600' : 'text-orange-400'}`}>
+                                                {assign.lecturerStatus === 'APPROVED' ? '• ยืนยันแล้ว' : '• รอการตอบรับ'}
+                                            </div>
                                         </div>
                                         
+                                        {/* Editing Mode */}
                                         {editingAssignmentId === assign.id ? (
                                             <>
-                                                <div className="col-span-2 px-1"><input type="number" min="0" onKeyDown={(e) => { if (["-", "e", "E", "+"].includes(e.key)) e.preventDefault(); }} className="w-full text-center border rounded" value={tempHours.lecture} onChange={(e) => setTempHours({...tempHours, lecture: Number(e.target.value)})} /></div>
-                                                <div className="col-span-2 px-1"><input type="number" min="0" onKeyDown={(e) => { if (["-", "e", "E", "+"].includes(e.key)) e.preventDefault(); }} className="w-full text-center border rounded" value={tempHours.lab} onChange={(e) => setTempHours({...tempHours, lab: Number(e.target.value)})} /></div>
-                                                <div className="col-span-2 px-1"><input type="number" min="0" onKeyDown={(e) => { if (["-", "e", "E", "+"].includes(e.key)) e.preventDefault(); }} className="w-full text-center border rounded" value={tempHours.exam} onChange={(e) => setTempHours({...tempHours, exam: Number(e.target.value)})} /></div>
+                                                <div className="col-span-2 px-1"><input type="number" min="0" className="w-full text-center border border-purple-300 rounded focus:ring-2 focus:ring-purple-200 outline-none py-1" value={tempHours.lecture} onChange={(e) => setTempHours({...tempHours, lecture: Number(e.target.value)})} /></div>
+                                                <div className="col-span-2 px-1"><input type="number" min="0" className="w-full text-center border border-purple-300 rounded focus:ring-2 focus:ring-purple-200 outline-none py-1" value={tempHours.lab} onChange={(e) => setTempHours({...tempHours, lab: Number(e.target.value)})} /></div>
+                                                <div className="col-span-2 px-1"><input type="number" min="0" className="w-full text-center border border-purple-300 rounded focus:ring-2 focus:ring-purple-200 outline-none py-1" value={tempHours.exam} onChange={(e) => setTempHours({...tempHours, exam: Number(e.target.value)})} /></div>
                                                 
                                                 <div className="col-span-2 flex justify-center gap-2">
-                                                    <button onClick={() => handleUpdateHours(assign.id)} className="text-green-600 bg-green-50 p-1 rounded hover:bg-green-100" title="บันทึก"><Check size={18}/></button>
-                                                    <button onClick={() => setEditingAssignmentId(null)} className="text-gray-500 bg-gray-50 p-1 rounded hover:bg-gray-100" title="ยกเลิก"><X size={18}/></button>
+                                                    <button onClick={() => handleUpdateHours(assign.id)} className="text-green-600 bg-green-50 p-1.5 rounded hover:bg-green-100 transition" title="บันทึก"><Check size={16}/></button>
+                                                    <button onClick={() => setEditingAssignmentId(null)} className="text-slate-400 bg-slate-50 p-1.5 rounded hover:bg-slate-100 transition" title="ยกเลิก"><X size={16}/></button>
                                                 </div>
                                             </>
                                         ) : resolvingId === assign.id ? (
-                                            <div className="col-span-8 flex flex-col gap-2 bg-orange-50 p-2 rounded border border-orange-200">
-                                                <p className="text-xs font-bold text-orange-800">ระบุเหตุผลที่ยืนยันข้อมูลเดิม (บันทึก):</p>
+                                            <div className="col-span-8 flex flex-col gap-2 bg-white p-3 rounded-lg border border-orange-200 shadow-sm ml-2">
+                                                <p className="text-xs font-bold text-orange-600 uppercase">ระบุเหตุผลที่ยืนยันข้อมูลเดิม:</p>
                                                 <div className="flex gap-2">
                                                     <input 
                                                         autoFocus
-                                                        className="flex-1 text-sm border border-orange-200 rounded px-2 py-1" 
+                                                        className="flex-1 text-sm border border-slate-200 rounded px-3 py-1.5 outline-none focus:border-orange-400" 
                                                         placeholder="เช่น ตรวจสอบตามตารางสอนแล้วถูกต้อง..."
                                                         value={resolveReason}
                                                         onChange={(e) => setResolveReason(e.target.value)}
                                                     />
-                                                    <button onClick={() => handleInsistOriginal(assign.id)} className="bg-orange-600 text-white px-3 py-1 rounded text-xs whitespace-nowrap">ยืนยัน (จบ)</button>
-                                                    <button onClick={() => setResolvingId(null)} className="text-slate-500 px-2 text-xs">ยกเลิก</button>
+                                                    <button onClick={() => handleInsistOriginal(assign.id)} className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded text-xs font-bold whitespace-nowrap shadow-sm transition">ยืนยัน</button>
+                                                    <button onClick={() => setResolvingId(null)} className="text-slate-400 hover:text-slate-600 px-2 text-xs font-medium">ยกเลิก</button>
                                                 </div>
                                             </div>
                                         ) : (
                                             <>
-                                                <div className="col-span-2 text-center">{assign.lectureHours}</div>
-                                                <div className="col-span-2 text-center">{assign.labHours}</div>
-                                                <div className="col-span-2 text-center">{assign.examHours}</div>
+                                                <div className="col-span-2 text-center text-slate-600 font-medium">{assign.lectureHours}</div>
+                                                <div className="col-span-2 text-center text-slate-600 font-medium">{assign.labHours}</div>
+                                                <div className="col-span-2 text-center text-slate-600 font-medium">{assign.examHours}</div>
                                                 <div className="col-span-2 flex justify-center gap-2">
                                                     {!isLocked && (
                                                         <>
-                                                            <button onClick={() => startEditing(assign)} className="text-orange-500 hover:bg-orange-50 p-1 rounded"><Edit2 size={16}/></button>
-                                                            <button onClick={() => handleDeleteAssignment(assign.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={16}/></button>
+                                                            <button onClick={() => startEditing(assign)} className="text-slate-400 hover:text-purple-600 hover:bg-purple-50 p-1.5 rounded transition"><Edit2 size={16}/></button>
+                                                            <button onClick={() => handleDeleteAssignment(assign.id)} className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition"><Trash2 size={16}/></button>
                                                         </>
                                                     )}
                                                 </div>
@@ -593,19 +626,19 @@ export default function CourseOwnerPage() {
                     </div>
                 </div>
 
-                <div className="mt-4 flex flex-col gap-3">
+                <div className="mt-2 flex flex-col gap-3">
                     {!isLocked && (
                         <>
                             {currentUser && !assignments.some(a => String(a.lecturerId) === String(currentUser.id)) && (
-                                <button onClick={() => handleAddLecturer(currentUser.id)} className="w-full py-3 border-2 border-dashed border-purple-300 rounded-lg text-purple-700 font-medium hover:bg-purple-50 flex items-center justify-center gap-2"><UserPlus size={20} /> เพิ่มตนเอง</button>
+                                <button onClick={() => handleAddLecturer(currentUser.id)} className="w-full py-3 border-2 border-dashed border-purple-200 rounded-xl text-purple-600 font-bold hover:bg-purple-50 hover:border-purple-300 flex items-center justify-center gap-2 transition-all active:scale-[0.99]"><UserPlus size={20} /> เพิ่มตนเองเป็นผู้สอน</button>
                             )}
                             {!isAddingLecturer ? (
-                                <button onClick={() => setIsAddingLecturer(true)} className="w-full py-3 border-2 border-dashed border-green-300 rounded-lg text-green-700 font-medium hover:bg-green-50 flex items-center justify-center gap-2"><Plus size={20} /> เพิ่มท่านอื่น</button>
+                                <button onClick={() => setIsAddingLecturer(true)} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 font-bold hover:bg-slate-50 hover:border-slate-300 hover:text-slate-700 flex items-center justify-center gap-2 transition-all active:scale-[0.99]"><Plus size={20} /> เพิ่มผู้สอนท่านอื่น</button>
                             ) : (
-                                <div className="p-4 border border-green-200 rounded-lg bg-green-50">
+                                <div className="p-4 border border-green-200 rounded-xl bg-green-50/50 animate-in fade-in slide-in-from-top-2">
                                     <div className="flex gap-2 items-start">
                                         <div className="flex-1"><SearchableStaffSelect onSelect={handleAddLecturer} /></div>
-                                        <button onClick={() => setIsAddingLecturer(false)} className="px-4 py-2 text-sm text-slate-600 bg-white border border-slate-300 rounded-md">ยกเลิก</button>
+                                        <button onClick={() => setIsAddingLecturer(false)} className="px-4 py-2 text-sm text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg font-medium shadow-sm transition">ยกเลิก</button>
                                     </div>
                                 </div>
                             )}
@@ -615,16 +648,15 @@ export default function CourseOwnerPage() {
               </div>
             </div>
 
-            <div className="p-4 border-t bg-white flex justify-between items-center shadow-lg z-10">
-              <div className="text-sm text-slate-500">
-                 {/* Status text logic */}
-              </div>
-              <div className="flex gap-3">
-                  <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg">ปิดหน้าต่าง</button>
-                  <button onClick={handleSubmitToChair} disabled={(!isReadyToSubmit && !isLocked) || submitStatus === 'submitting' || isLocked} className={`px-6 py-2.5 rounded-lg text-white font-bold flex items-center gap-2 ${isLocked || submitStatus === 'success' ? "bg-green-500 cursor-default" : !isReadyToSubmit ? "bg-slate-300 cursor-not-allowed" : "bg-purple-600 hover:bg-purple-700"}`}>
-                    {submitStatus === 'submitting' ? <Loader2 size={18} className="animate-spin" /> : isLocked ? "ส่งแล้ว" : "ส่งข้อมูล"}
+            <div className="p-5 border-t bg-white flex justify-end gap-3 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
+                  <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 border border-slate-200 rounded-lg text-slate-600 text-sm hover:bg-slate-50 font-medium transition-all">ปิดหน้าต่าง</button>
+                  <button 
+                    onClick={handleSubmitToChair} 
+                    disabled={(!isReadyToSubmit && !isLocked) || submitStatus === 'submitting' || isLocked} 
+                    className={`px-6 py-2.5 rounded-lg text-white font-bold flex items-center gap-2 text-sm shadow-md transition-all active:scale-95 ${isLocked || submitStatus === 'success' ? "bg-green-500 cursor-default hover:bg-green-500 shadow-none" : !isReadyToSubmit ? "bg-slate-300 cursor-not-allowed shadow-none" : "bg-purple-600 hover:bg-purple-700 shadow-purple-200 hover:shadow-lg"}`}
+                  >
+                    {submitStatus === 'submitting' ? <Loader2 size={18} className="animate-spin" /> : isLocked ? <><CheckCircle size={18}/> ส่งแล้ว</> : <><Send size={18}/> ส่งข้อมูล</>}
                   </button>
-              </div>
             </div>
           </div>
         </div>

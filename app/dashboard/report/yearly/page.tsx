@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Printer, FileSpreadsheet, Loader2, Filter, FileText, Calendar } from "lucide-react";
+import { Printer, FileText, Calendar, Filter, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 // --- Interfaces ---
@@ -37,7 +37,7 @@ interface SemesterGroup {
 interface Signatory {
     firstName: string;
     lastName: string;
-    academicPosition: string;
+    academicPosition: string; 
     adminTitle?: string;
 }
 
@@ -68,6 +68,7 @@ export default function YearlyReportPage() {
         setViceDean(viceDean);
         setProgramChair(programChair);
 
+        // 1. Extract Unique Curriculums
         if (selectedCurriculum === 'all') {
             const currs = new Set<string>();
             assignments.forEach((a: any) => {
@@ -76,10 +77,12 @@ export default function YearlyReportPage() {
             setCurriculumOptions(Array.from(currs));
         }
 
+        // 2. Filter Logic
         const filtered = selectedCurriculum === 'all' 
             ? assignments 
             : assignments.filter((a: any) => a.subject.program?.name_th === selectedCurriculum);
 
+        // 3. Group Data by Semester & Course
         const termsMap = new Map<number, Map<string, CourseData>>();
         [1, 2, 3].forEach(termId => termsMap.set(termId, new Map()));
 
@@ -100,8 +103,13 @@ export default function YearlyReportPage() {
             }
 
             const course = termCourses.get(subjectKey)!;
-            const fullName = `${assign.lecturer.academicPosition || ''} ${assign.lecturer.firstName} ${assign.lecturer.lastName}`.trim();
-            const role = "ผู้สอน"; 
+            
+            const title = assign.lecturer.title || "";
+            const fullName = `${title} ${assign.lecturer.firstName} ${assign.lecturer.lastName}`.trim();
+            
+            // ✅ แก้ไข Logic Role: เช็คว่าเป็นผู้รับผิดชอบรายวิชาหรือไม่
+            const isResponsible = String(assign.lecturer.id) === String(assign.subject.responsibleUserId);
+            const role = isResponsible ? "ผู้รับผิดชอบรายวิชา" : "ผู้สอน";
 
             course.instructors.push({
                 id: assign.lecturer.id,
@@ -112,6 +120,7 @@ export default function YearlyReportPage() {
             });
         });
 
+        // 4. Convert Map to Array
         const results: SemesterGroup[] = [
             { termId: 1, termTitle: "ภาคการศึกษาต้น", courses: [] },
             { termId: 2, termTitle: "ภาคการศึกษาปลาย", courses: [] },
@@ -121,6 +130,7 @@ export default function YearlyReportPage() {
         results.forEach(group => {
             const courseMap = termsMap.get(group.termId);
             if (courseMap) {
+                // Sort by course code
                 group.courses = Array.from(courseMap.values()).sort((a, b) => a.code.localeCompare(b.code));
             }
         });
@@ -198,8 +208,7 @@ export default function YearlyReportPage() {
         </div>
       </div>
 
-      {/* --- Main Report Card (Wide Style) --- */}
-      {/* ใช้ w-full และ max-w กว้างๆ เพื่อให้ดูสบายตา */}
+      {/* --- Main Report Card --- */}
       <div className="w-full max-w-[95%] xl:max-w-7xl mx-auto bg-white shadow-sm rounded-2xl overflow-hidden border border-slate-200 relative flex flex-col print:shadow-none print:border-none print:rounded-none print:w-full print:max-w-none">
         
         {/* 1. Header Section */}
@@ -227,7 +236,7 @@ export default function YearlyReportPage() {
                     <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase text-xs tracking-wider font-semibold">
                             <th className="py-4 pl-8 pr-4 text-left w-[30%]">รหัส / ชื่อรายวิชา</th>
-                            <th className="py-4 px-4 text-left w-[35%]">ผู้สอน</th>
+                            <th className="py-4 px-4 text-left w-[35%]">ผู้สอน / บทบาท</th>
                             <th className="py-4 px-2 text-center w-[10%]">บรรยาย (ชม.)</th>
                             <th className="py-4 px-2 text-center w-[10%]">ปฏิบัติ (ชม.)</th>
                             <th className="py-4 px-2 text-center w-[15%]">รวม (ชม.)</th>
@@ -240,7 +249,8 @@ export default function YearlyReportPage() {
                             {term.courses.length > 0 && (
                                 <tr className="bg-purple-50/50 print:bg-slate-50 break-inside-avoid">
                                     <td colSpan={5} className="py-3 px-8 font-bold text-purple-800 print:text-slate-800 text-sm">
-                                        📌 {term.termTitle}
+                                        {/* เอา icon 📌 ออกตามคำขอจากบริบทก่อนหน้า */}
+                                        {term.termTitle}
                                     </td>
                                 </tr>
                             )}
@@ -262,9 +272,21 @@ export default function YearlyReportPage() {
                                             )}
                                             
                                             <td className="py-3 px-4 align-top text-slate-700">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                                                    {inst.name}
+                                                <div className="flex flex-col gap-0.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                                                        <span className="font-medium">{inst.name}</span>
+                                                    </div>
+                                                    {/* ✅ แสดง Role เป็น Badge เล็กๆ */}
+                                                    <div className="ml-3.5">
+                                                        <span className={`text-[10px] px-2 py-0.5 rounded-sm border ${
+                                                            inst.role === 'ผู้รับผิดชอบรายวิชา' 
+                                                            ? 'bg-orange-50 text-orange-700 border-orange-100'
+                                                            : 'bg-slate-50 text-slate-500 border-slate-100'
+                                                        }`}>
+                                                            {inst.role}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="py-3 px-2 align-top text-center text-slate-500">{inst.lecture || "-"}</td>
@@ -285,8 +307,9 @@ export default function YearlyReportPage() {
             )}
         </div>
 
-        {/* 3. Footer Signatures (Dynamic) */}
-        {!loading && (
+        {/* 3. Footer Signatures (ซ่อนเมื่อเลือก All Curriculums) */}
+        {/* ✅ Logic: ถ้า selectedCurriculum !== 'all' ถึงจะแสดง */}
+        {!loading && selectedCurriculum !== 'all' && (
             <div className="mt-20 px-10 pb-20 page-break-inside-avoid print:mt-10">
                 <div className="flex justify-around items-start">
                     
@@ -297,7 +320,7 @@ export default function YearlyReportPage() {
                             {formatName(programChair)}
                         </div>
                         <div className="text-xs font-medium text-slate-500">
-                            ประธานหลักสูตร{selectedCurriculum !== 'all' ? "" : "..................................."}
+                            ประธานหลักสูตร
                         </div>
                     </div>
 
@@ -312,19 +335,18 @@ export default function YearlyReportPage() {
                         </div>
                     </div>
                 </div>
-
-                <div className="mt-16 text-[10px] text-slate-400 text-center border-t border-slate-100 pt-4">
-                    ระบบบริหารจัดการภาระงานสอน | คณะเภสัชศาสตร์ มหาวิทยาลัยพะเยา
-                </div>
             </div>
         )}
 
+        <div className="mt-16 text-[10px] text-slate-400 text-center border-t border-slate-100 pt-4 pb-4">
+            ระบบบริหารจัดการภาระงานสอน | คณะเภสัชศาสตร์ มหาวิทยาลัยพะเยา
+        </div>
       </div>
 
       {/* Print Specific CSS */}
       <style jsx global>{`
         @media print {
-            @page { margin: 10mm; size: landscape; } /* แนะนำแนวนอน */
+            @page { margin: 10mm; size: landscape; }
             body { background: white; -webkit-print-color-adjust: exact; }
             .print\:hidden { display: none !important; }
             .print\:shadow-none { box-shadow: none !important; }

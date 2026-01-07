@@ -10,11 +10,13 @@ import { Toaster, toast } from 'sonner';
 interface ReportCourse {
   code: string;
   name: string;
+  credit: string | number; // ✅ เพิ่ม Field หน่วยกิต
   role: string;
   lecture: number;
   lab: number;
   exam: number;
-  note: string;
+  statusLabel: string;
+  statusColor: string; 
 }
 
 interface SemesterData {
@@ -28,7 +30,7 @@ interface LecturerProfile {
     email: string;
     academicPosition: string;
     curriculum: string;
-    department: string; // เพิ่ม department
+    department: string;
 }
 
 export default function PersonalReportPage() {
@@ -70,19 +72,41 @@ export default function PersonalReportPage() {
                 const isResponsible = String(assign.lecturerId) === String(assign.subject.responsibleUserId);
                 const role = isResponsible ? "ผู้รับผิดชอบรายวิชา" : "ผู้สอน";
                 
-                let note = "";
-                if (assign.lecturerStatus !== 'APPROVED') note = "รอการยืนยัน";
-                else if (assign.headApprovalStatus !== 'APPROVED') note = "รอหัวหน้าฯ อนุมัติ";
-                else if (assign.deanApprovalStatus !== 'APPROVED') note = "รอคณบดีฯ อนุมัติ";
+                // Logic การเช็คสถานะตามลำดับขั้น
+                let statusLabel = "";
+                let statusColor = "";
+
+                if (assign.deanApprovalStatus === 'APPROVED') {
+                    statusLabel = "อนุมัติแล้ว";
+                    statusColor = "bg-green-100 text-green-700 border-green-200";
+                } else if (assign.deanApprovalStatus === 'REJECTED') {
+                    statusLabel = "รองฯ ส่งกลับแก้ไข";
+                    statusColor = "bg-red-50 text-red-600 border-red-200";
+                } else if (assign.headApprovalStatus === 'APPROVED') {
+                    statusLabel = "รอรองฯ วิชาการอนุมัติ";
+                    statusColor = "bg-blue-50 text-blue-700 border-blue-200";
+                } else if (assign.headApprovalStatus === 'REJECTED') {
+                    statusLabel = "ประธานฯ ส่งกลับแก้ไข";
+                    statusColor = "bg-red-50 text-red-600 border-red-200";
+                } else if (assign.lecturerStatus === 'APPROVED') {
+                    statusLabel = "รอประธานหลักสูตรรับรอง";
+                    statusColor = "bg-orange-50 text-orange-700 border-orange-200";
+                } else {
+                    statusLabel = "รอท่านยืนยัน"; // กรณี PENDING หรือ REJECTED โดยตัวเอง
+                    statusColor = "bg-slate-100 text-slate-500 border-slate-200";
+                }
 
                 const courseObj: ReportCourse = {
                     code: assign.subject.code,
                     name: assign.subject.name_th,
+                    // ✅ ดึงหน่วยกิตมาใส่
+                    credit: assign.subject.credit || assign.subject.credits || "-",
                     role: role,
                     lecture: assign.lectureHours || 0,
                     lab: assign.labHours || 0,
                     exam: assign.examHours || 0,
-                    note: note
+                    statusLabel: statusLabel,
+                    statusColor: statusColor
                 };
 
                 const sem = assign.semester;
@@ -167,7 +191,6 @@ export default function PersonalReportPage() {
                         <h2 className="text-3xl font-bold text-slate-800 tracking-tight">
                             {profile.academicPosition ? profile.academicPosition : ''} {profile.firstName} {profile.lastName}
                         </h2>
-                        {/* ✅ แก้ไข: แสดงสังกัด/กลุ่มวิชาให้ชัดเจน */}
                         <div className="flex items-center gap-2 text-slate-500 text-lg font-light mt-1">
                             <Building2 size={18} className="text-purple-400" />
                             <span>{profile.department || "ไม่ระบุสังกัด/กลุ่มวิชา"}</span>
@@ -179,7 +202,6 @@ export default function PersonalReportPage() {
                             <Mail size={16} className="text-purple-500" /> 
                             <span>{profile.email}</span>
                         </div>
-                        {/* ถ้ามีหลักสูตรด้วย ก็โชว์ด้วย */}
                         {profile.curriculum && (
                             <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
                                 <GraduationCap size={16} className="text-purple-500" /> 
@@ -206,7 +228,7 @@ export default function PersonalReportPage() {
                         <th className="py-4 px-6 w-[10%] text-center">ชั่วโมงปฏิบัติ</th>
                         <th className="py-4 px-6 w-[10%] text-center">คุมสอบนอกตาราง</th>
                         <th className="py-4 px-6 w-[15%] text-center">รวม (ชม.)</th>
-                        <th className="py-4 px-6 w-[10%] text-center">หมายเหตุ</th>
+                        <th className="py-4 px-6 w-[10%] text-center">สถานะ</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -214,7 +236,8 @@ export default function PersonalReportPage() {
                         <React.Fragment key={index}>
                             <tr className="bg-purple-50/30">
                                 <td colSpan={7} className="py-3 px-6 font-bold text-purple-800 text-sm border-b border-slate-100">
-                                    📌 {term.title}
+                                    {/* ✅ เอาไอคอน 📌 ออกแล้ว */}
+                                    {term.title}
                                 </td>
                             </tr>
                             
@@ -222,8 +245,16 @@ export default function PersonalReportPage() {
                                 term.courses.map((course, cIndex) => (
                                     <tr key={cIndex} className="hover:bg-slate-50 transition-colors group text-sm">
                                             <td className="py-4 px-6 align-top">
-                                                <div className="font-semibold text-slate-800 text-base">{course.code}</div>
-                                                <div className="text-slate-500 font-light">{course.name}</div>
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                        <span className="font-semibold text-slate-800 text-base">{course.code}</span>
+                                                        {/* ✅ Badge หน่วยกิต: สไตล์เดียวกับหน้าอื่นๆ */}
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                                            <BookOpen size={12} /> {course.credit} หน่วยกิต
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-slate-500 font-light">{course.name}</div>
+                                                </div>
                                             </td>
                                             <td className="py-4 px-6 text-center align-top">
                                                 <span className={`px-3 py-1 rounded-full text-xs font-medium border ${course.role.includes('รับผิดชอบ') ? 'bg-orange-50 text-orange-700 border-orange-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
@@ -237,7 +268,9 @@ export default function PersonalReportPage() {
                                                 {(course.lecture + course.lab + (course.exam || 0)).toFixed(2)}
                                             </td>
                                             <td className="py-4 px-6 text-center align-top">
-                                                {course.note && <span className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded border border-red-100">{course.note}</span>}
+                                                <span className={`inline-block px-2 py-1 rounded-md text-[11px] font-medium border ${course.statusColor}`}>
+                                                    {course.statusLabel}
+                                                </span>
                                             </td>
                                     </tr>
                                 ))
