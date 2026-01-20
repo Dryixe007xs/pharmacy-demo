@@ -5,7 +5,6 @@ import {
   Plus, Pencil, Trash2, Search, ChevronDown, Filter, X, 
   Users, GraduationCap, Briefcase, Mail, BadgeCheck, Loader2, ChevronRight
 } from "lucide-react";
-// ✅ เพิ่ม AvatarImage เข้ามาใน import
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Toaster, toast } from 'sonner';
 
@@ -27,7 +26,7 @@ type StaffUser = {
   id: string;
   email: string;
   name: string; 
-  image?: string; // ✅ เพิ่ม field image เพื่อรับ url รูปภาพ
+  image?: string;
   role: string;
   academicRank?: string;
   department: string; 
@@ -41,9 +40,8 @@ type StaffUser = {
   academicPosition?: string;
 };
 
-// --- Reusable Modal Component (จากหน้า Course) ---
+// --- Reusable Modal Component ---
 const Modal = ({ 
-    // ✅ แก้ zIndex default เป็น 9999 เพื่อให้อยู่หน้าสุดเสมอ
     isOpen, onClose, title, icon: Icon, colorClass = "text-slate-800", children, maxWidth = "max-w-2xl", zIndex = 9999
 }: { 
     isOpen: boolean; onClose: () => void; title: string; icon?: any; colorClass?: string; children: ReactNode; maxWidth?: string; zIndex?: number;
@@ -161,7 +159,7 @@ export default function ManageStaffPage() {
             firstName: formData.firstName,
             lastName: formData.lastName,
             
-            // ✅ จุดที่ 1: ส่ง image ไปบันทึกด้วย
+            // ยังคงส่งค่า image เดิมไป (ถ้ามี) แต่ผู้ใช้แก้ไขไม่ได้แล้ว
             image: formData.image,
 
             role: formData.role,
@@ -197,7 +195,7 @@ export default function ManageStaffPage() {
       title: "", academicPosition: "", firstName: "", lastName: "", 
       email: "", role: "LECTURER", jobPosition: "", 
       curriculum: defaultCurriculum, program: defaultProgram, workStatus: "ACTIVE",
-      image: "" // ✅ จุดที่ 2: ตั้งค่าเริ่มต้นให้ image
+      image: "" 
     });
     setIsModalOpen(true);
   };
@@ -217,7 +215,7 @@ export default function ManageStaffPage() {
         jobPosition: user.adminTitle || "", 
         curriculum: user.role === 'ADMIN' ? CURRICULUM_SUPPORT : (user.curriculum || user.department), 
         program: user.department, 
-        image: user.image || "" // ✅ จุดที่ 3: ดึงรูปภาพเดิมมาใส่ state
+        image: user.image || ""
     });
     setIsModalOpen(true);
   };
@@ -325,8 +323,8 @@ export default function ManageStaffPage() {
                             {filterCurriculum === "PHARMACY" && (
                                 <div className="relative w-full md:w-56">
                                     <select value={filterProgram} onChange={(e) => setFilterProgram(e.target.value)} className="w-full h-10 pl-3 pr-8 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white cursor-pointer appearance-none text-slate-600">
-                                        <option value="">ทุกกลุ่มวิชา</option>
-                                        {PHARMACY_GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}
+                                            <option value="">ทุกกลุ่มวิชา</option>
+                                            {PHARMACY_GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}
                                     </select>
                                     <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
                                 </div>
@@ -363,7 +361,6 @@ export default function ManageStaffPage() {
                         <td className="py-4 px-6">
                             <div className="flex items-center">
                                 <Avatar className="w-10 h-10 bg-slate-100 mr-3 border border-slate-200 text-slate-500">
-                                    {/* ✅ ใช้ AvatarImage ถ้ามีรูป และใช้ Fallback เป็นตัวย่อถ้าไม่มีรูป */}
                                     <AvatarImage src={user.image} alt={user.name} />
                                     <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
                                 </Avatar>
@@ -420,9 +417,7 @@ export default function ManageStaffPage() {
         title={isEditMode ? "แก้ไขข้อมูลบุคลากร" : "เพิ่มบุคลากรใหม่"}
         icon={isEditMode ? Pencil : Plus}
         colorClass={isEditMode ? "text-purple-700" : "text-green-700"}
-        // ✅ zIndex default จะถูกใช้ที่นี่
       >
-          {/* ...Form content same as before... */}
           <div className="p-6 space-y-6 overflow-y-auto max-h-[75vh] custom-scrollbar pb-24">
               <div className="space-y-4">
                   <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2 border-b pb-2"><Briefcase size={14}/> ข้อมูลการทำงาน</h4>
@@ -456,27 +451,10 @@ export default function ManageStaffPage() {
                   )}
               </div>
 
-              {/* ✅ จุดที่ 4: เพิ่มส่วนใส่รูปภาพ */}
+              {/* ส่วนใส่รูปถูกลบออกไปแล้ว */}
               <div className="space-y-4">
                  <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2 border-b pb-2 mt-2"><Users size={14}/> ข้อมูลส่วนตัว</h4>
                  
-                 <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-700">URL รูปโปรไฟล์ (ถ้ามี)</label>
-                    <div className="flex gap-3 items-center">
-                        <Avatar className="w-10 h-10 border border-slate-200">
-                            <AvatarImage src={formData.image} />
-                            <AvatarFallback>IMG</AvatarFallback>
-                        </Avatar>
-                        <input 
-                            type="text" 
-                            value={formData.image || ""} 
-                            onChange={(e) => setFormData({...formData, image: e.target.value})} 
-                            placeholder="https://..." 
-                            className="flex-1 border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" 
-                        />
-                    </div>
-                 </div>
-
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div className="space-y-2">
                         <label className="text-sm font-semibold text-slate-700">คำนำหน้า (ตำแหน่งวิชาการ)</label>

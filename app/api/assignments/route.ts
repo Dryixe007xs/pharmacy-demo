@@ -93,6 +93,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "อาจารย์ท่านนี้มีชื่ออยู่ในรายวิชานี้แล้ว" }, { status: 400 });
     }
 
+    // ✅ แก้ไข 1: กำหนดสถานะเริ่มต้นเป็น DRAFT (ไม่ใช่ null และไม่ใช่ PENDING)
+    // ถ้าหน้าบ้านส่ง null มา ให้ใช้ DRAFT
+    const initialStatus = (lecturerStatus === null || lecturerStatus === undefined) 
+                          ? ApprovalStatus.DRAFT 
+                          : lecturerStatus;
+
     const newAssignment = await prisma.teachingAssignment.create({
       data: {
         subjectId: Number(subjectId),
@@ -102,7 +108,7 @@ export async function POST(request: Request) {
         lectureHours: 0,
         labHours: 0,
         examHours: 0,
-        lecturerStatus: lecturerStatus || ApprovalStatus.PENDING, 
+        lecturerStatus: initialStatus, // ใช้ DRAFT แน่นอน
         responsibleStatus: ApprovalStatus.PENDING,
         headApprovalStatus: ApprovalStatus.PENDING,
         deanApprovalStatus: ApprovalStatus.PENDING
@@ -130,7 +136,6 @@ export async function PUT(request: Request) {
         lecturerFeedback,
         responsibleStatus, 
         headApprovalStatus,
-        // ✅ เพิ่มตรงนี้: รับค่าสถานะอนุมัติจากคณบดี/รองคณบดี
         deanApprovalStatus 
     } = body;
 
@@ -150,30 +155,31 @@ export async function PUT(request: Request) {
         hoursUpdated = true;
     }
 
+    // Logic Reset สถานะเมื่อมีการแก้ไขชั่วโมงสอน
     if (hoursUpdated) {
-        // Reset สถานะเมื่อมีการแก้ไขชั่วโมงสอน
-        if (!lecturerStatus) {
-            dataToUpdate.lecturerStatus = ApprovalStatus.PENDING;
-        }
-        if (!responsibleStatus) {
+        // ถ้ามีการแก้ชั่วโมง แต่ไม่ได้ส่งสถานะมา (undefined) ให้รีเซ็ตเป็น PENDING หรือ DRAFT ตามความเหมาะสม
+        // แต่ในเคสนี้ หน้าบ้านส่งสถานะมาตลอด (null หรือ APPROVED) ดังนั้น logic นี้อาจไม่ถูกเรียกใช้
+        if (responsibleStatus === undefined) {
             dataToUpdate.responsibleStatus = ApprovalStatus.PENDING;
         }
-        if (!headApprovalStatus) {
+        if (headApprovalStatus === undefined) {
              dataToUpdate.headApprovalStatus = ApprovalStatus.PENDING;
         }
-        // ปกติถ้าแก้ชั่วโมง คณบดีก็ต้องอนุมัติใหม่ด้วย
-        if (!deanApprovalStatus) {
+        if (deanApprovalStatus === undefined) {
              dataToUpdate.deanApprovalStatus = ApprovalStatus.PENDING;
         }
     }
 
-    if (lecturerStatus) dataToUpdate.lecturerStatus = lecturerStatus;
-    if (lecturerFeedback !== undefined) dataToUpdate.lecturerFeedback = lecturerFeedback;
-    if (responsibleStatus) dataToUpdate.responsibleStatus = responsibleStatus;
-    if (headApprovalStatus) dataToUpdate.headApprovalStatus = headApprovalStatus;
+    // ✅ แก้ไข 2: แปลงค่า null จากหน้าบ้าน ให้เป็น DRAFT ก่อนบันทึก
+    // เพราะ Schema Database ไม่รับค่า null (Required)
+    if (lecturerStatus !== undefined) {
+        dataToUpdate.lecturerStatus = lecturerStatus === null ? ApprovalStatus.DRAFT : lecturerStatus;
+    }
     
-    // ✅ เพิ่มตรงนี้: อัปเดตสถานะคณบดีลง Database
-    if (deanApprovalStatus) dataToUpdate.deanApprovalStatus = deanApprovalStatus;
+    if (lecturerFeedback !== undefined) dataToUpdate.lecturerFeedback = lecturerFeedback;
+    if (responsibleStatus !== undefined) dataToUpdate.responsibleStatus = responsibleStatus;
+    if (headApprovalStatus !== undefined) dataToUpdate.headApprovalStatus = headApprovalStatus;
+    if (deanApprovalStatus !== undefined) dataToUpdate.deanApprovalStatus = deanApprovalStatus;
 
     const updated = await prisma.teachingAssignment.update({
       where: { id: Number(id) },
@@ -187,7 +193,7 @@ export async function PUT(request: Request) {
   }
 }
 
-// ✅ เพิ่มบรรทัดนี้: เพื่อให้รองรับ Method PATCH (เพราะ Frontend ใช้ fetch method: 'PATCH')
+// รองรับ Method PATCH
 export { PUT as PATCH };
 
 // DELETE: Remove lecturer

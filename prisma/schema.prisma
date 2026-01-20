@@ -219,7 +219,7 @@ model TeachingAssignment {
   // =================================================================
 
   // STEP 1: Lecturer Verification
-  lecturerStatus   ApprovalStatus @default(PENDING)
+  lecturerStatus   ApprovalStatus?
   lecturerFeedback String?        @db.Text // Feedback message for correction
   lecturerActionAt DateTime?
 
