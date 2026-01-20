@@ -266,11 +266,11 @@ export default function ManageStaffPage() {
       {/* Header & Breadcrumb */}
       <div className="mb-6">
         <div className="flex items-center gap-2 text-slate-400 mb-1 text-sm font-medium">
-             <span>ตั้งค่าระบบ</span>
+             <span>จัดการข้อมูล</span>
              <ChevronRight size={14}/>
-             <span className="text-purple-600">จัดการข้อมูลบุคลากร</span>
+             <span className="text-purple-600">ข้อมูลบุคลากร</span>
         </div>
-        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">ข้อมูลบุคลากร</h1>
+        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">จัดการข้อมูลบุคลากร</h1>
         <p className="text-slate-500 mt-2 font-light">
              จัดการรายชื่อ อาจารย์ เจ้าหน้าที่ และกำหนดสิทธิ์การใช้งานระบบ
         </p>

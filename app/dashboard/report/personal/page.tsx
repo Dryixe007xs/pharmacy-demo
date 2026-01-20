@@ -10,7 +10,7 @@ import { Toaster, toast } from 'sonner';
 interface ReportCourse {
   code: string;
   name: string;
-  credit: string | number; // ✅ เพิ่ม Field หน่วยกิต
+  credit: string | number;
   role: string;
   lecture: number;
   lab: number;
@@ -69,37 +69,21 @@ export default function PersonalReportPage() {
             const term3: ReportCourse[] = [];
 
             data.forEach((assign: any) => {
+                // ✅ แก้ไขจุดที่ 1: กรองข้อมูล ถ้ายังไม่อนุมัติขั้นสุดท้าย (Dean Approved) ให้ข้ามไปเลย
+                if (assign.deanApprovalStatus !== 'APPROVED') {
+                    return; 
+                }
+
                 const isResponsible = String(assign.lecturerId) === String(assign.subject.responsibleUserId);
                 const role = isResponsible ? "ผู้รับผิดชอบรายวิชา" : "ผู้สอน";
                 
-                // Logic การเช็คสถานะตามลำดับขั้น
-                let statusLabel = "";
-                let statusColor = "";
-
-                if (assign.deanApprovalStatus === 'APPROVED') {
-                    statusLabel = "อนุมัติแล้ว";
-                    statusColor = "bg-green-100 text-green-700 border-green-200";
-                } else if (assign.deanApprovalStatus === 'REJECTED') {
-                    statusLabel = "รองฯ ส่งกลับแก้ไข";
-                    statusColor = "bg-red-50 text-red-600 border-red-200";
-                } else if (assign.headApprovalStatus === 'APPROVED') {
-                    statusLabel = "รอรองฯ วิชาการอนุมัติ";
-                    statusColor = "bg-blue-50 text-blue-700 border-blue-200";
-                } else if (assign.headApprovalStatus === 'REJECTED') {
-                    statusLabel = "ประธานฯ ส่งกลับแก้ไข";
-                    statusColor = "bg-red-50 text-red-600 border-red-200";
-                } else if (assign.lecturerStatus === 'APPROVED') {
-                    statusLabel = "รอประธานหลักสูตรรับรอง";
-                    statusColor = "bg-orange-50 text-orange-700 border-orange-200";
-                } else {
-                    statusLabel = "รอท่านยืนยัน"; // กรณี PENDING หรือ REJECTED โดยตัวเอง
-                    statusColor = "bg-slate-100 text-slate-500 border-slate-200";
-                }
+                // ✅ แก้ไขจุดที่ 2: ลดรูป Logic เพราะเรารู้แล้วว่าข้อมูลที่ผ่านเข้ามาคือ Approved แน่นอน
+                const statusLabel = "อนุมัติแล้ว";
+                const statusColor = "bg-green-100 text-green-700 border-green-200";
 
                 const courseObj: ReportCourse = {
                     code: assign.subject.code,
                     name: assign.subject.name_th,
-                    // ✅ ดึงหน่วยกิตมาใส่
                     credit: assign.subject.credit || assign.subject.credits || "-",
                     role: role,
                     lecture: assign.lectureHours || 0,
@@ -236,7 +220,6 @@ export default function PersonalReportPage() {
                         <React.Fragment key={index}>
                             <tr className="bg-purple-50/30">
                                 <td colSpan={7} className="py-3 px-6 font-bold text-purple-800 text-sm border-b border-slate-100">
-                                    {/* ✅ เอาไอคอน 📌 ออกแล้ว */}
                                     {term.title}
                                 </td>
                             </tr>
@@ -248,7 +231,6 @@ export default function PersonalReportPage() {
                                                 <div className="flex flex-col gap-1">
                                                     <div className="flex items-center justify-between gap-2 flex-wrap">
                                                         <span className="font-semibold text-slate-800 text-base">{course.code}</span>
-                                                        {/* ✅ Badge หน่วยกิต: สไตล์เดียวกับหน้าอื่นๆ */}
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100">
                                                             <BookOpen size={12} /> {course.credit} หน่วยกิต
                                                         </span>

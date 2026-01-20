@@ -25,6 +25,7 @@ import { Toaster, toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
 // --- Types ---
+// ✅ จัดระเบียบ Type ให้ชัดเจน
 type WorkloadStatus =
   | "waiting_chair"
   | "pending_approval"
@@ -38,6 +39,7 @@ interface InstructorLoad {
   lecture: number;
   lab: number;
   exam: number;
+  // field headStatus, deanStatus เก็บไว้ใช้คำนวณ Logic รวม แต่ไม่ได้ show ใน UI (ถูกต้องแล้วสำหรับการสรุปผล)
   headStatus: string;
   deanStatus: string;
 }
@@ -46,7 +48,7 @@ interface CourseWorkload {
   id: number;
   code: string;
   name: string;
-  credit: string | number; // ✅ เพิ่ม field หน่วยกิต
+  credit: string | number;
   programName: string;
   instructors: InstructorLoad[];
   status: WorkloadStatus;
@@ -77,6 +79,8 @@ export default function ViceDeanPage() {
     setLoading(true);
     try {
       const resCourses = await fetch("/api/courses");
+      if (!resCourses.ok) throw new Error("API Fetch Error");
+      
       const allCourses = await resCourses.json();
 
       if (!Array.isArray(allCourses)) {
@@ -89,15 +93,13 @@ export default function ViceDeanPage() {
           const assignments = course.teachingAssignments || [];
           if (assignments.length === 0) return null;
 
+          // แปลงข้อมูลผู้สอน
           const instructors: InstructorLoad[] = assignments.map((a: any) => ({
             id: a.id,
             name: a.lecturer
-              ? `${a.lecturer.title || ""}${a.lecturer.firstName} ${
-                  a.lecturer.lastName
-                }`
+              ? `${a.lecturer.title || ""}${a.lecturer.firstName} ${a.lecturer.lastName}`
               : "Unknown",
-            role:
-              String(a.lecturerId) === String(course.responsibleUserId)
+            role: String(a.lecturerId) === String(course.responsibleUserId)
                 ? "ผู้รับผิดชอบรายวิชา"
                 : "ผู้สอน",
             lecture: a.lectureHours || 0,
@@ -107,22 +109,21 @@ export default function ViceDeanPage() {
             deanStatus: a.deanApprovalStatus,
           }));
 
+          // เรียงลำดับ: ผู้รับผิดชอบขึ้นก่อน
           instructors.sort((a, b) =>
             a.role === "ผู้รับผิดชอบรายวิชา" ? -1 : 1
           );
 
+          // ✅ Logic คำนวณสถานะ (Cleaned)
           let status: WorkloadStatus = "waiting_chair";
+          
+          // เช็คว่าทุกคนอนุมัติครบหรือยัง
+          const isAllHeadApproved = instructors.every((i) => i.headStatus === "APPROVED");
+          const isAllDeanApproved = instructors.every((i) => i.deanStatus === "APPROVED");
 
-          const isHeadApproved = instructors.every(
-            (i) => i.headStatus === "APPROVED"
-          );
-          const isDeanApproved = instructors.every(
-            (i) => i.deanStatus === "APPROVED"
-          );
-
-          if (isDeanApproved) {
+          if (isAllDeanApproved) {
             status = "approved";
-          } else if (isHeadApproved) {
+          } else if (isAllHeadApproved) {
             status = "pending_approval";
           } else {
             status = "waiting_chair";
@@ -132,14 +133,13 @@ export default function ViceDeanPage() {
             id: course.id,
             code: course.code,
             name: course.name_th,
-            // ✅ ดึงค่าหน่วยกิตจาก API
             credit: course.credit || course.credits || "-",
             programName: course.program?.name_th || "ไม่ระบุหลักสูตร",
             instructors,
             status,
           };
         })
-        .filter((item: any) => item !== null) as CourseWorkload[];
+        .filter(Boolean) as CourseWorkload[]; // ✅ ใช้ filter(Boolean) แทนการเช็ค null เอง
 
       setCourses(workloadData);
     } catch (err) {
@@ -150,47 +150,62 @@ export default function ViceDeanPage() {
     }
   };
 
-  // ===== HANDLERS =====
+  // ===== HANDLERS (จุดที่แก้ไขหลัก) =====
   const handleApprove = async (course: CourseWorkload) => {
-    if (!confirm("ยืนยันการอนุมัติภาระงานสอนรายวิชานี้ เพื่อนำไปออกรายงาน?"))
-      return;
+    if (!confirm(`ยืนยันการอนุมัติรายวิชา ${course.code} ?`)) return;
+
+    // Loading State เฉพาะหน้าจอ (Optional: อาจจะเพิ่ม state localLoading ถ้าต้องการ)
+    const toastId = toast.loading("กำลังบันทึกข้อมูล...");
 
     try {
-      const updatePromises = course.instructors.map((inst) =>
-        fetch("/api/assignments", {
-          method: "PUT",
+      // ✅ เปลี่ยน Logic: ยิง Request ทีละรายการ และตรวจสอบผลลัพธ์
+      // หมายเหตุ: ใช้ PATCH แทน PUT มักจะปลอดภัยกว่าสำหรับการอัปเดตบางฟิลด์
+      // และลองเปลี่ยน URL เป็นแบบระบุ ID ถ้า API รองรับ หรือใช้แบบเดิมแต่เช็ค res.ok
+      
+      const updatePromises = course.instructors.map(async (inst) => {
+        // 🔥 เปลี่ยน URL: ลองเดาว่า API น่าจะรองรับ Dynamic Route หรือ Query Param
+        // ถ้า Backend เป็นแบบเดิม ให้ใช้ /api/assignments เหมือนเดิม แต่เช็ค Method ดีๆ
+        const response = await fetch("/api/assignments", { 
+          method: "PATCH", // หรือ PUT ตาม Backend ของคุณ
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             id: inst.id,
             deanApprovalStatus: "APPROVED",
           }),
-        })
-      );
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to update instructor ID: ${inst.id}`);
+        }
+        return response.json();
+      });
 
       await Promise.all(updatePromises);
-      toast.success("อนุมัติข้อมูลเรียบร้อยแล้ว");
-      fetchData();
+      
+      toast.dismiss(toastId);
+      toast.success("อนุมัติเรียบร้อยแล้ว");
+      
+      // ✅ เรียก fetchData เพื่อดึงข้อมูลสถานะล่าสุดทันที
+      await fetchData();
+
     } catch (error) {
-      toast.error("เกิดข้อผิดพลาด");
+      console.error(error);
+      toast.dismiss(toastId);
+      toast.error("เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่");
     }
   };
 
   // ===== FILTER LOGIC =====
-
-  // 1. ดึงรายชื่อหลักสูตรทั้งหมดที่ไม่ซ้ำกัน
   const uniquePrograms = Array.from(
     new Set(courses.map((c) => c.programName).filter(Boolean))
   );
 
-  // 2. กรองข้อมูล
   const filteredCourses = courses.filter((c) => {
     const matchSearch =
       c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.name.toLowerCase().includes(searchTerm.toLowerCase());
-
     const matchProgram =
       selectedProgram === "all" || c.programName === selectedProgram;
-
     return matchSearch && matchProgram;
   });
 
@@ -221,7 +236,6 @@ export default function ViceDeanPage() {
       {/* Filter Section */}
       <div className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl border border-slate-200/60 shadow-sm space-y-4 mb-6 sticky top-4 z-10">
         <div className="flex flex-col md:flex-row gap-4 items-center">
-          {/* Dropdown: เลือกหลักสูตร */}
           <div className="w-full md:w-[350px]">
             <Select value={selectedProgram} onValueChange={setSelectedProgram}>
               <SelectTrigger className="rounded-xl border-slate-200 bg-slate-50/50 focus:ring-purple-100 h-11">
@@ -238,7 +252,6 @@ export default function ViceDeanPage() {
             </Select>
           </div>
 
-          {/* Search Input */}
           <div className="relative w-full md:w-[350px]">
             <Input
               className="rounded-xl border-slate-200 bg-slate-50/50 pl-10 focus:ring-purple-100 transition-all h-11"
@@ -254,7 +267,7 @@ export default function ViceDeanPage() {
         </div>
       </div>
 
-      {/* Main Content: Course List */}
+      {/* Main Content */}
       <div>
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">

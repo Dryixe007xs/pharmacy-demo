@@ -38,6 +38,8 @@ export async function GET(request: Request) {
     const assignments = await prisma.teachingAssignment.findMany({
       where: {
         lecturerId: lecturerId,
+        // ✅ เพิ่มเงื่อนไขนี้: ดึงเฉพาะที่คณบดีอนุมัติแล้วเท่านั้น (จบกระบวนการ)
+        deanApprovalStatus: 'APPROVED', 
       },
       include: {
         subject: {
@@ -45,7 +47,7 @@ export async function GET(request: Request) {
                 code: true,
                 name_th: true,
                 responsibleUserId: true,
-                // ✅ เพิ่มบรรทัดนี้ครับ (ตรวจสอบชื่อ field ใน DB ว่าเป็น 'credit' หรือ 'credits')
+                // ตรวจสอบชื่อ field ใน Schema ว่าเป็น 'credit' หรือ 'credits' ให้ตรงกันนะครับ
                 credit: true, 
             }
         }, 

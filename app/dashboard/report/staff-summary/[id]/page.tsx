@@ -20,7 +20,7 @@ interface StaffProfile {
 interface ReportCourse {
   code: string;
   name: string;
-  credit: string | number; // ✅ เพิ่ม Field หน่วยกิต
+  credit: string | number;
   role: string;
   lecture: number;
   lab: number;
@@ -74,20 +74,20 @@ export default function StaffIndividualReportPage() {
         const term3: ReportCourse[] = [];
 
         assignList.forEach((assign: any) => {
+            // ✅ 1. เพิ่มตัวกรอง: ถ้ายังไม่ Approved ข้ามไปเลย
+            if (assign.deanApprovalStatus !== 'APPROVED') {
+                return;
+            }
+
             const isResponsible = String(assign.lecturerId) === String(assign.subject.responsibleUserId);
             const role = isResponsible ? "ผู้รับผิดชอบรายวิชา" : "ผู้สอน";
             
-            // Logic สถานะ
-            let note = "";
-            if (assign.deanApprovalStatus === 'APPROVED') note = "อนุมัติแล้ว";
-            else if (assign.headApprovalStatus === 'APPROVED') note = "รอรองฯ อนุมัติ";
-            else if (assign.lecturerStatus === 'APPROVED') note = "รอประธานฯ";
-            else note = "-";
+            // ✅ 2. ปรับ Note: ไม่ต้องเช็คเงื่อนไขอื่นแล้ว เพราะผ่านมาถึงตรงนี้คืออนุมัติแล้วแน่นอน
+            const note = "อนุมัติแล้ว";
 
             const courseObj: ReportCourse = {
                 code: assign.subject.code,
                 name: assign.subject.name_th,
-                // ✅ ดึงหน่วยกิตมาใส่ตรงนี้
                 credit: assign.subject.credit || assign.subject.credits || "-",
                 role: role,
                 lecture: assign.lectureHours || 0,
@@ -232,7 +232,6 @@ export default function StaffIndividualReportPage() {
                                                 <div className="flex flex-col gap-1">
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <span className="font-semibold text-slate-700">{course.code}</span>
-                                                        {/* ✅ Badge หน่วยกิต */}
                                                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100 print:border-indigo-300 print:text-black">
                                                             <BookOpen size={10} /> {course.credit} หน่วยกิต
                                                         </span>

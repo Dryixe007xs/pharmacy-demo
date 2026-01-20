@@ -44,7 +44,6 @@ export async function GET(request: Request) {
                 code: true,
                 name_th: true,
                 name_en: true,
-                // ✅ เพิ่มบรรทัดนี้ เพื่อดึงหน่วยกิต
                 credit: true, 
                 responsibleUserId: true,
                 program: {
@@ -130,7 +129,9 @@ export async function PUT(request: Request) {
         lecturerStatus, 
         lecturerFeedback,
         responsibleStatus, 
-        headApprovalStatus 
+        headApprovalStatus,
+        // ✅ เพิ่มตรงนี้: รับค่าสถานะอนุมัติจากคณบดี/รองคณบดี
+        deanApprovalStatus 
     } = body;
 
     const dataToUpdate: any = {};
@@ -150,6 +151,7 @@ export async function PUT(request: Request) {
     }
 
     if (hoursUpdated) {
+        // Reset สถานะเมื่อมีการแก้ไขชั่วโมงสอน
         if (!lecturerStatus) {
             dataToUpdate.lecturerStatus = ApprovalStatus.PENDING;
         }
@@ -159,12 +161,19 @@ export async function PUT(request: Request) {
         if (!headApprovalStatus) {
              dataToUpdate.headApprovalStatus = ApprovalStatus.PENDING;
         }
+        // ปกติถ้าแก้ชั่วโมง คณบดีก็ต้องอนุมัติใหม่ด้วย
+        if (!deanApprovalStatus) {
+             dataToUpdate.deanApprovalStatus = ApprovalStatus.PENDING;
+        }
     }
 
     if (lecturerStatus) dataToUpdate.lecturerStatus = lecturerStatus;
     if (lecturerFeedback !== undefined) dataToUpdate.lecturerFeedback = lecturerFeedback;
     if (responsibleStatus) dataToUpdate.responsibleStatus = responsibleStatus;
     if (headApprovalStatus) dataToUpdate.headApprovalStatus = headApprovalStatus;
+    
+    // ✅ เพิ่มตรงนี้: อัปเดตสถานะคณบดีลง Database
+    if (deanApprovalStatus) dataToUpdate.deanApprovalStatus = deanApprovalStatus;
 
     const updated = await prisma.teachingAssignment.update({
       where: { id: Number(id) },
@@ -177,6 +186,9 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Failed to update assignment" }, { status: 500 });
   }
 }
+
+// ✅ เพิ่มบรรทัดนี้: เพื่อให้รองรับ Method PATCH (เพราะ Frontend ใช้ fetch method: 'PATCH')
+export { PUT as PATCH };
 
 // DELETE: Remove lecturer
 export async function DELETE(request: Request) {

@@ -12,10 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-// ✅ เพิ่ม Import Avatar
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
 import DebugUserSwitcher from "@/components/DebugUserSwitcher";
 
 export function Navbar() {
@@ -24,8 +21,50 @@ export function Navbar() {
   
   const user = session?.user;
   const [allStaffs, setAllStaffs] = useState<any[]>([]);
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
+  const [photoLoading, setPhotoLoading] = useState(true);
 
   const isImpersonating = (user as any)?.isImpersonating;
+
+  // ✅ ดึงรูปโปรไฟล์จาก Microsoft Graph API
+  useEffect(() => {
+    const fetchProfilePhoto = async () => {
+      if (!user?.email) {
+        setPhotoLoading(false);
+        return;
+      }
+
+      try {
+        setPhotoLoading(true);
+        
+        // เรียก API route ที่จะสร้างขึ้นเพื่อดึงรูป
+        const response = await fetch('/api/profile-photo');
+        
+        if (response.ok) {
+          const blob = await response.blob();
+          const imageUrl = URL.createObjectURL(blob);
+          setProfilePhotoUrl(imageUrl);
+        } else {
+          // ถ้าไม่มีรูป หรือ error ก็ใช้รูปจาก session (ถ้ามี)
+          setProfilePhotoUrl(user?.image || null);
+        }
+      } catch (error) {
+        console.error('Error fetching profile photo:', error);
+        setProfilePhotoUrl(user?.image || null);
+      } finally {
+        setPhotoLoading(false);
+      }
+    };
+
+    fetchProfilePhoto();
+
+    // Cleanup function เพื่อ revoke object URL
+    return () => {
+      if (profilePhotoUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(profilePhotoUrl);
+      }
+    };
+  }, [user?.email]);
 
   useEffect(() => {
     if (user?.role === 'ADMIN' || isImpersonating) {
@@ -65,7 +104,6 @@ export function Navbar() {
 
   const displayCurriculum = formatCurriculum(user?.department);
 
-  // Helper สำหรับดึงตัวย่อชื่อ (เผื่อใช้)
   const getInitials = (name: string) => {
     if (!name) return "";
     const parts = name.trim().split(' ');
@@ -78,7 +116,6 @@ export function Navbar() {
   return (
     <nav className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-[60] px-4 flex items-center justify-between font-sarabun shadow-sm">
       
-      {/* LOGO */}
       <div className="flex items-center gap-4">
         <div className="flex items-center h-full pl-2">
             <img 
@@ -94,7 +131,6 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* DEBUG SWITCHER */}
       <div className="hidden lg:block">
         {(user?.role === 'ADMIN' || isImpersonating) && (
             <DebugUserSwitcher 
@@ -106,7 +142,6 @@ export function Navbar() {
         )}
       </div>
 
-      {/* RIGHT: PROFILE */}
       <div className="flex items-center gap-2 sm:gap-4">
         {isImpersonating && (
              <span className="hidden sm:inline-block text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded-md font-bold border border-red-200 animate-pulse">
@@ -125,13 +160,25 @@ export function Navbar() {
           <DropdownMenuTrigger asChild>
             <div className="flex items-center gap-3 pl-1 pr-2 py-1 rounded-full hover:bg-slate-50 transition-colors cursor-pointer border border-transparent hover:border-slate-100 outline-none">
                 
-                {/* ✅ เปลี่ยนส่วนแสดงรูปภาพเป็น Avatar Component */}
                 <Avatar className="h-9 w-9 border-2 border-white shadow-sm cursor-pointer">
-                    <AvatarImage src={user?.image || ""} alt="Profile" className="object-cover" />
-                    <AvatarFallback className="bg-purple-100 text-purple-600">
-                        {/* ถ้าไม่มีรูป แสดง UserIcon หรือ ตัวย่อชื่อก็ได้ */}
-                        <UserIcon size={18} />
-                    </AvatarFallback>
+                    {photoLoading ? (
+                        <AvatarFallback className="bg-slate-100 text-slate-400">
+                            <div className="animate-pulse">
+                                <UserIcon size={18} />
+                            </div>
+                        </AvatarFallback>
+                    ) : (
+                        <>
+                            <AvatarImage 
+                                src={profilePhotoUrl || ""} 
+                                alt="Profile" 
+                                className="object-cover" 
+                            />
+                            <AvatarFallback className="bg-purple-100 text-purple-600">
+                                {user?.name ? getInitials(user.name) : <UserIcon size={18} />}
+                            </AvatarFallback>
+                        </>
+                    )}
                 </Avatar>
                 
                 <div className="hidden md:block text-left">
