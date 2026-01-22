@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, ReactNode, useMemo } from "react";
+import { createPortal } from "react-dom"; // ✅ ใช้ Portal
 import { 
-  Plus, Search, Edit, Trash2, X, ChevronLeft, ChevronRight, 
+  Plus, Search, Edit, Trash2, X, ChevronRight, 
   User, ChevronsUpDown, Briefcase, Loader2, FolderPlus, BookOpen
 } from "lucide-react";
 import { Toaster, toast } from 'sonner';
@@ -52,20 +53,16 @@ type CourseFormData = {
 // --- Helper Functions ---
 const getFullName = (user: any) => {
   if (!user) return "-";
-  // รองรับ structure ข้อมูลที่อาจจะต่างกันเล็กน้อยจาก API
   const prefix = user.academicPosition || user.title || "";
-  const firstName = user.firstName || user.name?.split(" ")[0] || ""; // Fallback logic
+  const firstName = user.firstName || user.name?.split(" ")[0] || ""; 
   const lastName = user.lastName || user.name?.split(" ").slice(1).join(" ") || "";
-  
-  // ถ้ามี field name เต็มๆ มาแล้วให้ใช้เลย ถ้าไม่มีให้ประกอบใหม่
   if (user.name && !user.firstName) return user.name;
-  
   return `${prefix} ${firstName} ${lastName}`.trim();
 };
 
 // --- ✨ Components ---
 
-// 1. SearchableUserSelect (Moved outside for performance)
+// 1. SearchableUserSelect (Using Portal)
 const SearchableUserSelect = ({ 
     users, 
     onSelect, 
@@ -80,8 +77,8 @@ const SearchableUserSelect = ({
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState("");
     const wrapperRef = useRef<HTMLDivElement>(null);
+    const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
 
-    // Filter users using useMemo for performance
     const filteredUsers = useMemo(() => {
         if (!search) return users;
         const lowerSearch = search.toLowerCase();
@@ -91,9 +88,40 @@ const SearchableUserSelect = ({
         );
     }, [users, search]);
 
+    const updateCoords = () => {
+        if (wrapperRef.current) {
+            const rect = wrapperRef.current.getBoundingClientRect();
+            setCoords({
+                top: rect.bottom + window.scrollY + 4,
+                left: rect.left + window.scrollX,
+                width: rect.width
+            });
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen) {
+            updateCoords();
+            window.addEventListener('resize', updateCoords);
+            window.addEventListener('scroll', updateCoords, true);
+        }
+        return () => {
+            window.removeEventListener('resize', updateCoords);
+            window.removeEventListener('scroll', updateCoords, true);
+        };
+    }, [isOpen]);
+
     useEffect(() => {
         function handleClickOutside(event: any) {
-            if (wrapperRef.current && !wrapperRef.current.contains(event.target)) setIsOpen(false);
+            const dropdownElement = document.getElementById('user-select-dropdown');
+            if (
+                wrapperRef.current && 
+                !wrapperRef.current.contains(event.target) &&
+                dropdownElement && 
+                !dropdownElement.contains(event.target)
+            ) {
+                setIsOpen(false);
+            }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -110,8 +138,18 @@ const SearchableUserSelect = ({
                 </span>
                 <ChevronsUpDown size={16} className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
             </div>
-            {isOpen && (
-                <div className="absolute z-[100] w-full min-w-[300px] mt-1.5 bg-white border border-slate-100 rounded-xl shadow-2xl max-h-72 overflow-y-auto animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top custom-scrollbar">
+            
+            {isOpen && typeof document !== 'undefined' && createPortal(
+                <div 
+                    id="user-select-dropdown"
+                    className="fixed z-[10000] bg-white border border-slate-100 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top custom-scrollbar"
+                    style={{ 
+                        top: coords.top, 
+                        left: coords.left, 
+                        width: coords.width,
+                        maxHeight: '300px'
+                    }}
+                >
                     <div className="p-2 sticky top-0 bg-white/95 backdrop-blur border-b z-10">
                         <div className="relative">
                             <Search size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"/>
@@ -121,29 +159,32 @@ const SearchableUserSelect = ({
                                 className="w-full pl-9 p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500" 
                                 placeholder="พิมพ์ชื่อเพื่อค้นหา..." 
                                 value={search} 
-                                onChange={(e) => setSearch(e.target.value)}
+                                onChange={(e) => setSearch(e.target.value)} 
                             />
                         </div>
                     </div>
-                    {filteredUsers.length > 0 ? (
-                        filteredUsers.map(user => (
-                            <div 
-                                key={user.id} 
-                                className="px-4 py-2.5 text-sm hover:bg-purple-50 cursor-pointer flex flex-col border-b border-slate-50 last:border-none transition-colors" 
-                                onClick={() => { onSelect(user); setIsOpen(false); setSearch(""); }}
-                            >
-                                <span className="font-medium text-slate-700">{user.name}</span>
-                                <span className="text-xs text-slate-400">{user.position}</span>
-                            </div>
-                        ))
-                    ) : <div className="p-4 text-center text-xs text-slate-400">ไม่พบรายชื่อ</div>}
-                </div>
+                    <div className="overflow-y-auto" style={{ maxHeight: '240px' }}>
+                        {filteredUsers.length > 0 ? (
+                            filteredUsers.map(user => (
+                                <div 
+                                    key={user.id} 
+                                    className="px-4 py-2.5 text-sm hover:bg-purple-50 cursor-pointer flex flex-col border-b border-slate-50 last:border-none transition-colors" 
+                                    onClick={() => { onSelect(user); setIsOpen(false); setSearch(""); }}
+                                >
+                                    <span className="font-medium text-slate-700">{user.name}</span>
+                                    <span className="text-xs text-slate-400">{user.position}</span>
+                                </div>
+                            ))
+                        ) : <div className="p-4 text-center text-xs text-slate-400">ไม่พบรายชื่อ</div>}
+                    </div>
+                </div>,
+                document.body
             )}
         </div>
     );
 };
 
-// 2. Modal Component
+// 2. Modal Component (✅ แก้ไขให้ใช้ Portal เพื่อแก้ปัญหา Z-Index ตีกับ Navbar)
 const Modal = ({ 
     isOpen, 
     onClose, 
@@ -152,7 +193,7 @@ const Modal = ({
     colorClass = "text-slate-800",
     children,
     maxWidth = "max-w-xl",
-    zIndex = 50 // Default z-index adjusted
+    zIndex = 50 
 }: { 
     isOpen: boolean; 
     onClose: () => void; 
@@ -165,31 +206,43 @@ const Modal = ({
 }) => {
     const [isVisible, setIsVisible] = useState(false);
     const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     useEffect(() => {
         if (isOpen) {
             setIsVisible(true);
             setIsAnimatingOut(false);
+            // Lock body scroll when modal is open
+            document.body.style.overflow = 'hidden';
         } else if (isVisible) {
             setIsAnimatingOut(true);
             const timer = setTimeout(() => {
                 setIsVisible(false);
                 setIsAnimatingOut(false);
+                document.body.style.overflow = 'unset';
             }, 200);
             return () => clearTimeout(timer);
         }
     }, [isOpen, isVisible]);
 
-    if (!isVisible) return null;
+    if (!mounted || !isVisible) return null;
 
-    return (
+    // ✅ ใช้ createPortal ส่ง Modal ไปที่ document.body โดยตรง
+    return createPortal(
         <div 
             className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-200"
-            style={{ zIndex: zIndex }}
+            style={{ zIndex: 9999 }} // บังคับ Layer สูงสุด ทับ Navbar แน่นอน
         >
-            <div className={`bg-white rounded-2xl shadow-2xl w-full flex flex-col ring-1 ring-black/5 overflow-hidden transition-all duration-200 ${maxWidth} ${isAnimatingOut ? 'scale-95 opacity-0' : 'scale-100 opacity-100 animate-in zoom-in-95 slide-in-from-bottom-8'}`}>
-                {/* Header */}
-                <div className="px-5 py-4 border-b flex justify-between items-center bg-white sticky top-0 z-20 shadow-sm">
+            <div 
+                className={`bg-white rounded-2xl shadow-2xl w-full flex flex-col ring-1 ring-black/5 overflow-hidden transition-all duration-200 ${maxWidth} ${isAnimatingOut ? 'scale-95 opacity-0' : 'scale-100 opacity-100 animate-in zoom-in-95 slide-in-from-bottom-8'}`} 
+                style={{ maxHeight: '90vh' }}
+            >
+                {/* Header (Fixed) */}
+                <div className="px-6 py-4 border-b flex justify-between items-center bg-white shrink-0 z-20">
                     <h3 className={`text-lg font-bold flex items-center gap-2 ${colorClass}`}>
                         {Icon && <Icon size={22} />} {title}
                     </h3>
@@ -197,10 +250,14 @@ const Modal = ({
                         <X size={20} />
                     </button>
                 </div>
-                {/* Body */}
-                {children}
+                
+                {/* Body (Scrollable) */}
+                <div className="overflow-y-auto custom-scrollbar flex-1 relative bg-white">
+                    {children}
+                </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 
@@ -251,14 +308,12 @@ export default function CourseDataPage() {
       const dataStaff = await resStaff.json();
 
       setCourses(Array.isArray(dataCourses) ? dataCourses : []);
-      // Map staff data to UserData structure if needed
       const formattedStaff = Array.isArray(dataStaff) ? dataStaff.map((s:any) => ({
           ...s,
           name: getFullName(s)
       })) : [];
       setUsers(formattedStaff);
 
-      // Extract unique programs from courses (or fetch from api/programs if available)
       const uniquePrograms = new Map();
       if (Array.isArray(dataCourses)) {
         dataCourses.forEach((c: any) => {
@@ -432,7 +487,6 @@ export default function CourseDataPage() {
     setIsModalOpen(true);
   };
 
-  // --- Filtering Logic ---
   const filteredCourses = courses.filter((c) => {
     const matchesProgram = selectedProgram ? c.program?.id.toString() === selectedProgram : true;
     let matchesLevel = true;
@@ -454,7 +508,7 @@ export default function CourseDataPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6 font-sarabun"> {/* ✅ ปรับ p-8 -> p-6 และ class ให้เหมือนต้นแบบ */}
+    <div className="min-h-screen bg-slate-50/50 p-6 font-sarabun">
       <Toaster position="top-center" richColors />
       
       {/* Header */}
@@ -471,7 +525,7 @@ export default function CourseDataPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60 mb-8"> {/* ✅ เพิ่ม mb-8 เพื่อดัน Table ลงไป (แทน space-y-8 ที่เอาออก) */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60 mb-8">
         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
             <Search className="w-5 h-5 text-purple-600" /> ค้นหาและกรองข้อมูล
         </h2>
@@ -500,7 +554,7 @@ export default function CourseDataPage() {
       </div>
 
       {/* Table Section */}
-      <div className="space-y-4 mb-8"> {/* ✅ เพิ่ม mb-8 เผื่อไว้ */}
+      <div className="space-y-4 mb-8">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <BookOpen size={24} className="text-slate-700"/>
@@ -582,8 +636,7 @@ export default function CourseDataPage() {
         colorClass={isEditMode ? "text-purple-700" : "text-green-700"}
         zIndex={50}
       >
-          {/* ... Content ... */}
-           <div className="p-6 space-y-6 overflow-y-auto max-h-[80vh] custom-scrollbar">
+           <div className="p-6 space-y-6">
               {/* Basic Info */}
               <div className="grid grid-cols-3 gap-6">
                   <div className="col-span-2 space-y-2">
@@ -619,9 +672,9 @@ export default function CourseDataPage() {
                   </div>
               </div>
 
-              <div className="space-y-2 pb-24"> 
+              <div className="space-y-2 pb-6"> 
                     <label className="text-sm font-semibold text-slate-800 flex items-center gap-2"><User size={18} className="text-purple-600" /> ผู้รับผิดชอบรายวิชา</label>
-                  <div className="w-full relative z-10"> {/* Added z-index context */}
+                  <div className="w-full"> 
                         {selectedResponsible ? (
                           <div className="flex items-center justify-between bg-purple-50/50 p-2.5 rounded-lg border border-purple-100">
                               <div className="flex flex-col"><span className="font-semibold text-slate-700 text-sm">{selectedResponsible.name}</span><span className="text-xs text-slate-400">{selectedResponsible.email}</span></div>
@@ -649,7 +702,7 @@ export default function CourseDataPage() {
         maxWidth="max-w-md"
         zIndex={50}
       >
-          <div className="p-6 space-y-6 overflow-y-auto max-h-[80vh] min-h-[400px] pb-32 custom-scrollbar">
+          <div className="p-6 space-y-6 pb-6">
               <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">ชื่อหลักสูตร <span className="text-red-500">*</span></label>
                   <input 
@@ -691,12 +744,12 @@ export default function CourseDataPage() {
                   </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 pb-6">
                     <label className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                       <User size={18} className="text-blue-600" /> 
                       ประธานหลักสูตร (ถ้ามี)
                   </label>
-                  <div className="w-full relative z-10">
+                  <div className="w-full">
                         {selectedProgramChair ? (
                           <div className="flex items-center justify-between bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
                               <div className="flex flex-col">
@@ -732,9 +785,9 @@ export default function CourseDataPage() {
         icon={Briefcase}
         colorClass="text-purple-800"
         maxWidth="max-w-4xl"
-        zIndex={60} // Higher than other modals
+        zIndex={60} 
       >
-          <div className="p-0 overflow-y-auto custom-scrollbar max-h-[70vh]">
+          <div className="p-0">
               <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                       <tr>
@@ -801,16 +854,16 @@ export default function CourseDataPage() {
         icon={Briefcase}
         colorClass="text-purple-800"
         maxWidth="max-w-md"
-        zIndex={70} // Highest z-index
+        zIndex={70} 
       >
-        <div className="p-6 space-y-4 overflow-y-auto max-h-[80vh] min-h-[300px] pb-32 custom-scrollbar">
+        <div className="p-6 space-y-4 pb-6">
             <div className="p-3 bg-purple-50 rounded-lg border border-purple-100 text-sm text-purple-700">
                 กำลังแก้ไขประธานของ: <span className="font-bold">{editingProgram?.name_th}</span>
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-2 pb-6">
                 <label className="text-sm font-semibold text-slate-700">เลือกประธานคนใหม่</label>
-                <div className="w-full relative z-10">
+                <div className="w-full">
                     {tempChair ? (
                         <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-purple-100 shadow-sm ring-1 ring-purple-50">
                             <div className="flex flex-col">

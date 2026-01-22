@@ -26,26 +26,21 @@ export function Navbar() {
 
   const isImpersonating = (user as any)?.isImpersonating;
 
-  // ✅ ดึงรูปโปรไฟล์จาก Microsoft Graph API
+  // ✅ ดึงรูปโปรไฟล์ (ส่วนนี้เหมือนเดิม)
   useEffect(() => {
     const fetchProfilePhoto = async () => {
       if (!user?.email) {
         setPhotoLoading(false);
         return;
       }
-
       try {
         setPhotoLoading(true);
-        
-        // เรียก API route ที่จะสร้างขึ้นเพื่อดึงรูป
         const response = await fetch('/api/profile-photo');
-        
         if (response.ok) {
           const blob = await response.blob();
           const imageUrl = URL.createObjectURL(blob);
           setProfilePhotoUrl(imageUrl);
         } else {
-          // ถ้าไม่มีรูป หรือ error ก็ใช้รูปจาก session (ถ้ามี)
           setProfilePhotoUrl(user?.image || null);
         }
       } catch (error) {
@@ -55,10 +50,7 @@ export function Navbar() {
         setPhotoLoading(false);
       }
     };
-
     fetchProfilePhoto();
-
-    // Cleanup function เพื่อ revoke object URL
     return () => {
       if (profilePhotoUrl?.startsWith('blob:')) {
         URL.revokeObjectURL(profilePhotoUrl);
@@ -66,8 +58,10 @@ export function Navbar() {
     };
   }, [user?.email]);
 
+  // 🔥 แก้จุดที่ 1: เอาเงื่อนไข if (Admin) ออก เพื่อให้ทุกคนดึงรายชื่อ Staff มาใส่ Dropdown ได้
   useEffect(() => {
-    if (user?.role === 'ADMIN' || isImpersonating) {
+    // ถ้ามี user (ล็อกอินแล้ว) ให้ดึงข้อมูลเลย ไม่ต้องเช็ค Role
+    if (user) { 
         const fetchStaffs = async () => {
             try {
                 const res = await fetch("/api/staff");
@@ -79,7 +73,7 @@ export function Navbar() {
         };
         fetchStaffs();
     }
-  }, [user?.role, isImpersonating]); 
+  }, [user]); // เปลี่ยน dependency ให้เหลือแค่ user
 
   const handleUserChange = async (newUserId: string) => {
       await update({ impersonateId: newUserId || null });
@@ -132,14 +126,13 @@ export function Navbar() {
       </div>
 
       <div className="hidden lg:block">
-        {(user?.role === 'ADMIN' || isImpersonating) && (
-            <DebugUserSwitcher 
-                users={allStaffs}
-                currentUser={(user as any) || null} 
-                realUserRole="ADMIN" 
-                onUserChange={handleUserChange} 
-            />
-        )}
+        {/* 🔥 แก้จุดที่ 2: ลบเงื่อนไข { ... && () } ออก เรียกใช้ตรงๆ เลย */}
+        <DebugUserSwitcher 
+            users={allStaffs}
+            currentUser={(user as any) || null} 
+            realUserRole={user?.role} // ส่ง Role จริงไป (หรือจะส่ง "ADMIN" หลอกๆ ก็ได้ถ้าอยากให้ชัวร์ แต่น่าจะแก้ที่ตัวลูกแล้ว)
+            onUserChange={handleUserChange} 
+        />
       </div>
 
       <div className="flex items-center gap-2 sm:gap-4">

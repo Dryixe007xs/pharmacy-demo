@@ -6,7 +6,7 @@ type UserData = {
   id: string; 
   name: string;
   role?: string;
-  isImpersonating?: boolean; // เพิ่ม field นี้เพื่อเช็คสถานะ
+  isImpersonating?: boolean;
   [key: string]: any;
 };
 
@@ -24,26 +24,29 @@ export default function DebugUserSwitcher({
   realUserRole
 }: DebugUserSwitcherProps) {
 
-  // ถ้าไม่ใช่ Admin และไม่ได้กำลังสวมรอยอยู่ ให้ซ่อนไปเลย
-  // (แต่ถ้ากำลังสวมรอยอยู่ ต้องโชว์เพื่อให้กดออกได้)
-  if (realUserRole !== "ADMIN" && !currentUser?.isImpersonating) {
-    return null;
-  }
+  // --- ลบเงื่อนไข if ออก เพื่อให้ทุกคนเห็น (ตามที่ขอ) ---
+
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedId = e.target.value;
+    // ส่งค่า ID ใหม่ไป หรือส่ง string ว่าง "" ถ้าต้องการรีเซ็ต/เลิกสวมรอย
+    onUserChange(selectedId);
+  };
 
   return (
     <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 shadow-sm mb-4 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
       
       {/* ส่วนแสดงสถานะ */}
       <div className="flex items-center gap-3">
-        <div className="p-2 bg-orange-100 rounded-full text-orange-600">
-           {currentUser?.isImpersonating ? <User size={20} /> : <User size={20} />}
+        <div className={`p-2 rounded-full ${currentUser?.isImpersonating ? "bg-red-100 text-red-600" : "bg-orange-100 text-orange-600"}`}>
+           {/* เปลี่ยนไอคอนนิดหน่อยเพื่อให้รู้ว่าสถานะต่างกัน */}
+           {currentUser?.isImpersonating ? <RefreshCcw size={20} /> : <User size={20} />}
         </div>
         <div>
-           <h3 className="text-sm font-bold text-orange-900 flex items-center gap-2">
-             {currentUser?.isImpersonating ? "⚠️ กำลังสวมรอยเป็น:" : "🔧 Admin Mode"}
+           <h3 className={`text-sm font-bold flex items-center gap-2 ${currentUser?.isImpersonating ? "text-red-700" : "text-orange-900"}`}>
+             {currentUser?.isImpersonating ? "⚠️ กำลังสวมรอยเป็น:" : "👤 สถานะบัญชีปัจจุบัน"}
            </h3>
            <p className="text-xs text-orange-700">
-             {currentUser?.name || "ยังไม่ระบุ"} ({currentUser?.role})
+             {currentUser?.name || "ไม่ระบุชื่อ"} <span className="opacity-75">({currentUser?.role || "No Role"})</span>
            </p>
         </div>
       </div>
@@ -53,14 +56,18 @@ export default function DebugUserSwitcher({
         
         {/* Dropdown เลือกคนที่จะสวมรอย */}
         <select
-          className="flex-1 sm:w-48 p-2 border border-orange-300 rounded-md text-sm bg-white text-slate-700 outline-none focus:ring-2 focus:ring-orange-500"
-          value={currentUser?.isImpersonating ? currentUser?.id : ""}
-          onChange={(e) => onUserChange(e.target.value)}
+          className="flex-1 sm:w-56 p-2 border border-orange-300 rounded-md text-sm bg-white text-slate-700 outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
+          // แก้ไข: ใช้ currentUser.id ตรงๆ เพื่อไม่ให้ Dropdown เด้งหลุดตอนเลือก
+          value={currentUser?.id || ""} 
+          onChange={handleSelectChange}
         >
-          <option value="">-- เลือก User เพื่อสวมรอย --</option>
+          {/* Option แรกสำหรับ Reset */}
+          <option value="">❌ ยกเลิกการสวมรอย / รีเซ็ต</option>
+          
+          {/* รายชื่อ User ทั้งหมด */}
           {users.map((u) => (
             <option key={u.id} value={u.id}>
-              {u.name} ({u.role})
+              {u.name} ({u.role}) {u.id === currentUser?.id ? "👈(ใช้อยู่)" : ""}
             </option>
           ))}
         </select>

@@ -100,7 +100,7 @@ const menuItems: MenuItem[] = [
     title: "กำหนดปฏิทินนัดหมาย",
     icon: CalendarDays,
     href: "/dashboard/calendar",
-    roles: ['ADMIN', 'LECTURER', 'PROGRAM_CHAIR', 'VICE_DEAN'], 
+    roles: ['ADMIN'], 
   },
 ];
 

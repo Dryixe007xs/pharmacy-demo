@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { createPortal } from "react-dom"; // ✅ ใช้ Portal เพื่อแก้ปัญหา Layer
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,16 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Search, CheckCircle, AlertCircle, Plus, Check, Loader2, Link as LinkIcon, Building2, ChevronRight } from "lucide-react";
+import { Search, CheckCircle, AlertCircle, Plus, Check, Loader2, Link as LinkIcon, Building2, ChevronRight, X } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
 // Types
@@ -37,7 +29,6 @@ type Assignment = {
   subject: {
     code: string;
     name_th: string;
-    // ✅ 1. เพิ่ม Field credit ตรงนี้
     credit: string;
     program: {
         name_th: string;
@@ -45,6 +36,78 @@ type Assignment = {
     };
     responsibleUserId: string | null;
   };
+};
+
+// ✅ Custom Modal Component (Copy มาจากหน้า Admin เพื่อแก้ปัญหา Z-Index)
+const Modal = ({ 
+    isOpen, 
+    onClose, 
+    title, 
+    icon: Icon, 
+    colorClass = "text-slate-800",
+    children,
+    maxWidth = "max-w-xl",
+    zIndex = 9999 // ตั้งค่า default ให้สูงที่สุด
+}: { 
+    isOpen: boolean; 
+    onClose: () => void; 
+    title: string; 
+    icon?: any; 
+    colorClass?: string;
+    children: React.ReactNode;
+    maxWidth?: string;
+    zIndex?: number;
+}) => {
+    const [isVisible, setIsVisible] = useState(false);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    useEffect(() => {
+        if (isOpen) {
+            setIsVisible(true);
+            document.body.style.overflow = 'hidden'; // ล็อค Scroll
+        } else {
+            const timer = setTimeout(() => {
+                setIsVisible(false);
+                document.body.style.overflow = 'unset';
+            }, 200);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen]);
+
+    if (!mounted || !isVisible) return null;
+
+    // ใช้ Portal ยิงไปที่ body เพื่อให้ Overlay ทับ Navbar ได้แน่นอน
+    return createPortal(
+        <div 
+            className={`fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
+            style={{ zIndex: zIndex }}
+        >
+            <div 
+                className={`bg-white rounded-2xl shadow-2xl w-full flex flex-col ring-1 ring-black/5 overflow-hidden transition-all duration-200 ${maxWidth} ${isOpen ? 'scale-100' : 'scale-95'}`} 
+                style={{ maxHeight: '90vh' }}
+            >
+                {/* Header */}
+                <div className="px-6 py-4 border-b flex justify-between items-center bg-white shrink-0 z-20">
+                    <h3 className={`text-lg font-bold flex items-center gap-2 ${colorClass}`}>
+                        {Icon && <Icon size={22} />} {title}
+                    </h3>
+                    <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600">
+                        <X size={20} />
+                    </button>
+                </div>
+                
+                {/* Body */}
+                <div className="overflow-y-auto custom-scrollbar flex-1 relative bg-white p-6">
+                    {children}
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
 };
 
 export default function InstructorWorkloadPage() {
@@ -73,8 +136,6 @@ export default function InstructorWorkloadPage() {
   });
 
   const [isSubmittingExternal, setIsSubmittingExternal] = useState(false);
-
-  // Filters
   const [searchTerm, setSearchTerm] = useState("");
 
   // ===== FETCH DATA =====
@@ -101,7 +162,7 @@ export default function InstructorWorkloadPage() {
     }
   };
 
-  // --- Handlers --- (คงเดิม)
+  // --- Handlers ---
   const handleVerify = async (id: number) => {
     if(!confirm("ยืนยันว่าข้อมูลชั่วโมงสอนถูกต้อง?")) return;
     try {
@@ -248,7 +309,6 @@ export default function InstructorWorkloadPage() {
                 <TableHeader className="bg-slate-50/80">
                   <TableRow>
                     <TableHead className="font-bold text-slate-700">รหัสวิชา / ชื่อรายวิชา</TableHead>
-                    {/* ✅ 2. เพิ่มหัวตารางหน่วยกิต */}
                     <TableHead className="text-center font-bold text-slate-700">หน่วยกิต</TableHead>
                     <TableHead className="text-center font-bold text-slate-700">บทบาท</TableHead>
                     <TableHead className="text-center font-bold text-slate-700">บรรยาย (ชม.)</TableHead>
@@ -258,7 +318,6 @@ export default function InstructorWorkloadPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  
                   {loading ? (
                       <TableRow><TableCell colSpan={7} className="text-center p-8 text-slate-400">
                           <div className="flex justify-center items-center gap-2">
@@ -273,7 +332,6 @@ export default function InstructorWorkloadPage() {
                                 <div className="text-slate-600">{item.subject.name_th}</div>
                                 <div className="text-xs text-slate-400 mt-1 inline-block bg-slate-100 px-2 py-0.5 rounded">{item.subject.program?.name_th}</div>
                             </TableCell>
-                            {/* ✅ 3. แสดงข้อมูลหน่วยกิต */}
                             <TableCell className="text-center">
                                 <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-medium border border-slate-200">
                                     {item.subject.credit || '-'}
@@ -350,151 +408,146 @@ export default function InstructorWorkloadPage() {
         {/* Action Buttons Area */}
         <div className="flex flex-col md:flex-row justify-between items-center mt-6 gap-4">
             
-            {/* ADD EXTERNAL COURSE DIALOG */}
-            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                <DialogTrigger asChild>
-                    <Button variant="outline" className="text-green-600 border-green-600 border-dashed hover:bg-green-50 rounded-xl">
-                        <Plus className="w-4 h-4 mr-2" /> เพิ่มรายวิชาอื่นๆ (นอกคณะ/ภายใน ม.พะเยา)
-                    </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl flex items-center gap-2">
-                            <Building2 className="w-6 h-6 text-green-600" />
-                            เพิ่มวิชาอื่นๆ (นอกคณะ/ศึกษาทั่วไป)
-                        </DialogTitle>
-                        <DialogDescription>
-                            กรอกข้อมูลรายวิชาที่ท่านไปสอนนอกคณะเภสัชศาสตร์ หรือวิชาศึกษาทั่วไป (GE)
-                        </DialogDescription>
-                    </DialogHeader>
-                    
-                    <div className="grid gap-5 py-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-slate-700">คณะ/หน่วยงานที่สอน <span className="text-red-500">*</span></Label>
-                                <Input 
-                                    placeholder="เช่น คณะศิลปศาสตร์, สำนักวิชา..." 
-                                    value={externalCourseForm.faculty}
-                                    onChange={(e) => setExternalCourseForm({...externalCourseForm, faculty: e.target.value})}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-slate-700">รหัสวิชา <span className="text-red-500">*</span></Label>
-                                <Input 
-                                    placeholder="เช่น 001101" 
-                                    value={externalCourseForm.code}
-                                    onChange={(e) => setExternalCourseForm({...externalCourseForm, code: e.target.value})}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium text-slate-700">ชื่อรายวิชา (ภาษาไทย) <span className="text-red-500">*</span></Label>
-                            <Input 
-                                placeholder="เช่น ภาษาอังกฤษเพื่อการสื่อสาร" 
-                                value={externalCourseForm.nameTh}
-                                onChange={(e) => setExternalCourseForm({...externalCourseForm, nameTh: e.target.value})}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium text-slate-700">ชื่อรายวิชา (ภาษาอังกฤษ)</Label>
-                            <Input 
-                                placeholder="Optional" 
-                                value={externalCourseForm.nameEn}
-                                onChange={(e) => setExternalCourseForm({...externalCourseForm, nameEn: e.target.value})}
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-slate-700 text-center block">ชั่วโมงบรรยาย</Label>
-                                <Input 
-                                    type="number" min="0" className="text-center"
-                                    onKeyDown={(e) => ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()}
-                                    value={externalCourseForm.lectureHours}
-                                    onChange={(e) => setExternalCourseForm({...externalCourseForm, lectureHours: Number(e.target.value)})}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-slate-700 text-center block">ชั่วโมงปฏิบัติ</Label>
-                                <Input 
-                                    type="number" min="0" className="text-center"
-                                    onKeyDown={(e) => ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()}
-                                    value={externalCourseForm.labHours}
-                                    onChange={(e) => setExternalCourseForm({...externalCourseForm, labHours: Number(e.target.value)})}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-sm font-medium text-slate-700 text-center block">ชั่วโมงคุมสอบ</Label>
-                                <Input 
-                                    type="number" min="0" className="text-center"
-                                    onKeyDown={(e) => ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()}
-                                    value={externalCourseForm.examHours || 0}
-                                    onChange={(e) => setExternalCourseForm({...externalCourseForm, examHours: Number(e.target.value)})}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                                <LinkIcon size={16} /> ลิงก์เอกสารอ้างอิง/คำสั่งแต่งตั้ง (ถ้ามี)
-                            </Label>
-                            <Input 
-                                placeholder="https://..." 
-                                value={externalCourseForm.evidenceLink}
-                                onChange={(e) => setExternalCourseForm({...externalCourseForm, evidenceLink: e.target.value})}
-                            />
-                        </div>
-                    </div>
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsAddOpen(false)} disabled={isSubmittingExternal}>ยกเลิก</Button>
-                        <Button 
-                            className="bg-green-600 hover:bg-green-700 text-white" 
-                            onClick={handleAddExternalCourse}
-                            disabled={isSubmittingExternal}
-                        >
-                            {isSubmittingExternal ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Check className="w-4 h-4 mr-2" />}
-                            บันทึกข้อมูล
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <Button variant="outline" className="text-green-600 border-green-600 border-dashed hover:bg-green-50 rounded-xl" onClick={() => setIsAddOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" /> เพิ่มรายวิชาอื่นๆ (นอกคณะ/ภายใน ม.พะเยา)
+            </Button>
 
             <div className="flex gap-3">
                 <Button variant="outline" className="min-w-[100px] rounded-xl">พิมพ์รายงาน</Button>
             </div>
         </div>
 
-        {/* Dispute Modal */}
-        <Dialog open={isDisputeOpen} onOpenChange={setIsDisputeOpen}>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle className="text-center text-red-600 flex flex-col items-center gap-2">
-                        <AlertCircle size={32} />
-                        แจ้งขอแก้ไขข้อมูล
-                    </DialogTitle>
-                    <div className="text-center text-sm text-slate-500">
-                        {selectedItem?.subject.code} {selectedItem?.subject.name_th}
+        {/* ✅ ADD EXTERNAL COURSE MODAL (Using Custom Portal Modal) */}
+        <Modal 
+            isOpen={isAddOpen} 
+            onClose={() => setIsAddOpen(false)}
+            title="เพิ่มวิชาอื่นๆ (นอกคณะ/ศึกษาทั่วไป)"
+            icon={Building2}
+            colorClass="text-green-700"
+            maxWidth="max-w-2xl"
+        >
+            <div className="space-y-6">
+                <div className="grid gap-5">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium text-slate-700">คณะ/หน่วยงานที่สอน <span className="text-red-500">*</span></Label>
+                            <Input 
+                                placeholder="เช่น คณะศิลปศาสตร์, สำนักวิชา..." 
+                                value={externalCourseForm.faculty}
+                                onChange={(e) => setExternalCourseForm({...externalCourseForm, faculty: e.target.value})}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium text-slate-700">รหัสวิชา <span className="text-red-500">*</span></Label>
+                            <Input 
+                                placeholder="เช่น 001101" 
+                                value={externalCourseForm.code}
+                                onChange={(e) => setExternalCourseForm({...externalCourseForm, code: e.target.value})}
+                            />
+                        </div>
                     </div>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
+
                     <div className="space-y-2">
-                        <Label className="text-sm font-medium">ระบุสิ่งที่ต้องการแก้ไข</Label>
+                        <Label className="text-sm font-medium text-slate-700">ชื่อรายวิชา (ภาษาไทย) <span className="text-red-500">*</span></Label>
                         <Input 
-                            placeholder="เช่น ชั่วโมงบรรยายจริงคือ 15 ชม. หรือ ผมไม่ได้สอนวิชานี้..." 
-                            value={disputeNote}
-                            onChange={(e) => setDisputeNote(e.target.value)}
-                        /> 
+                            placeholder="เช่น ภาษาอังกฤษเพื่อการสื่อสาร" 
+                            value={externalCourseForm.nameTh}
+                            onChange={(e) => setExternalCourseForm({...externalCourseForm, nameTh: e.target.value})}
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label className="text-sm font-medium text-slate-700">ชื่อรายวิชา (ภาษาอังกฤษ)</Label>
+                        <Input 
+                            placeholder="Optional" 
+                            value={externalCourseForm.nameEn}
+                            onChange={(e) => setExternalCourseForm({...externalCourseForm, nameEn: e.target.value})}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium text-slate-700 text-center block">ชั่วโมงบรรยาย</Label>
+                            <Input 
+                                type="number" min="0" className="text-center"
+                                onKeyDown={(e) => ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()}
+                                value={externalCourseForm.lectureHours}
+                                onChange={(e) => setExternalCourseForm({...externalCourseForm, lectureHours: Number(e.target.value)})}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium text-slate-700 text-center block">ชั่วโมงปฏิบัติ</Label>
+                            <Input 
+                                type="number" min="0" className="text-center"
+                                onKeyDown={(e) => ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()}
+                                value={externalCourseForm.labHours}
+                                onChange={(e) => setExternalCourseForm({...externalCourseForm, labHours: Number(e.target.value)})}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium text-slate-700 text-center block">ชั่วโมงคุมสอบ</Label>
+                            <Input 
+                                type="number" min="0" className="text-center"
+                                onKeyDown={(e) => ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()}
+                                value={externalCourseForm.examHours || 0}
+                                onChange={(e) => setExternalCourseForm({...externalCourseForm, examHours: Number(e.target.value)})}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                            <LinkIcon size={16} /> ลิงก์เอกสารอ้างอิง/คำสั่งแต่งตั้ง (ถ้ามี)
+                        </Label>
+                        <Input 
+                            placeholder="https://..." 
+                            value={externalCourseForm.evidenceLink}
+                            onChange={(e) => setExternalCourseForm({...externalCourseForm, evidenceLink: e.target.value})}
+                        />
                     </div>
                 </div>
-                <DialogFooter className="sm:justify-center gap-2">
-                      <Button variant="outline" onClick={() => setIsDisputeOpen(false)} className="w-full sm:w-auto">ยกเลิก</Button>
-                      <Button variant="destructive" className="w-full sm:w-auto bg-red-600 hover:bg-red-700" onClick={handleDisputeSubmit}>ยืนยันการแจ้ง</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            </div>
+            {/* Footer */}
+            <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 sticky bottom-0 bg-white z-20 mt-6 -mx-6 -mb-6 rounded-b-2xl">
+                <Button variant="outline" onClick={() => setIsAddOpen(false)} disabled={isSubmittingExternal} className="bg-white">ยกเลิก</Button>
+                <Button 
+                    className="bg-green-600 hover:bg-green-700 text-white" 
+                    onClick={handleAddExternalCourse}
+                    disabled={isSubmittingExternal}
+                >
+                    {isSubmittingExternal ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <Check className="w-4 h-4 mr-2" />}
+                    บันทึกข้อมูล
+                </Button>
+            </div>
+        </Modal>
+
+        {/* ✅ Dispute Modal (Using Custom Portal Modal as well for consistency) */}
+        <Modal 
+            isOpen={isDisputeOpen} 
+            onClose={() => setIsDisputeOpen(false)}
+            title="แจ้งขอแก้ไขข้อมูล"
+            icon={AlertCircle}
+            colorClass="text-red-600"
+            maxWidth="max-w-md"
+        >
+            <div className="space-y-4">
+                <div className="text-center text-sm text-slate-500 mb-4">
+                    {selectedItem?.subject.code} {selectedItem?.subject.name_th}
+                </div>
+                <div className="space-y-2">
+                    <Label className="text-sm font-medium">ระบุสิ่งที่ต้องการแก้ไข</Label>
+                    <Input 
+                        placeholder="เช่น ชั่วโมงบรรยายจริงคือ 15 ชม. หรือ ผมไม่ได้สอนวิชานี้..." 
+                        value={disputeNote}
+                        onChange={(e) => setDisputeNote(e.target.value)}
+                    /> 
+                </div>
+            </div>
+            <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 sticky bottom-0 bg-white z-20 mt-6 -mx-6 -mb-6 rounded-b-2xl">
+                <Button variant="outline" onClick={() => setIsDisputeOpen(false)} className="bg-white">ยกเลิก</Button>
+                <Button variant="destructive" className="bg-red-600 hover:bg-red-700" onClick={handleDisputeSubmit}>ยืนยันการแจ้ง</Button>
+            </div>
+        </Modal>
 
       </div>
     </div>
