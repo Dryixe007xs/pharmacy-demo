@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { createPortal } from "react-dom"; // ✅ ใช้ Portal เพื่อแก้ปัญหา Layer
+import { createPortal } from "react-dom"; 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +24,8 @@ type Assignment = {
   lectureHours: number;
   labHours: number;
   examHours: number;
-  lecturerStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+  examCritiqueHours: number;
+  lecturerStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DRAFT'; // เพิ่ม DRAFT ใน type
   lecturerFeedback?: string;
   subject: {
     code: string;
@@ -38,7 +39,7 @@ type Assignment = {
   };
 };
 
-// ✅ Custom Modal Component (Copy มาจากหน้า Admin เพื่อแก้ปัญหา Z-Index)
+// ✅ Custom Modal Component
 const Modal = ({ 
     isOpen, 
     onClose, 
@@ -47,7 +48,7 @@ const Modal = ({
     colorClass = "text-slate-800",
     children,
     maxWidth = "max-w-xl",
-    zIndex = 9999 // ตั้งค่า default ให้สูงที่สุด
+    zIndex = 9999
 }: { 
     isOpen: boolean; 
     onClose: () => void; 
@@ -68,7 +69,7 @@ const Modal = ({
     useEffect(() => {
         if (isOpen) {
             setIsVisible(true);
-            document.body.style.overflow = 'hidden'; // ล็อค Scroll
+            document.body.style.overflow = 'hidden'; 
         } else {
             const timer = setTimeout(() => {
                 setIsVisible(false);
@@ -80,7 +81,6 @@ const Modal = ({
 
     if (!mounted || !isVisible) return null;
 
-    // ใช้ Portal ยิงไปที่ body เพื่อให้ Overlay ทับ Navbar ได้แน่นอน
     return createPortal(
         <div 
             className={`fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
@@ -244,16 +244,21 @@ export default function InstructorWorkloadPage() {
     }
   };
 
-  // ===== FILTER LOGIC =====
+  // ===== FILTER & CALCULATE =====
   const filteredAssignments = assignments.filter(a => {
     const matchSearch = a.subject.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         a.subject.name_th.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchSearch; 
+    
+    // ✅ จุดที่แก้ไข: กรอง DRAFT และ null ออก ไม่ให้แสดงผล
+    const isSentToLecturer = a.lecturerStatus !== 'DRAFT' && a.lecturerStatus !== null;
+
+    return matchSearch && isSentToLecturer; 
   });
 
   const totalLab = filteredAssignments.reduce((sum, item) => sum + item.labHours, 0);
   const totalLecture = filteredAssignments.reduce((sum, item) => sum + item.lectureHours, 0);
   const totalExam = filteredAssignments.reduce((sum, item) => sum + (item.examHours || 0), 0);
+  const totalCritique = filteredAssignments.reduce((sum, item) => sum + (item.examCritiqueHours || 0), 0);
 
   if (status === 'loading') {
       return <div className="flex h-screen items-center justify-center text-slate-400">กำลังโหลดข้อมูล...</div>;
@@ -314,12 +319,13 @@ export default function InstructorWorkloadPage() {
                     <TableHead className="text-center font-bold text-slate-700">บรรยาย (ชม.)</TableHead>
                     <TableHead className="text-center font-bold text-slate-700">ปฏิบัติ (ชม.)</TableHead>
                     <TableHead className="text-center font-bold text-slate-700">คุมสอบนอกตาราง (ชม.)</TableHead>
+                    <TableHead className="text-center font-bold text-slate-700">วิพากษ์ข้อสอบ (ชม.)</TableHead> 
                     <TableHead className="text-center font-bold text-slate-700 min-w-[200px]">สถานะการยืนยัน</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
-                      <TableRow><TableCell colSpan={7} className="text-center p-8 text-slate-400">
+                      <TableRow><TableCell colSpan={8} className="text-center p-8 text-slate-400">
                           <div className="flex justify-center items-center gap-2">
                             <Loader2 className="w-5 h-5 animate-spin" /> กำลังโหลดข้อมูล...
                           </div>
@@ -343,6 +349,7 @@ export default function InstructorWorkloadPage() {
                             <TableCell className="text-center text-base">{item.lectureHours}</TableCell>
                             <TableCell className="text-center text-base">{item.labHours}</TableCell>
                             <TableCell className="text-center text-base">{item.examHours || 0}</TableCell>
+                            <TableCell className="text-center text-base font-medium text-slate-600">{item.examCritiqueHours || 0}</TableCell>
                             <TableCell className="text-center">
                                 {item.lecturerStatus === 'APPROVED' ? (
                                     <div className="flex items-center justify-center gap-2 text-green-600 font-medium text-sm bg-green-50 py-1 px-3 rounded-full w-fit mx-auto border border-green-200">
@@ -385,7 +392,7 @@ export default function InstructorWorkloadPage() {
                         </TableRow>
                       ))
                   ) : (
-                      <TableRow><TableCell colSpan={7} className="text-center p-8 text-slate-400">
+                      <TableRow><TableCell colSpan={8} className="text-center p-8 text-slate-400">
                           {currentUser 
                             ? "ไม่พบรายวิชาที่ต้องยืนยัน (หรือยังไม่มีการกรอกชั่วโมงสอนเข้ามา)" 
                             : "กรุณาเลือกผู้ใช้งานจาก Navbar เพื่อดูข้อมูล"}
@@ -397,6 +404,7 @@ export default function InstructorWorkloadPage() {
                     <TableCell className="text-center text-blue-700">{totalLecture}</TableCell>
                     <TableCell className="text-center text-blue-700">{totalLab}</TableCell>
                     <TableCell className="text-center text-blue-700">{totalExam}</TableCell>
+                    <TableCell className="text-center text-blue-700">{totalCritique}</TableCell>
                     <TableCell></TableCell>
                   </TableRow>
 
@@ -417,7 +425,7 @@ export default function InstructorWorkloadPage() {
             </div>
         </div>
 
-        {/* ✅ ADD EXTERNAL COURSE MODAL (Using Custom Portal Modal) */}
+        {/* ✅ ADD EXTERNAL COURSE MODAL */}
         <Modal 
             isOpen={isAddOpen} 
             onClose={() => setIsAddOpen(false)}
@@ -521,7 +529,7 @@ export default function InstructorWorkloadPage() {
             </div>
         </Modal>
 
-        {/* ✅ Dispute Modal (Using Custom Portal Modal as well for consistency) */}
+        {/* ✅ Dispute Modal */}
         <Modal 
             isOpen={isDisputeOpen} 
             onClose={() => setIsDisputeOpen(false)}

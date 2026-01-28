@@ -1,13 +1,48 @@
 // app/api/courses/route.ts
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth"; 
+import { prisma } from "@/lib/prisma"; // ✅ แก้ Import เป็น prisma และ path เป็น @/lib/prisma
 
-const prisma = new PrismaClient();
-
-// GET: Fetch all courses
-export async function GET() {
+// GET: Fetch courses (Supports ?filter=active)
+export async function GET(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session) return new NextResponse("Unauthorized", { status: 401 });
+
+    const { searchParams } = new URL(req.url);
+    const filter = searchParams.get('filter'); 
+
+    let subjectWhereClause: any = {};
+    let assignmentWhereClause: any = {};
+
+    if (filter === 'active') {
+        // ✅ เปลี่ยน db. เป็น prisma.
+        const activeTerm = await prisma.termConfiguration.findFirst({
+            where: { isActive: true }
+        });
+
+        if (!activeTerm) return NextResponse.json([]); 
+
+        subjectWhereClause = {
+            courseOfferings: {
+                some: {
+                    termConfigId: activeTerm.id,
+                    isOpen: true
+                }
+            },
+            // responsibleUserId: session.user.id 
+        };
+
+        assignmentWhereClause = {
+            academicYear: activeTerm.academicYear,
+            semester: activeTerm.semester
+        };
+    }
+
+    // ✅ เปลี่ยน db. เป็น prisma.
     const courses = await prisma.subject.findMany({
+      where: subjectWhereClause,
       select: { 
         id: true,
         code: true,
@@ -29,8 +64,7 @@ export async function GET() {
                         id: true,
                         firstName: true,
                         lastName: true,
-                        // ❌ Removed: academicPosition 
-                        title: true, // ✅ Use title instead
+                        title: true,
                         email: true,
                         adminTitle: true
                     }
@@ -43,39 +77,31 @@ export async function GET() {
                 firstName: true,
                 lastName: true,
                 email: true,
-                // ❌ Removed: academicPosition
-                title: true, // ✅ Keep only title
+                title: true, 
             }
         },
         teachingAssignments: {
+           where: assignmentWhereClause,
            include: {
              lecturer: {
-                // ✅ Add custom selection for Lecturer details
                 select: {
                     id: true,
                     firstName: true,
                     lastName: true,
-                    title: true, // Use title
-                    // academicPosition: true, // Removed
+                    title: true,
                     email: true,
-                    // ✅ NEW: Include new Curriculum relation
-                    curriculumRef: {
-                        select: {
-                            id: true,
-                            name: true,
-                            chairId: true
-                        }
+                    curriculumRef: { 
+                        select: { id: true, name: true, chairId: true } 
                     }
                 }
              }, 
            },
-           orderBy: {
-             id: 'asc' 
-           }
+           orderBy: { id: 'asc' }
         }
       },
       orderBy: { id: 'desc' }
     });
+    
     return NextResponse.json(courses);
   } catch (error) {
     console.error("Error fetching courses:", error);
@@ -88,15 +114,10 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { 
-      code, 
-      name_th, 
-      name_en, 
-      credit, 
-      programId, 
-      responsibleUserId, 
-      instructor 
+      code, name_th, name_en, credit, programId, responsibleUserId, instructor 
     } = body;
 
+    // ✅ เปลี่ยน db. เป็น prisma.
     const newCourse = await prisma.subject.create({
         data: {
             code,
@@ -120,20 +141,12 @@ export async function PUT(req: Request) {
   try {
     const body = await req.json();
     const { 
-      id,
-      code, 
-      name_th, 
-      name_en, 
-      credit, 
-      programId, 
-      responsibleUserId, 
-      instructor 
+      id, code, name_th, name_en, credit, programId, responsibleUserId, instructor 
     } = body;
 
-    if (!id) {
-        return NextResponse.json({ error: 'ID is required' }, { status: 400 });
-    }
+    if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
 
+    // ✅ เปลี่ยน db. เป็น prisma.
     const updatedCourse = await prisma.subject.update({
         where: { id: Number(id) }, 
         data: {
@@ -159,16 +172,14 @@ export async function DELETE(req: Request) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
 
-    if (!id) {
-        return NextResponse.json({ error: 'ID is required' }, { status: 400 });
-    }
+    if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
 
-    // Delete related assignments first
+    // ✅ เปลี่ยน db. เป็น prisma.
     await prisma.teachingAssignment.deleteMany({
         where: { subjectId: Number(id) }
     });
 
-    // Delete course
+    // ✅ เปลี่ยน db. เป็น prisma.
     await prisma.subject.delete({
         where: { id: Number(id) }
     });

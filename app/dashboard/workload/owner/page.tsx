@@ -19,11 +19,12 @@ type Assignment = {
   lectureHours: number;
   labHours: number;
   examHours: number;
+  examCritiqueHours: number; // ✅ รองรับชั่วโมงวิพากษ์
   lecturer: {
     id: number;
     firstName: string | null;
     lastName: string | null;
-    academicPosition: string | null;
+    title: string | null; // ใช้ title ตาม Schema ใหม่
     email: string;
   };
   lecturerStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DRAFT' | null; 
@@ -59,7 +60,6 @@ type Course = {
     id: string;
     firstName: string | null;
     lastName: string | null;
-    academicPosition: string | null;
     title: string | null;
   } | null;
   teachingAssignments?: Assignment[]; 
@@ -70,7 +70,6 @@ type UserData = {
   id: string;
   name: string;
   email: string;
-  position: string;
 };
 
 // ==========================================
@@ -106,8 +105,8 @@ const Badge = ({ color, icon: Icon, text, className = "" }: any) => {
 
 const getResponsibleName = (user: any) => {
   if (!user) return <span className="text-red-400 text-sm">ยังไม่ระบุ</span>;
-  const prefix = user.academicPosition || user.title || "";
-  return `${prefix} ${user.firstName || ""} ${user.lastName || ""}`.trim();
+  const prefix = user.title || "";
+  return `${prefix}${user.firstName || ""} ${user.lastName || ""}`.trim();
 };
 
 // ==========================================
@@ -125,7 +124,8 @@ function useCourseLogic(currentUser: any) {
     setLoading(true);
     try {
       const [resCourses, resStaff] = await Promise.all([
-        fetch("/api/courses"),
+        // ✅ สำคัญ: เรียก API แบบมี Filter Active เพื่อเอาเฉพาะเทอมปัจจุบัน
+        fetch("/api/courses?filter=active"),
         fetch("/api/staff")
       ]);
       
@@ -169,7 +169,7 @@ function useCourseLogic(currentUser: any) {
   const handleActions = {
     addLecturer: async (staffId: string, courseId: number) => {
       try {
-        const payload: any = { 
+        const payload = { 
             subjectId: courseId, 
             lecturerId: staffId,
             lecturerStatus: null 
@@ -192,13 +192,14 @@ function useCourseLogic(currentUser: any) {
       } catch (e) { toast.error("ไม่สามารถเพิ่มอาจารย์ได้"); return false; }
     },
 
-    saveHoursDraft: async (id: number, hours: { lecture: number, lab: number, exam: number }) => {
+    saveHoursDraft: async (id: number, hours: { lecture: number, lab: number, exam: number, critique: number }) => {
         try {
             const payload = {
                 id,
                 lectureHours: hours.lecture,
                 labHours: hours.lab,
                 examHours: hours.exam,
+                examCritiqueHours: hours.critique, // ✅ ส่งค่าวิพากษ์ไปด้วย
                 lecturerStatus: null 
             };
     
@@ -241,11 +242,14 @@ function useCourseLogic(currentUser: any) {
           } catch (e) { toast.error("ทำรายการไม่สำเร็จ"); return false; }
     },
 
-    resolveDispute: async (id: number, hours: { lecture: number, lab: number, exam: number }) => {
+    resolveDispute: async (id: number, hours: { lecture: number, lab: number, exam: number, critique: number }) => {
         try {
             const payload = {
                 id,
-                ...hours,
+                lectureHours: hours.lecture,
+                labHours: hours.lab,
+                examHours: hours.exam,
+                examCritiqueHours: hours.critique,
                 lecturerStatus: "PENDING", 
                 lecturerFeedback: null 
             };
@@ -272,7 +276,7 @@ function useCourseLogic(currentUser: any) {
           body: JSON.stringify({
             id,
             lecturerStatus: "APPROVED",
-            responsibleStatus: "APPROVED",
+            responsibleStatus: "APPROVED", // อนุมัติเลยเพราะผู้รับผิดชอบยืนยันเอง
             lecturerFeedback: `[ยืนยันข้อมูลเดิม]: ${reason}`
           })
         });
@@ -357,6 +361,7 @@ export default function CourseOwnerPage() {
   const filteredCourses = useMemo(() => {
     return courses.filter(c => {
         if (!currentUser) return false;
+        // กรองเฉพาะวิชาที่ user นี้รับผิดชอบ
         const isOwner = String(c.responsibleUserId) === String(currentUser.id);
         const searchLower = searchTerm.toLowerCase();
         return isOwner && (c.code.toLowerCase().includes(searchLower) || c.name_th.toLowerCase().includes(searchLower));
@@ -438,7 +443,7 @@ export default function CourseOwnerPage() {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan={6} className="p-16 text-center text-slate-400 flex flex-col items-center justify-center gap-2"><Search size={32} className="opacity-20"/>{currentUser ? "ไม่พบรายวิชาที่คุณรับผิดชอบ" : "ไม่พบข้อมูลผู้ใช้งาน"}</td></tr>
+                <tr><td colSpan={6} className="p-16 text-center text-slate-400 flex flex-col items-center justify-center gap-2"><Search size={32} className="opacity-20"/>{currentUser ? "ไม่พบรายวิชาที่คุณรับผิดชอบในเทอมนี้" : "ไม่พบข้อมูลผู้ใช้งาน"}</td></tr>
               )}
             </tbody>
           </table>
@@ -472,6 +477,7 @@ function CourseModal({ course, assignments, currentUser, staffs, onClose, action
     const isRejectedByChair = assignments.some((a: Assignment) => a.headApprovalStatus === 'REJECTED' || a.responsibleStatus === 'REJECTED');
     const isReadyToSubmit = assignments.length > 0 && assignments.every((a: Assignment) => a.lecturerStatus === 'APPROVED');
     const isSubmitted = assignments.length > 0 && assignments.every((a: Assignment) => a.responsibleStatus === 'APPROVED');
+    // ล็อคถ้าส่งแล้ว และไม่โดนตีกลับ
     const isLocked = isSubmitted && !isRejectedByChair;
 
     const handleSubmit = async () => {
@@ -480,11 +486,10 @@ function CourseModal({ course, assignments, currentUser, staffs, onClose, action
         const success = await actions.submitToChair();
         if (success) {
             setSubmitStatus('success');
-            // Delay closing to show popup
             setTimeout(() => { 
                 onClose(); 
                 setTimeout(() => setSubmitStatus('idle'), 300); 
-            }, 3000); // 3 seconds delay
+            }, 3000); 
         } else {
             setSubmitStatus('idle');
         }
@@ -502,9 +507,8 @@ function CourseModal({ course, assignments, currentUser, staffs, onClose, action
 
     return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden relative">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden relative">
                 
-                {/* ✅ SUCCESS POPUP OVERLAY */}
                 {submitStatus === 'success' && <SuccessOverlay />}
 
                 {/* Header */}
@@ -541,12 +545,14 @@ function CourseModal({ course, assignments, currentUser, staffs, onClose, action
                         {/* Assignments Table */}
                         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                             <div className="p-4 border-b bg-slate-50/50 flex justify-between items-center"><h3 className="font-bold text-slate-700 flex items-center gap-2"><User size={18}/> รายชื่อผู้สอน</h3></div>
+                            
                             <div className="bg-slate-100/50 p-3 grid grid-cols-12 gap-2 text-xs font-bold text-slate-500 border-b uppercase tracking-wider">
-                                <div className="col-span-4 pl-2">ชื่อ-สกุล</div>
-                                <div className="col-span-2 text-center">บรรยาย (ชม.)</div>
-                                <div className="col-span-2 text-center">ปฏิบัติ (ชม.)</div>
-                                <div className="col-span-2 text-center">คุมสอบ (ชม.)</div>
-                                <div className="col-span-2 text-center">จัดการ</div>
+                                <div className="col-span-3 pl-2">ชื่อ-สกุล</div>
+                                <div className="col-span-1 text-center">บรรยาย (ชม.)</div>
+                                <div className="col-span-1 text-center">ปฏิบัติ (ชม.)</div>
+                                <div className="col-span-2 text-center">คุมสอบนอกตาราง (ชม.)</div>
+                                <div className="col-span-2 text-center">วิพากษ์ข้อสอบ (ชม.)</div> 
+                                <div className="col-span-3 text-center">จัดการ</div>
                             </div>
                             <div className="divide-y divide-slate-100">
                                 {assignments.map((assign: Assignment) => (
@@ -612,15 +618,56 @@ function AssignmentRow({ assignment: a, actions, isLocked, currentUser }: any) {
     const [isEditing, setIsEditing] = useState(false);
     const [isResolving, setIsResolving] = useState(false);
     const [resolveReason, setResolveReason] = useState("");
-    const [hours, setHours] = useState({ lecture: a.lectureHours, lab: a.labHours, exam: a.examHours });
+    
+    // ✅ State เป็น string | number เพื่อให้ลบเลข 0 ได้ (Input จะได้ไม่ค้างเลข 0)
+    const [hours, setHours] = useState<{lecture: string|number, lab: string|number, exam: string|number, critique: string|number}>({ 
+        lecture: a.lectureHours, 
+        lab: a.labHours, 
+        exam: a.examHours,
+        critique: a.examCritiqueHours || 0
+    });
 
     const isRejected = a.lecturerStatus === 'REJECTED';
     const isSelf = String(currentUser?.id) === String(a.lecturerId); 
-    const totalHours = a.lectureHours + a.labHours + a.examHours;
+    const totalHours = (Number(hours.lecture) || 0) + (Number(hours.lab) || 0) + (Number(hours.exam) || 0) + (Number(hours.critique) || 0);
     
-    // Logic: ปุ่มหายเมื่อเป็น PENDING (ส่งแล้ว) หรือ APPROVED (ตอบรับแล้ว)
-    // ถ้าสถานะเป็น null (Draft/DRAFT) ปุ่มจะแสดง
     const isSent = a.lecturerStatus === 'PENDING' || a.lecturerStatus === 'APPROVED';
+
+    const handleInputChange = (field: keyof typeof hours, value: string) => {
+        if (value === "") {
+            setHours(prev => ({ ...prev, [field]: "" }));
+        } else {
+            setHours(prev => ({ ...prev, [field]: parseFloat(value) }));
+        }
+    };
+
+    const getPayload = () => ({
+        lecture: Number(hours.lecture) || 0,
+        lab: Number(hours.lab) || 0,
+        exam: Number(hours.exam) || 0,
+        critique: Number(hours.critique) || 0,
+    });
+
+    const handleSaveDraft = async () => {
+        const success = await actions.saveHoursDraft(a.id, getPayload());
+        if (success) setIsEditing(false);
+    };
+
+    const handleConfirmSend = async () => {
+        if (!confirm(isSelf ? "ยืนยันข้อมูลชั่วโมงสอนของคุณ?" : "ยืนยันส่งข้อมูลให้อาจารย์ตรวจสอบ?")) return;
+        await actions.confirmAssignment(a.id, isSelf);
+    };
+
+    const handleResolveDispute = async () => {
+        const success = await actions.resolveDispute(a.id, getPayload());
+        if (success) setIsEditing(false);
+    };
+
+    const handleInsist = async () => {
+        if (!resolveReason.trim()) { toast.error("ระบุเหตุผล"); return; }
+        const success = await actions.insistOriginal(a.id, resolveReason);
+        if (success) setIsResolving(false);
+    };
 
     const getStatusText = () => {
         if (a.lecturerStatus === 'APPROVED') return '• ยืนยันแล้ว';
@@ -634,27 +681,6 @@ function AssignmentRow({ assignment: a, actions, isLocked, currentUser }: any) {
         if (a.lecturerStatus === 'PENDING') return 'text-blue-600';
         if (a.lecturerStatus === 'REJECTED') return 'text-red-500';
         return 'text-slate-400';
-    };
-
-    const handleSaveDraft = async () => {
-        const success = await actions.saveHoursDraft(a.id, hours);
-        if (success) setIsEditing(false);
-    };
-
-    const handleConfirmSend = async () => {
-        if (!confirm(isSelf ? "ยืนยันข้อมูลชั่วโมงสอนของคุณ?" : "ยืนยันส่งข้อมูลให้อาจารย์ตรวจสอบ?")) return;
-        await actions.confirmAssignment(a.id, isSelf);
-    };
-
-    const handleResolveDispute = async () => {
-        const success = await actions.resolveDispute(a.id, hours);
-        if (success) setIsEditing(false);
-    };
-
-    const handleInsist = async () => {
-        if (!resolveReason.trim()) { toast.error("ระบุเหตุผล"); return; }
-        const success = await actions.insistOriginal(a.id, resolveReason);
-        if (success) setIsResolving(false);
     };
 
     if (isRejected && !isEditing && !isResolving) {
@@ -692,7 +718,7 @@ function AssignmentRow({ assignment: a, actions, isLocked, currentUser }: any) {
 
     return (
         <div className={`grid grid-cols-12 gap-2 items-center text-sm p-3 transition-colors ${isEditing ? 'bg-purple-50' : 'hover:bg-slate-50'}`}>
-            <div className="col-span-4 pl-2">
+            <div className="col-span-3 pl-2">
                 <div className="font-medium text-slate-700">{a.lecturer.firstName} {a.lecturer.lastName}</div>
                 <div className={`text-xs font-semibold mt-0.5 ${getStatusColor()}`}>
                     {getStatusText()}
@@ -701,26 +727,42 @@ function AssignmentRow({ assignment: a, actions, isLocked, currentUser }: any) {
             
             {isEditing ? (
                 <>
-                    {['lecture', 'lab', 'exam'].map((type) => (
-                        <div key={type} className="col-span-2 px-1">
-                            <input type="number" min="0" className="w-full text-center border border-purple-300 rounded focus:ring-2 focus:ring-purple-200 outline-none py-1" value={(hours as any)[type]} onChange={(e) => setHours({...hours, [type]: Number(e.target.value)})} />
-                        </div>
-                    ))}
-                    <div className="col-span-2 flex justify-center gap-2">
+                    <div className="col-span-1 px-1">
+                        <input type="number" min="0" className="w-full text-center border border-purple-300 rounded focus:ring-2 focus:ring-purple-200 outline-none py-1" 
+                            value={hours.lecture} onChange={(e) => handleInputChange('lecture', e.target.value)} />
+                    </div>
+                    <div className="col-span-1 px-1">
+                        <input type="number" min="0" className="w-full text-center border border-purple-300 rounded focus:ring-2 focus:ring-purple-200 outline-none py-1" 
+                            value={hours.lab} onChange={(e) => handleInputChange('lab', e.target.value)} />
+                    </div>
+                    <div className="col-span-2 px-1">
+                        <input type="number" min="0" className="w-full text-center border border-purple-300 rounded focus:ring-2 focus:ring-purple-200 outline-none py-1" 
+                            value={hours.exam} onChange={(e) => handleInputChange('exam', e.target.value)} />
+                    </div>
+                    <div className="col-span-2 px-1">
+                        <input type="number" min="0" className="w-full text-center border border-purple-300 rounded focus:ring-2 focus:ring-purple-200 outline-none py-1" 
+                            value={hours.critique} onChange={(e) => handleInputChange('critique', e.target.value)} />
+                    </div>
+
+                    <div className="col-span-3 flex justify-center gap-2">
                         <button onClick={isRejected ? handleResolveDispute : handleSaveDraft} className="text-white bg-green-500 p-1.5 rounded hover:bg-green-600 transition shadow-sm" title="บันทึกข้อมูล"><Check size={16}/></button>
                         <button onClick={() => setIsEditing(false)} className="text-slate-500 bg-white border border-slate-200 p-1.5 rounded hover:bg-slate-50 transition shadow-sm" title="ยกเลิก"><X size={16}/></button>
                     </div>
                 </>
             ) : (
                 <>
-                    <div className="col-span-2 text-center text-slate-600 font-medium">{a.lectureHours}</div>
-                    <div className="col-span-2 text-center text-slate-600 font-medium">{a.labHours}</div>
+                    <div className="col-span-1 text-center text-slate-600 font-medium">{a.lectureHours}</div>
+                    <div className="col-span-1 text-center text-slate-600 font-medium">{a.labHours}</div>
                     <div className="col-span-2 text-center text-slate-600 font-medium">{a.examHours}</div>
-                    <div className="col-span-2 flex justify-center gap-1.5">
+                    <div className="col-span-2 text-center text-slate-600 font-medium">{a.examCritiqueHours || 0}</div>
+                    <div className="col-span-3 flex justify-center gap-1.5">
                         {!isLocked && (
                             <>
                                 <button 
-                                    onClick={() => { setIsEditing(true); setHours({ lecture: a.lectureHours, lab: a.labHours, exam: a.examHours }); }} 
+                                    onClick={() => { 
+                                        setIsEditing(true); 
+                                        setHours({ lecture: a.lectureHours, lab: a.labHours, exam: a.examHours, critique: a.examCritiqueHours || 0 }); 
+                                    }} 
                                     className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 p-1.5 rounded transition border border-transparent hover:border-purple-100" 
                                     title="แก้ไขจำนวนชั่วโมง"
                                 >
@@ -765,21 +807,17 @@ function AssignmentRow({ assignment: a, actions, isLocked, currentUser }: any) {
 const SuccessOverlay = () => (
     <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-white/95 backdrop-blur-md animate-in fade-in duration-300">
         <div className="flex flex-col items-center animate-in zoom-in-50 slide-in-from-bottom-10 duration-500">
-            {/* Circle with Check Icon */}
             <div className="w-28 h-28 bg-green-100 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-green-100 border-4 border-white ring-4 ring-green-50">
                 <CheckCircle className="w-14 h-14 text-green-600 animate-bounce" />
             </div>
             
-            {/* Title */}
             <h3 className="text-3xl font-extrabold text-slate-800 mb-3 tracking-tight">ส่งข้อมูลเรียบร้อย!</h3>
             
-            {/* Description */}
             <p className="text-slate-500 text-lg font-light text-center max-w-sm leading-relaxed">
                 ระบบได้ส่งข้อมูลภาระงานสอนให้ <br/>
                 <span className="font-semibold text-purple-600">ประธานหลักสูตร</span> พิจารณาแล้ว
             </p>
 
-            {/* Loading Indicator (Auto Close) */}
             <div className="mt-8 flex items-center gap-2 text-slate-400 text-sm bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
                 <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
                 กำลังปิดหน้าต่างอัตโนมัติ...
