@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, ReactNode, useMemo } from "react";
-import { createPortal } from "react-dom"; // ✅ ใช้ Portal
+import { createPortal } from "react-dom";
 import { 
   Plus, Search, Edit, Trash2, X, ChevronRight, 
   User, ChevronsUpDown, Briefcase, Loader2, FolderPlus, BookOpen
@@ -62,7 +62,7 @@ const getFullName = (user: any) => {
 
 // --- ✨ Components ---
 
-// 1. SearchableUserSelect (Using Portal)
+// 1. SearchableUserSelect
 const SearchableUserSelect = ({ 
     users, 
     onSelect, 
@@ -165,9 +165,9 @@ const SearchableUserSelect = ({
                     </div>
                     <div className="overflow-y-auto" style={{ maxHeight: '240px' }}>
                         {filteredUsers.length > 0 ? (
-                            filteredUsers.map(user => (
+                            filteredUsers.map((user, idx) => (
                                 <div 
-                                    key={user.id} 
+                                    key={`${user.id}-${idx}`} 
                                     className="px-4 py-2.5 text-sm hover:bg-purple-50 cursor-pointer flex flex-col border-b border-slate-50 last:border-none transition-colors" 
                                     onClick={() => { onSelect(user); setIsOpen(false); setSearch(""); }}
                                 >
@@ -184,7 +184,7 @@ const SearchableUserSelect = ({
     );
 };
 
-// 2. Modal Component (✅ แก้ไขให้ใช้ Portal เพื่อแก้ปัญหา Z-Index ตีกับ Navbar)
+// 2. Modal Component
 const Modal = ({ 
     isOpen, 
     onClose, 
@@ -216,7 +216,6 @@ const Modal = ({
         if (isOpen) {
             setIsVisible(true);
             setIsAnimatingOut(false);
-            // Lock body scroll when modal is open
             document.body.style.overflow = 'hidden';
         } else if (isVisible) {
             setIsAnimatingOut(true);
@@ -231,17 +230,15 @@ const Modal = ({
 
     if (!mounted || !isVisible) return null;
 
-    // ✅ ใช้ createPortal ส่ง Modal ไปที่ document.body โดยตรง
     return createPortal(
         <div 
             className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-200"
-            style={{ zIndex: 9999 }} // บังคับ Layer สูงสุด ทับ Navbar แน่นอน
+            style={{ zIndex: 9999 }} 
         >
             <div 
                 className={`bg-white rounded-2xl shadow-2xl w-full flex flex-col ring-1 ring-black/5 overflow-hidden transition-all duration-200 ${maxWidth} ${isAnimatingOut ? 'scale-95 opacity-0' : 'scale-100 opacity-100 animate-in zoom-in-95 slide-in-from-bottom-8'}`} 
                 style={{ maxHeight: '90vh' }}
             >
-                {/* Header (Fixed) */}
                 <div className="px-6 py-4 border-b flex justify-between items-center bg-white shrink-0 z-20">
                     <h3 className={`text-lg font-bold flex items-center gap-2 ${colorClass}`}>
                         {Icon && <Icon size={22} />} {title}
@@ -251,7 +248,6 @@ const Modal = ({
                     </button>
                 </div>
                 
-                {/* Body (Scrollable) */}
                 <div className="overflow-y-auto custom-scrollbar flex-1 relative bg-white">
                     {children}
                 </div>
@@ -299,13 +295,16 @@ export default function CourseDataPage() {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const [resCourses, resStaff] = await Promise.all([
+      // ✅ แก้ไข: เพิ่มการเรียก /api/programs เพื่อดึงหลักสูตรทั้งหมด (Master Data)
+      const [resCourses, resStaff, resPrograms] = await Promise.all([
           fetch("/api/courses", { cache: 'no-store' }),
-          fetch("/api/staff", { cache: 'no-store' })
+          fetch("/api/staff", { cache: 'no-store' }),
+          fetch("/api/programs", { cache: 'no-store' }) // <--- เพิ่มตรงนี้
       ]);
       
       const dataCourses = await resCourses.json();
       const dataStaff = await resStaff.json();
+      const dataPrograms = await resPrograms.json(); // <--- รับข้อมูลหลักสูตรมา
 
       setCourses(Array.isArray(dataCourses) ? dataCourses : []);
       const formattedStaff = Array.isArray(dataStaff) ? dataStaff.map((s:any) => ({
@@ -314,15 +313,9 @@ export default function CourseDataPage() {
       })) : [];
       setUsers(formattedStaff);
 
-      const uniquePrograms = new Map();
-      if (Array.isArray(dataCourses)) {
-        dataCourses.forEach((c: any) => {
-            if (c.program && !uniquePrograms.has(c.program.id)) {
-                uniquePrograms.set(c.program.id, c.program);
-            }
-        });
-      }
-      setPrograms(Array.from(uniquePrograms.values()));
+      // ✅ แก้ไข: ใช้ข้อมูลจาก API Programs โดยตรง ไม่ต้อง map จากรายวิชาแล้ว
+      setPrograms(Array.isArray(dataPrograms) ? dataPrograms : []);
+
     } catch (err) {
       console.error("Error fetching data:", err);
       toast.error("ไม่สามารถโหลดข้อมูลได้");
@@ -332,7 +325,6 @@ export default function CourseDataPage() {
     }
   };
 
-  // --- Handlers ---
   const handleAddProgram = async () => {
       if (!programFormData.name_th || !programFormData.year) {
           toast.error("กรุณากรอกชื่อหลักสูตรและปี พ.ศ.");
@@ -488,7 +480,7 @@ export default function CourseDataPage() {
   };
 
   const filteredCourses = courses.filter((c) => {
-    const matchesProgram = selectedProgram ? c.program?.id.toString() === selectedProgram : true;
+    const matchesProgram = selectedProgram ? c.program?.id?.toString() === selectedProgram : true;
     let matchesLevel = true;
     if (selectedLevel) {
         const degree = c.program?.degree_level || "";
@@ -539,7 +531,7 @@ export default function CourseDataPage() {
             <div className="w-full md:w-64">
                 <select className="w-full h-11 border border-slate-200 rounded-lg px-3 text-slate-600 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white text-sm cursor-pointer" value={selectedProgram} onChange={(e) => setSelectedProgram(e.target.value)}>
                     <option value="">ทุกหลักสูตร</option>
-                    {programs.map(p => <option key={p.id} value={p.id}>{p.name_th} ({p.year})</option>)}
+                    {programs.map((p, index) => <option key={`${p.id}-${index}`} value={p.id}>{p.name_th} ({p.year})</option>)}
                 </select>
             </div>
             <div className="w-full md:w-48">
@@ -596,8 +588,8 @@ export default function CourseDataPage() {
                     {loading ? (
                         <tr><td colSpan={6} className="p-12 text-center text-slate-400"><div className="flex justify-center gap-2 items-center"><Loader2 className="animate-spin" size={24}/> กำลังโหลด...</div></td></tr>
                     ) : filteredCourses.length > 0 ? (
-                        filteredCourses.map((c) => (
-                            <tr key={c.id} className="hover:bg-slate-50/80 transition-colors text-sm group">
+                        filteredCourses.map((c, index) => (
+                            <tr key={`${c.id}-${index}`} className="hover:bg-slate-50/80 transition-colors text-sm group">
                                 <td className="py-4 px-6 align-top font-medium text-slate-700">{c.code}</td>
                                 <td className="py-4 px-6 align-top">
                                     <div className="font-semibold text-slate-800">{c.name_th}</div>
@@ -662,7 +654,7 @@ export default function CourseDataPage() {
                   <label className="text-sm font-semibold text-slate-700">หลักสูตร <span className="text-red-500">*</span></label>
                   <select className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-white cursor-pointer" value={formData.programId || ""} onChange={e => setFormData({...formData, programId: e.target.value})}>
                       <option value="">-- เลือกหลักสูตร --</option>
-                      {programs.map(p => <option key={p.id} value={p.id}>{p.name_th} ({p.year})</option>)}
+                      {programs.map((p, index) => <option key={`${p.id}-${index}`} value={p.id}>{p.name_th} ({p.year})</option>)}
                   </select>
               </div>
               
@@ -798,8 +790,8 @@ export default function CourseDataPage() {
                       </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                      {programs.map(p => (
-                          <tr key={p.id} className="hover:bg-slate-50/80 transition-colors group">
+                      {programs.map((p, index) => (
+                          <tr key={`${p.id}-${index}`} className="hover:bg-slate-50/80 transition-colors group">
                               <td className="py-4 px-6 align-top font-medium text-slate-700">{p.name_th}</td>
                               <td className="py-4 px-6 text-center align-top text-slate-500 bg-slate-50/50 rounded-lg mx-2">{p.year}</td>
                               

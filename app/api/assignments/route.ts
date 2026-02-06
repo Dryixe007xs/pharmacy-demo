@@ -7,25 +7,26 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const subjectId = searchParams.get('subjectId');
   const lecturerId = searchParams.get('lecturerId'); 
-  const scope = searchParams.get('scope'); // ✅ รับค่า scope เพิ่ม (เช่น 'year')
+  const scope = searchParams.get('scope'); 
 
   try {
-    // 1. หา Active Term เพื่อเอา "ปีการศึกษาปัจจุบัน"
-    const activeTerm = await prisma.termConfiguration.findFirst({
-        where: { isActive: true }
+    const activeYear = await prisma.academicYear.findFirst({
+        where: { isActive: true },
+        include: { terms: true } 
     });
 
-    if (!activeTerm) return NextResponse.json([]);
+    if (!activeYear) return NextResponse.json([]);
 
-    // 2. สร้างเงื่อนไขการค้นหา
     let whereClause: any = {
-        academicYear: activeTerm.academicYear, // กรองปีปัจจุบันเสมอ
+        academicYear: activeYear.id, 
     };
 
-    // ✅ ถ้าส่ง scope='year' มา เราจะไม่กรอง semester (เพื่อให้ได้ข้อมูลทั้งปี)
-    // แต่ถ้าไม่ส่ง (ค่า default) ให้กรองเอาเฉพาะเทอม Active
     if (scope !== 'year') {
-        whereClause.semester = activeTerm.semester;
+        const now = new Date();
+        const currentTerm = activeYear.terms.find(t => 
+            t.step1Start && t.step4End && now >= new Date(t.step1Start) && now <= new Date(t.step4End)
+        );
+        whereClause.semester = currentTerm ? currentTerm.semester : 1;
     }
 
     if (subjectId) {
@@ -35,7 +36,6 @@ export async function GET(request: Request) {
       whereClause.lecturerId = lecturerId; 
     } 
 
-    // 3. ดึงข้อมูล
     const assignments = await prisma.teachingAssignment.findMany({
       where: whereClause,
       include: {
@@ -58,6 +58,7 @@ export async function GET(request: Request) {
                 name_en: true,
                 credit: true, 
                 responsibleUserId: true,
+                // ❌ ลบ semester: true ออก เพราะใน Subject ไม่มี field นี้
                 program: { select: { name_th: true } },
                 responsibleUser: { select: { firstName: true, lastName: true, title: true } }
             }
@@ -78,20 +79,36 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { subjectId, lecturerId, lecturerStatus } = body;
 
-    const activeTerm = await prisma.termConfiguration.findFirst({
-        where: { isActive: true }
+    // 1. หา Active Year
+    const activeYear = await prisma.academicYear.findFirst({
+        where: { isActive: true },
+        include: { terms: true }
     });
 
-    if (!activeTerm) {
-        return NextResponse.json({ error: "ระบบยังไม่เปิดภาคการศึกษา (No Active Term)" }, { status: 400 });
+    if (!activeYear) {
+        return NextResponse.json({ error: "ระบบยังไม่เปิดภาคการศึกษา (No Active Year)" }, { status: 400 });
     }
 
+    // ✅ แก้ไข: ลบการดึง subject.semester ออก แล้วใช้ Logic วันที่แทน
+    let targetSemester = 1; // Default
+    
+    // หาเทอมปัจจุบันตามช่วงเวลา
+    const now = new Date();
+    const currentTerm = activeYear.terms.find(t => 
+        t.step1Start && t.step4End && now >= new Date(t.step1Start) && now <= new Date(t.step4End)
+    );
+    
+    if (currentTerm) {
+        targetSemester = currentTerm.semester;
+    }
+
+    // 2. ตรวจสอบข้อมูลซ้ำ
     const existing = await prisma.teachingAssignment.findFirst({
       where: {
         subjectId: Number(subjectId),
         lecturerId: lecturerId,
-        academicYear: activeTerm.academicYear,
-        semester: activeTerm.semester
+        academicYear: activeYear.id,
+        semester: targetSemester
       }
     });
 
@@ -101,12 +118,13 @@ export async function POST(request: Request) {
 
     const initialStatus = (lecturerStatus === null || lecturerStatus === undefined) ? ApprovalStatus.DRAFT : lecturerStatus;
 
+    // 3. บันทึกข้อมูล
     const newAssignment = await prisma.teachingAssignment.create({
       data: {
         subjectId: Number(subjectId),
         lecturerId: lecturerId,
-        academicYear: activeTerm.academicYear,
-        semester: activeTerm.semester,
+        academicYear: activeYear.id,
+        semester: targetSemester,
         lectureHours: 0,
         labHours: 0,
         examHours: 0,
@@ -121,6 +139,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(newAssignment);
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: "Failed to add lecturer" }, { status: 500 });
   }
 }

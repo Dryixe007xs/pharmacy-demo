@@ -17,8 +17,18 @@ const getStatusBadge = (status: string) => {
         case 'PENDING_HEAD': return { text: "รอประธานฯ", color: "text-blue-600 bg-blue-50 border-blue-200" };
         case 'IN_PROGRESS': return { text: "กำลังดำเนินการ", color: "text-orange-600 bg-orange-50 border-orange-200" };
         case 'REJECTED': return { text: "ถูกตีกลับ", color: "text-red-600 bg-red-50 border-red-200" };
-        case 'WAITING': return { text: "ยังไม่เริ่ม", color: "text-slate-500 bg-slate-100 border-slate-200" }; // ✅ เพิ่มสถานะนี้
+        case 'WAITING': return { text: "ยังไม่เริ่ม", color: "text-slate-500 bg-slate-100 border-slate-200" };
         default: return { text: "ไม่มีข้อมูล", color: "text-slate-400 bg-slate-50 border-slate-100" };
+    }
+};
+
+// Helper Semester Badge
+const getSemesterBadge = (semester: number) => {
+    switch(semester) {
+        case 1: return { text: "ภาคต้น", color: "bg-blue-100 text-blue-700 border-blue-200" };
+        case 2: return { text: "ภาคปลาย", color: "bg-orange-100 text-orange-700 border-orange-200" };
+        case 3: return { text: "ฤดูร้อน", color: "bg-yellow-100 text-yellow-700 border-yellow-200" };
+        default: return { text: "-", color: "bg-gray-100 text-gray-500 border-gray-200" };
     }
 };
 
@@ -27,23 +37,85 @@ export default function AdminDashboard({ session }: { session: any }) {
     const [expandedRows, setExpandedRows] = useState<string[]>([]);
     const [instructors, setInstructors] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [availableYears, setAvailableYears] = useState<string[]>([]); // ✅ เก็บรายการปีที่มีใน DB
     
-    // Default Filter
-    const [selectedYear, setSelectedYear] = useState<string>("2569"); 
-    const [selectedSemester, setSelectedSemester] = useState<string>("1");
+    // ✅ Default Filter: ตั้งเป็น 'all' (ทั้งปี) และ year เป็นว่างไว้ก่อนเพื่อรอ fetch จาก DB
+    const [selectedYear, setSelectedYear] = useState<string>(""); 
+    const [selectedSemester, setSelectedSemester] = useState<string>("all");
+
+    // ฟังก์ชันดึงข้อมูลปีการศึกษาที่มีในระบบ (เพื่อเอามาใส่ Dropdown และหา Active Year)
+    const fetchYears = async () => {
+        try {
+            // สมมติว่ามี Endpoint นี้ หรือดึงจาก dashboard API รอบแรก
+            // ในที่นี้ผมจะจำลองการดึงจาก API dashboard โดยไม่ระบุ parameter เพื่อขอ meta data
+            const res = await fetch(`/api/admin/dashboard?meta=true`); 
+            const json = await res.json();
+            
+            if (json.availableYears) {
+                setAvailableYears(json.availableYears.map(String));
+            }
+            
+            // ถ้ายังไม่มีปีที่เลือก ให้ใช้ปี Active จาก DB หรือปีล่าสุด
+            if (!selectedYear && json.activeYear) {
+                return String(json.activeYear);
+            } else if (!selectedYear && json.availableYears?.length > 0) {
+                return String(json.availableYears[0]);
+            }
+            return selectedYear || String(new Date().getFullYear() + 543);
+        } catch (e) {
+            console.error("Failed to fetch years", e);
+            return String(new Date().getFullYear() + 543); // Fallback
+        }
+    };
 
     const fetchData = async (year: string, semester: string) => {
         setLoading(true);
         try {
-            const res = await fetch(`/api/admin/dashboard?year=${year}&semester=${semester}`);
-            const json = await res.json();
-            if (json.data) {
-                setInstructors(json.data);
-                if (json.meta) {
-                    setSelectedYear(String(json.meta.year));
-                    setSelectedSemester(String(json.meta.semester));
-                }
+            let resultData: any[] = [];
+
+            // ✅ Logic ใหม่: ถ้าเลือก "all" ให้ดึงข้อมูลทั้ง 3 เทอม (1, 2, 3) มา merge กัน
+            if (semester === "all") {
+                const terms = [1, 2, 3];
+                const responses = await Promise.all(
+                    terms.map(t => fetch(`/api/admin/dashboard?year=${year}&semester=${t}`).then(r => r.json()))
+                );
+
+                const instructorMap = new Map();
+
+                responses.forEach((res, index) => {
+                    const currentSem = index + 1;
+                    const data = res.data || [];
+
+                    data.forEach((inst: any) => {
+                        // ใส่เลขเทอมกำกับในแต่ละวิชา
+                        const coursesWithSem = inst.courses.map((c: any) => ({ ...c, semester: currentSem }));
+                        
+                        if (instructorMap.has(inst.id)) {
+                            // ถ้ามีอาจารย์คนนี้แล้ว ให้เอารายวิชาไปต่อท้าย (Merge)
+                            const existingInst = instructorMap.get(inst.id);
+                            existingInst.courses.push(...coursesWithSem);
+                        } else {
+                            // ถ้ายังไม่มี ให้สร้างใหม่
+                            instructorMap.set(inst.id, { ...inst, courses: coursesWithSem });
+                        }
+                    });
+                });
+
+                resultData = Array.from(instructorMap.values());
+
+            } else {
+                // ✅ กรณีเลือกเทอมเฉพาะ (1, 2, หรือ 3)
+                const res = await fetch(`/api/admin/dashboard?year=${year}&semester=${semester}`);
+                const json = await res.json();
+                
+                resultData = (json.data || []).map((inst: any) => ({
+                    ...inst,
+                    courses: inst.courses.map((c: any) => ({ ...c, semester: parseInt(semester) }))
+                }));
             }
+
+            setInstructors(resultData);
+
         } catch (error) {
             console.error("Fetch error:", error);
         } finally {
@@ -51,7 +123,16 @@ export default function AdminDashboard({ session }: { session: any }) {
         }
     };
 
-    useEffect(() => { fetchData("", ""); }, []);
+    // ✅ useEffect แรก: หาปี Active ก่อน แล้วค่อยดึงข้อมูล
+    useEffect(() => {
+        const init = async () => {
+            const activeYear = await fetchYears();
+            setSelectedYear(activeYear);
+            // เมื่อได้ปีแล้ว ค่อยดึงข้อมูล Dashboard (default semester = 'all')
+            fetchData(activeYear, "all");
+        };
+        init();
+    }, []);
 
     const handleFilterChange = (type: 'year' | 'semester', value: string) => {
         if (type === 'year') {
@@ -74,7 +155,7 @@ export default function AdminDashboard({ session }: { session: any }) {
         i.department.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // Stats
+    // Stats Logic
     const totalInstructors = instructors.length;
     const totalCourses = instructors.reduce((acc, curr) => acc + curr.courses.length, 0);
     const completedCourses = instructors.reduce((acc, curr) => acc + curr.courses.filter((c: any) => c.status === 'APPROVED').length, 0);
@@ -92,25 +173,35 @@ export default function AdminDashboard({ session }: { session: any }) {
                     <div className="flex items-center gap-2 px-2 text-sm text-slate-500 font-medium">
                         <Calendar size={16} /> ปีการศึกษา:
                     </div>
+                    
+                    {/* ✅ Dropdown เลือกเทอม (Default = ทั้งหมด) */}
                     <Select value={selectedSemester} onValueChange={(v) => handleFilterChange('semester', v)}>
-                        <SelectTrigger className="w-[100px] h-9 text-sm bg-slate-50">
+                        <SelectTrigger className="w-[140px] h-9 text-sm bg-slate-50 font-bold">
                             <SelectValue placeholder="เทอม" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="1">เทอม 1</SelectItem>
-                            <SelectItem value="2">เทอม 2</SelectItem>
-                            <SelectItem value="3">เทอม 3</SelectItem>
+                            <SelectItem value="all">ทุกภาคการศึกษา</SelectItem>
+                            <SelectItem value="1">ภาคต้น (1)</SelectItem>
+                            <SelectItem value="2">ภาคปลาย (2)</SelectItem>
+                            <SelectItem value="3">ภาคฤดูร้อน (3)</SelectItem>
                         </SelectContent>
                     </Select>
+
                     <span className="text-slate-300">/</span>
+
+                    {/* ✅ Dropdown เลือกปี (Dynamic จาก DB) */}
                     <Select value={selectedYear} onValueChange={(v) => handleFilterChange('year', v)}>
                         <SelectTrigger className="w-[100px] h-9 text-sm bg-slate-50">
                             <SelectValue placeholder="ปี" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="2567">2567</SelectItem>
-                            <SelectItem value="2568">2568</SelectItem>
-                            <SelectItem value="2569">2569</SelectItem>
+                            {availableYears.length > 0 ? (
+                                availableYears.map(y => (
+                                    <SelectItem key={y} value={y}>{y}</SelectItem>
+                                ))
+                            ) : (
+                                <SelectItem value={selectedYear || "2569"}>{selectedYear || "..."}</SelectItem>
+                            )}
                         </SelectContent>
                     </Select>
                 </div>
@@ -130,7 +221,9 @@ export default function AdminDashboard({ session }: { session: any }) {
                 <Card className="border-l-4 border-l-orange-500 shadow-sm">
                     <CardContent className="p-5 flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-slate-500 font-medium">รายวิชาทั้งหมด (เทอม {selectedSemester}/{selectedYear})</p>
+                            <p className="text-sm text-slate-500 font-medium">
+                                รายวิชาทั้งหมด {selectedSemester === "all" ? `(ทั้งปีการศึกษา)` : `(เทอม ${selectedSemester}/${selectedYear})`}
+                            </p>
                             <h3 className="text-3xl font-bold text-slate-800 mt-1">{totalCourses} <span className="text-sm font-normal text-slate-400">วิชา</span></h3>
                         </div>
                         <div className="bg-orange-50 p-3 rounded-full text-orange-600"><BookOpen size={24}/></div>
@@ -147,7 +240,7 @@ export default function AdminDashboard({ session }: { session: any }) {
                 </Card>
             </div>
 
-            {/* Table */}
+            {/* Main Table */}
             <Card className="shadow-sm border border-slate-200 overflow-hidden">
                 <CardHeader className="pb-4 bg-white border-b border-slate-100">
                     <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
@@ -202,33 +295,52 @@ export default function AdminDashboard({ session }: { session: any }) {
                                                     </Button>
                                                 </td>
                                             </tr>
+                                            
                                             {isExpanded && (
                                                 <tr className="bg-slate-50/50 animate-in fade-in duration-200">
-                                                    <td colSpan={4} className="px-6 py-4 pb-6 shadow-inner">
+                                                    <td colSpan={4} className="px-6 py-6 pb-8 shadow-inner">
                                                         <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
                                                             <table className="w-full text-sm">
-                                                                <thead className="bg-slate-100/50 text-xs text-slate-500 font-semibold border-b">
+                                                                <thead className="bg-slate-100/80 text-xs text-slate-500 font-semibold border-b">
                                                                     <tr>
-                                                                        <th className="px-4 py-2 pl-6 text-left">รหัสวิชา</th>
-                                                                        <th className="px-4 py-2 text-left">ชื่อวิชา</th>
-                                                                        <th className="px-4 py-2 text-center">สถานะปัจจุบัน</th>
+                                                                        <th className="px-4 py-3 text-left w-[15%]">ภาคการศึกษา</th>
+                                                                        <th className="px-4 py-3 text-left w-[15%]">รหัสวิชา</th>
+                                                                        <th className="px-4 py-3 text-left w-[45%]">ชื่อวิชา</th>
+                                                                        <th className="px-4 py-3 text-center w-[25%]">สถานะปัจจุบัน</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody className="divide-y divide-slate-50">
-                                                                    {instructor.courses.map((course: any, idx: number) => {
-                                                                        const status = getStatusBadge(course.status);
-                                                                        return (
-                                                                            <tr key={idx} className="hover:bg-slate-50">
-                                                                                <td className="px-4 py-2.5 pl-6 font-mono text-slate-600">{course.code}</td>
-                                                                                <td className="px-4 py-2.5 text-slate-800">{course.name}</td>
-                                                                                <td className="px-4 py-2.5 text-center">
-                                                                                    <span className={cn("px-2.5 py-0.5 rounded-full text-[11px] font-bold border inline-flex items-center", status.color)}>
-                                                                                        {status.text}
-                                                                                    </span>
-                                                                                </td>
-                                                                            </tr>
-                                                                        )
-                                                                    })}
+                                                                    {instructor.courses.length > 0 ? (
+                                                                        instructor.courses
+                                                                            .sort((a: any, b: any) => a.semester - b.semester || a.code.localeCompare(b.code))
+                                                                            .map((course: any, idx: number) => {
+                                                                                const status = getStatusBadge(course.status);
+                                                                                const semBadge = getSemesterBadge(course.semester);
+                                                                                
+                                                                                return (
+                                                                                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                                                                        <td className="px-4 py-3">
+                                                                                            <span className={cn("px-2 py-0.5 rounded text-[10px] font-medium border", semBadge.color)}>
+                                                                                                {semBadge.text}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                        <td className="px-4 py-3 font-mono text-slate-600">{course.code}</td>
+                                                                                        <td className="px-4 py-3 text-slate-800">{course.name}</td>
+                                                                                        <td className="px-4 py-3 text-center">
+                                                                                            <span className={cn("px-2.5 py-0.5 rounded-full text-[11px] font-bold border inline-flex items-center", status.color)}>
+                                                                                                {status.text}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                );
+                                                                            })
+                                                                    ) : (
+                                                                        <tr>
+                                                                            <td colSpan={4} className="py-8 text-center text-slate-400">
+                                                                                ไม่พบข้อมูลรายวิชา
+                                                                            </td>
+                                                                        </tr>
+                                                                    )}
                                                                 </tbody>
                                                             </table>
                                                         </div>
@@ -242,7 +354,7 @@ export default function AdminDashboard({ session }: { session: any }) {
                         </table>
                     ) : (
                         <div className="flex flex-col items-center justify-center h-48 text-slate-400">
-                            <p>ไม่พบข้อมูลรายวิชาในเทอมนี้</p>
+                            <p>ไม่พบข้อมูลรายวิชาในเงื่อนไขนี้</p>
                         </div>
                     )}
                 </div>

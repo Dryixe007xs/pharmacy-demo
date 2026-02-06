@@ -26,30 +26,30 @@ model Curriculum {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String?   @unique
-  name          String?
-  emailVerified DateTime?
-  image         String?
-  title         String?
-  firstName     String?
-  lastName      String?
-  academicRank  String?
-  workStatus    String?
-  department    String?
-  curriculum    String?
-  adminTitle    String?
+  id             String    @id @default(cuid())
+  email          String?   @unique
+  name           String?
+  emailVerified  DateTime?
+  image          String?
+  title          String?
+  firstName      String?
+  lastName       String?
+  academicRank   String?
+  workStatus     String?
+  department     String?
+  curriculum     String?
+  adminTitle     String?
   
-  role          Role      @default(USER)
-  userType      UserType  @default(ACADEMIC)
+  role           Role      @default(USER)
+  userType       UserType  @default(ACADEMIC)
   
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   
-  curriculumId  Int?
+  curriculumId   Int?
   
-  accounts      Account[]
-  sessions      Session[]
+  accounts       Account[]
+  sessions       Session[]
   
   managedCurriculum Curriculum? @relation("CurriculumChair")
   managedPrograms   Program[]   @relation("ProgramChair")
@@ -57,10 +57,10 @@ model User {
   responsibleSubjects Subject[]            @relation("SubjectResponsible")
   teachingAssignments TeachingAssignment[]
   
-  deanApprovals     TeachingAssignment[] @relation("DeanApprovals")
-  chairApprovals    TeachingAssignment[] @relation("ChairApprovals")
+  deanApprovals      TeachingAssignment[] @relation("DeanApprovals")
+  chairApprovals     TeachingAssignment[] @relation("ChairApprovals")
   
-  curriculumRef     Curriculum?          @relation("CurriculumStaff", fields: [curriculumId], references: [id])
+  curriculumRef      Curriculum?          @relation("CurriculumStaff", fields: [curriculumId], references: [id])
 
   @@index([curriculumId], map: "user_curriculumId_fkey")
   @@map("user") 
@@ -160,41 +160,41 @@ model Subject {
 // ==========================================================
 
 model TeachingAssignment {
-  id                 Int             @id @default(autoincrement())
-  academicYear       Int
-  semester           Int
-  section            String?
+  id                  Int             @id @default(autoincrement())
+  academicYear        Int
+  semester            Int
+  section             String?
   
-  lectureHours       Float           @default(0)
-  labHours           Float           @default(0)
-  examHours          Float           @default(0)
-  examCritiqueHours  Float           @default(0)
+  lectureHours        Float           @default(0)
+  labHours            Float           @default(0)
+  examHours           Float           @default(0)
+  examCritiqueHours   Float           @default(0)
 
-  lecturerStatus     ApprovalStatus?
-  lecturerFeedback   String?         @db.Text
-  lecturerActionAt   DateTime?
+  lecturerStatus      ApprovalStatus?
+  lecturerFeedback    String?         @db.Text
+  lecturerActionAt    DateTime?
   
-  responsibleStatus  ApprovalStatus  @default(PENDING)
+  responsibleStatus   ApprovalStatus  @default(PENDING)
   responsibleActionAt DateTime?
   
-  headApprovalStatus ApprovalStatus  @default(PENDING)
-  headApprovedAt     DateTime?
-  headApproverId     String?
+  headApprovalStatus  ApprovalStatus  @default(PENDING)
+  headApprovedAt      DateTime?
+  headApproverId      String?
   
-  deanApprovalStatus ApprovalStatus  @default(PENDING)
-  deanApprovedAt     DateTime?
-  deanApproverId     String?
+  deanApprovalStatus  ApprovalStatus  @default(PENDING)
+  deanApprovedAt      DateTime?
+  deanApproverId      String?
   
-  lecturerId         String
-  subjectId          Int
+  lecturerId          String
+  subjectId           Int
   
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
   
-  deanApprover       User?           @relation("DeanApprovals", fields: [deanApproverId], references: [id])
-  headApprover       User?           @relation("ChairApprovals", fields: [headApproverId], references: [id])
-  lecturer           User            @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
-  subject            Subject         @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  deanApprover        User?           @relation("DeanApprovals", fields: [deanApproverId], references: [id])
+  headApprover        User?           @relation("ChairApprovals", fields: [headApproverId], references: [id])
+  lecturer            User            @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+  subject             Subject         @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
   @@index([lecturerId, academicYear, semester])
   @@index([deanApproverId], map: "teachingassignment_deanApproverId_fkey")
@@ -207,11 +207,22 @@ model TeachingAssignment {
 // 4. SYSTEM CONFIGURATION
 // ==========================================================
 
+model AcademicYear {
+  id           Int      @id
+  isActive     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  terms        TermConfiguration[]
+
+  @@map("academic_year_master")
+}
+
 model TermConfiguration {
   id           String   @id @default(cuid())
   academicYear Int
   semester     Int
-  isActive     Boolean  @default(false)
+  // isActive removed; timeline dates determine current status
 
   step1Start   DateTime?
   step1End     DateTime?
@@ -222,6 +233,7 @@ model TermConfiguration {
   step4Start   DateTime?
   step4End     DateTime?
 
+  yearRef      AcademicYear @relation(fields: [academicYear], references: [id], onDelete: Cascade)
   courseOfferings CourseOffering[]
 
   createdAt    DateTime @default(now())

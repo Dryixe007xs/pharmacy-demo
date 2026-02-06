@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
+// ✅ 1. เพิ่ม useSearchParams และ useRouter
+import { useSearchParams, useRouter } from "next/navigation"; 
 import { 
   Search, PenLine, Plus, Trash2, Edit2, X, User, Check, Loader2, UserPlus, 
   AlertCircle, CheckCircle, Send, Clock, FileText, AlertTriangle, MessageSquare, 
-  ChevronRight, BookOpen, ShieldCheck
+  ChevronRight, Layers, ShieldCheck
 } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
@@ -19,12 +21,12 @@ type Assignment = {
   lectureHours: number;
   labHours: number;
   examHours: number;
-  examCritiqueHours: number; // ✅ รองรับชั่วโมงวิพากษ์
+  examCritiqueHours: number;
   lecturer: {
     id: number;
     firstName: string | null;
     lastName: string | null;
-    title: string | null; // ใช้ title ตาม Schema ใหม่
+    title: string | null;
     email: string;
   };
   lecturerStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DRAFT' | null; 
@@ -49,6 +51,7 @@ type Course = {
   name_th: string;
   name_en: string | null;
   credit: string;
+  semester?: number; 
   program: {
     id: number;
     name_th: string;
@@ -124,7 +127,6 @@ function useCourseLogic(currentUser: any) {
     setLoading(true);
     try {
       const [resCourses, resStaff] = await Promise.all([
-        // ✅ สำคัญ: เรียก API แบบมี Filter Active เพื่อเอาเฉพาะเทอมปัจจุบัน
         fetch("/api/courses?filter=active"),
         fetch("/api/staff")
       ]);
@@ -199,7 +201,7 @@ function useCourseLogic(currentUser: any) {
                 lectureHours: hours.lecture,
                 labHours: hours.lab,
                 examHours: hours.exam,
-                examCritiqueHours: hours.critique, // ✅ ส่งค่าวิพากษ์ไปด้วย
+                examCritiqueHours: hours.critique,
                 lecturerStatus: null 
             };
     
@@ -211,7 +213,7 @@ function useCourseLogic(currentUser: any) {
             
             if (res.ok) {
               await fetchAssignments(selectedCourse!.id);
-              toast.success("บันทึกจำนวนชั่วโมงแล้ว (อย่าลืมกดยืนยัน/ส่งข้อมูล)");
+              toast.success("บันทึกจำนวนชั่วโมงแล้ว");
               return true;
             }
             throw new Error();
@@ -276,7 +278,7 @@ function useCourseLogic(currentUser: any) {
           body: JSON.stringify({
             id,
             lecturerStatus: "APPROVED",
-            responsibleStatus: "APPROVED", // อนุมัติเลยเพราะผู้รับผิดชอบยืนยันเอง
+            responsibleStatus: "APPROVED",
             lecturerFeedback: `[ยืนยันข้อมูลเดิม]: ${reason}`
           })
         });
@@ -331,11 +333,80 @@ function useCourseLogic(currentUser: any) {
 }
 
 // ==========================================
-// 4. MAIN PAGE COMPONENT
+// 4. UI COMPONENT FOR COURSE TABLE SECTION
+// ==========================================
+const CourseTableSection = ({ 
+  title, 
+  courses, 
+  loading, 
+  onOpenModal 
+}: { 
+  title: string, 
+  courses: Course[], 
+  loading: boolean, 
+  currentUser: any,
+  onOpenModal: (c: Course) => void
+}) => {
+  if (!loading && courses.length === 0) return null;
+
+  return (
+    <section className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden mb-8">
+      <div className="p-4 border-b border-slate-100 flex items-center gap-2 bg-slate-50/30">
+        <Layers className="text-purple-600" size={20} />
+        <h3 className="font-bold text-lg text-slate-800">{title} <span className="text-sm font-normal text-slate-500">({courses.length} รายการ)</span></h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50/50 border-b border-slate-200 text-slate-700 text-sm font-semibold uppercase tracking-wider">
+            <tr>
+              <th className="p-4 pl-6 w-[10%]">รหัสวิชา</th>
+              <th className="p-4 w-[25%]">ชื่อรายวิชา</th>
+              <th className="p-4 w-[10%] text-center">หน่วยกิต</th>
+              <th className="p-4 w-[20%]">หลักสูตร</th>
+              <th className="p-4 w-[15%] text-center">สถานะปัจจุบัน</th>
+              <th className="p-4 pr-6 w-[20%] text-center">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-sm">
+            {loading ? (
+               <tr><td colSpan={6} className="p-12 text-center text-slate-400"><div className="flex justify-center items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" /> กำลังโหลดข้อมูล...</div></td></tr>
+            ) : (
+              courses.map(course => (
+                <tr key={course.id} className="hover:bg-slate-50/80 transition-colors group">
+                  <td className="p-4 pl-6 font-medium text-slate-700">{course.code}</td>
+                  <td className="p-4">
+                    <div className="font-semibold text-slate-800">{course.name_th}</div>
+                    <div className="text-xs text-slate-500 font-light mt-0.5">{course.name_en}</div>
+                  </td>
+                  <td className="p-4 text-center"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-medium border border-slate-200">{course.credit}</span></td>
+                  <td className="p-4 text-slate-600">{course.program.name_th}</td>
+                  <td className="p-4 text-center align-middle"><StatusBadge summary={course.summary} /></td>
+                  <td className="p-4 pr-6 text-center">
+                    <button onClick={() => onOpenModal(course)} className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-purple-600 hover:border-purple-200 hover:bg-purple-50 transition-all shadow-sm text-sm font-medium">
+                      <PenLine size={16} /> จัดการ
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+// ==========================================
+// 5. MAIN PAGE COMPONENT
 // ==========================================
 export default function CourseOwnerPage() {
   const { data: session, status } = useSession();
   const currentUser = session?.user;
+  
+  // ✅ 2. รับค่าจาก URL
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const subjectIdFromUrl = searchParams.get('subjectId');
 
   const { 
     courses, staffs, loading, assignments, selectedCourse, 
@@ -358,15 +429,39 @@ export default function CourseOwnerPage() {
     setIsModalOpen(true);
   };
 
+  // ✅ 3. Auto-open modal logic
+  useEffect(() => {
+    // ถ้าโหลดข้อมูลเสร็จแล้ว + มี subjectId ใน URL + Modal ยังไม่เปิด
+    if (!loading && subjectIdFromUrl && courses.length > 0 && !isModalOpen) {
+      const targetCourse = courses.find(c => String(c.id) === String(subjectIdFromUrl));
+      if (targetCourse) {
+        handleOpenModal(targetCourse);
+        // (Optional) ล้าง URL เพื่อไม่ให้ refresh แล้วเด้งเปิดอีก ถ้าต้องการ
+        // router.replace('/dashboard/workload/owner', { scroll: false });
+      } else {
+        toast.error("ไม่พบรายวิชา หรือคุณไม่มีสิทธิ์จัดการ");
+      }
+    }
+  }, [loading, subjectIdFromUrl, courses]);
+
+  // 1. กรองข้อมูลเบื้องต้น
   const filteredCourses = useMemo(() => {
     return courses.filter(c => {
         if (!currentUser) return false;
-        // กรองเฉพาะวิชาที่ user นี้รับผิดชอบ
         const isOwner = String(c.responsibleUserId) === String(currentUser.id);
         const searchLower = searchTerm.toLowerCase();
         return isOwner && (c.code.toLowerCase().includes(searchLower) || c.name_th.toLowerCase().includes(searchLower));
     });
   }, [courses, currentUser, searchTerm]);
+
+  // 2. แยกกลุ่มตามภาคการศึกษา
+  const groupedCourses = useMemo(() => {
+    return {
+      semester1: filteredCourses.filter(c => c.semester === 1 || !c.semester),
+      semester2: filteredCourses.filter(c => c.semester === 2),
+      summer: filteredCourses.filter(c => c.semester === 3),
+    };
+  }, [filteredCourses]);
 
   if (status === 'loading' || (!currentUser && loading)) {
       return <div className="flex h-screen items-center justify-center text-slate-400">กำลังโหลดข้อมูล...</div>;
@@ -403,52 +498,18 @@ export default function CourseOwnerPage() {
         </div>
       </section>
 
-      {/* Course Table */}
-      <section className="bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden mb-8">
-        <div className="p-6 border-b border-slate-100 flex items-center gap-2">
-             <BookOpen className="text-slate-700" size={20} />
-             <h3 className="font-bold text-lg text-slate-800">รายวิชาที่รับผิดชอบ ({filteredCourses.length} รายการ)</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50/50 border-b border-slate-200 text-slate-700 text-sm font-semibold uppercase tracking-wider">
-              <tr>
-                <th className="p-4 pl-6 w-[10%]">รหัสวิชา</th>
-                <th className="p-4 w-[25%]">ชื่อรายวิชา</th>
-                <th className="p-4 w-[10%] text-center">หน่วยกิต</th>
-                <th className="p-4 w-[20%]">หลักสูตร</th>
-                <th className="p-4 w-[15%] text-center">สถานะปัจจุบัน</th>
-                <th className="p-4 pr-6 w-[20%] text-center">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {loading ? (
-                <tr><td colSpan={6} className="p-12 text-center text-slate-400"><div className="flex justify-center items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" /> กำลังโหลดข้อมูล...</div></td></tr>
-              ) : filteredCourses.length > 0 ? (
-                filteredCourses.map(course => (
-                  <tr key={course.id} className="hover:bg-slate-50/80 transition-colors group">
-                    <td className="p-4 pl-6 font-medium text-slate-700">{course.code}</td>
-                    <td className="p-4">
-                      <div className="font-semibold text-slate-800">{course.name_th}</div>
-                      <div className="text-xs text-slate-500 font-light mt-0.5">{course.name_en}</div>
-                    </td>
-                    <td className="p-4 text-center"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-medium border border-slate-200">{course.credit}</span></td>
-                    <td className="p-4 text-slate-600">{course.program.name_th}</td>
-                    <td className="p-4 text-center align-middle"><StatusBadge summary={course.summary} /></td>
-                    <td className="p-4 pr-6 text-center">
-                      <button onClick={() => handleOpenModal(course)} className="inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-purple-600 hover:border-purple-200 hover:bg-purple-50 transition-all shadow-sm text-sm font-medium">
-                        <PenLine size={16} /> จัดการ
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td colSpan={6} className="p-16 text-center text-slate-400 flex flex-col items-center justify-center gap-2"><Search size={32} className="opacity-20"/>{currentUser ? "ไม่พบรายวิชาที่คุณรับผิดชอบในเทอมนี้" : "ไม่พบข้อมูลผู้ใช้งาน"}</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      {/* Course Tables แยกตามเทอม */}
+      {loading ? (
+         <div className="p-16 text-center text-slate-400 flex flex-col items-center justify-center gap-2"><Loader2 className="w-8 h-8 animate-spin" /> กำลังโหลดรายวิชา...</div>
+      ) : filteredCourses.length === 0 ? (
+         <div className="p-16 text-center text-slate-400 flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl"><Search size={32} className="opacity-20"/>{currentUser ? "ไม่พบรายวิชาที่คุณรับผิดชอบ" : "ไม่พบข้อมูลผู้ใช้งาน"}</div>
+      ) : (
+        <>
+          <CourseTableSection title="ภาคการศึกษาต้น" courses={groupedCourses.semester1} loading={loading} currentUser={currentUser} onOpenModal={handleOpenModal} />
+          <CourseTableSection title="ภาคการศึกษาปลาย" courses={groupedCourses.semester2} loading={loading} currentUser={currentUser} onOpenModal={handleOpenModal} />
+          <CourseTableSection title="ภาคฤดูร้อน" courses={groupedCourses.summer} loading={loading} currentUser={currentUser} onOpenModal={handleOpenModal} />
+        </>
+      )}
 
       {/* Modal */}
       {isModalOpen && selectedCourse && (
@@ -466,7 +527,7 @@ export default function CourseOwnerPage() {
 }
 
 // ==========================================
-// 5. MODAL SUB-COMPONENTS
+// 6. MODAL SUB-COMPONENTS
 // ==========================================
 
 function CourseModal({ course, assignments, currentUser, staffs, onClose, actions }: any) {
@@ -477,7 +538,7 @@ function CourseModal({ course, assignments, currentUser, staffs, onClose, action
     const isRejectedByChair = assignments.some((a: Assignment) => a.headApprovalStatus === 'REJECTED' || a.responsibleStatus === 'REJECTED');
     const isReadyToSubmit = assignments.length > 0 && assignments.every((a: Assignment) => a.lecturerStatus === 'APPROVED');
     const isSubmitted = assignments.length > 0 && assignments.every((a: Assignment) => a.responsibleStatus === 'APPROVED');
-    // ล็อคถ้าส่งแล้ว และไม่โดนตีกลับ
+    
     const isLocked = isSubmitted && !isRejectedByChair;
 
     const handleSubmit = async () => {
@@ -517,6 +578,10 @@ function CourseModal({ course, assignments, currentUser, staffs, onClose, action
                         <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">{course.code} {course.name_th}</h2>
                         <div className="flex items-center gap-2 mt-1">
                             <span className="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded border border-purple-200 font-medium">{course.credit} หน่วยกิต</span>
+                            {/* ✅ แสดงเทอมใน Modal */}
+                            <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded border border-slate-200 font-medium">
+                                {course.semester === 3 ? "ภาคฤดูร้อน" : course.semester === 2 ? "ภาคปลาย" : "ภาคต้น"}
+                            </span>
                             <p className="text-sm text-slate-500">{course.program.name_th}</p>
                         </div>
                     </div>
@@ -619,7 +684,6 @@ function AssignmentRow({ assignment: a, actions, isLocked, currentUser }: any) {
     const [isResolving, setIsResolving] = useState(false);
     const [resolveReason, setResolveReason] = useState("");
     
-    // ✅ State เป็น string | number เพื่อให้ลบเลข 0 ได้ (Input จะได้ไม่ค้างเลข 0)
     const [hours, setHours] = useState<{lecture: string|number, lab: string|number, exam: string|number, critique: string|number}>({ 
         lecture: a.lectureHours, 
         lab: a.labHours, 
@@ -630,7 +694,6 @@ function AssignmentRow({ assignment: a, actions, isLocked, currentUser }: any) {
     const isRejected = a.lecturerStatus === 'REJECTED';
     const isSelf = String(currentUser?.id) === String(a.lecturerId); 
     const totalHours = (Number(hours.lecture) || 0) + (Number(hours.lab) || 0) + (Number(hours.exam) || 0) + (Number(hours.critique) || 0);
-    
     const isSent = a.lecturerStatus === 'PENDING' || a.lecturerStatus === 'APPROVED';
 
     const handleInputChange = (field: keyof typeof hours, value: string) => {
@@ -802,7 +865,7 @@ function AssignmentRow({ assignment: a, actions, isLocked, currentUser }: any) {
 }
 
 // ==========================================
-// 6. SUCCESS OVERLAY COMPONENT (POPUP)
+// 7. SUCCESS OVERLAY COMPONENT (POPUP)
 // ==========================================
 const SuccessOverlay = () => (
     <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-white/95 backdrop-blur-md animate-in fade-in duration-300">

@@ -1,17 +1,25 @@
-// app/api/report/yearly/route.ts
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
-const prisma = new PrismaClient();
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const year = searchParams.get("year") || "2567";
+    const yearParam = searchParams.get("year");
     const curriculum = searchParams.get("curriculum");
 
+    // 1. หาปีการศึกษา (Active Term Fallback)
+    let targetYear = yearParam ? parseInt(yearParam) : undefined;
+    if (!targetYear) {
+        const activeTerm = await prisma.termConfiguration.findFirst({ where: { isActive: true } });
+        targetYear = activeTerm?.academicYear || 2567;
+    }
+
+    // 2. สร้างเงื่อนไข Where
     let whereClause: any = {
-        academicYear: Number(year) 
+        academicYear: targetYear,
+        // deanApprovalStatus: 'APPROVED' // (Optional: เปิดบรรทัดนี้ถ้าจะเอาเฉพาะที่อนุมัติแล้ว)
     };
 
     if (curriculum && curriculum !== 'all') {
@@ -22,7 +30,7 @@ export async function GET(req: Request) {
         };
     }
 
-    // 1. Assignments
+    // 3. Query Assignments
     const assignments = await prisma.teachingAssignment.findMany({
       where: whereClause,
       include: {
@@ -31,8 +39,7 @@ export async function GET(req: Request) {
             id: true, 
             firstName: true, 
             lastName: true, 
-            title: true, // ✅ ใช้ title เป็นหลัก
-            // academicPosition: true // ❌ เอาออกตามที่สั่ง
+            title: true, // ใช้ title แทน academicPosition
           }
         },
         subject: {
@@ -47,32 +54,43 @@ export async function GET(req: Request) {
           }
         }
       },
-      orderBy: { subject: { code: 'asc' } }
+      orderBy: [
+        { semester: 'asc' },
+        { subject: { code: 'asc' } }
+      ]
     });
 
-    // 2. Vice Dean
+    // 4. Vice Dean Query
     const viceDeanRaw = await prisma.user.findFirst({
-      where: { role: 'VICE_DEAN' },
-      select: { firstName: true, lastName: true, title: true, adminTitle: true } // ✅ title only
+      where: { 
+        OR: [
+            { role: 'VICE_DEAN' },
+            { adminTitle: { contains: 'รองคณบดี' } } 
+        ]
+      },
+      select: { firstName: true, lastName: true, title: true, adminTitle: true }
     });
 
     const viceDean = viceDeanRaw ? {
-        ...viceDeanRaw,
-        academicPosition: viceDeanRaw.title, // Map title -> academicPosition เพื่อให้ Frontend ใช้ง่าย
+        firstName: viceDeanRaw.firstName,
+        lastName: viceDeanRaw.lastName,
+        academicPosition: viceDeanRaw.title,
+        adminTitle: viceDeanRaw.adminTitle || "รองคณบดีฝ่ายวิชาการ"
     } : null;
 
-    // 3. Program Chair
+    // 5. Program Chair Query
     let programChair = null;
     
     if (curriculum && curriculum !== 'all') {
         const program = await prisma.program.findFirst({
             where: { name_th: curriculum }, 
             include: {
-                programChair: {
+                // ✅ ใช้ programChair ให้ตรงกับ Schema
+                programChair: { 
                     select: { 
                         firstName: true, 
                         lastName: true, 
-                        title: true, // ✅ title only
+                        title: true, 
                         adminTitle: true
                     }
                 }
@@ -83,7 +101,8 @@ export async function GET(req: Request) {
             programChair = {
                 firstName: program.programChair.firstName,
                 lastName: program.programChair.lastName,
-                academicPosition: program.programChair.title // Map title -> academicPosition
+                academicPosition: program.programChair.title,
+                adminTitle: "ประธานหลักสูตร"
             };
         }
     }
