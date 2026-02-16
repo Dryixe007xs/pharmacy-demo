@@ -276,10 +276,10 @@ function useAssignmentActions(onSuccess: () => void) {
           <div style="text-align: left; padding: 1rem;">
             <p><strong>รายวิชา:</strong> ${courseInfo}</p>
             ${isExternal ? `<p><strong>คณะ:</strong> ${assignment.externalFaculty || "ไม่ระบุ"}</p>` : ""}
-            <p><strong>บรรยาย:</strong> ${assignment.lectureHours} ชม.</p>
-            <p><strong>ปฏิบัติ:</strong> ${assignment.labHours} ชม.</p>
-            <p><strong>คุมสอบ:</strong> ${assignment.examHours || 0} ชม.</p>
-            <p><strong>วิพากษ์:</strong> ${assignment.examCritiqueHours || 0} หัวข้อ</p>
+            <p><strong>บรรยาย(ชม.):</strong> ${assignment.lectureHours} ชม.</p>
+            <p><strong>ปฏิบัติ(ชม.):</strong> ${assignment.labHours} ชม.</p>
+            <p><strong>คุมสอบนอกตาราง(ชม.):</strong> ${assignment.examHours || 0} ชม.</p>
+            <p><strong>วิพากษ์ข้อสอบ(หัวข้อ):</strong> ${assignment.examCritiqueHours || 0} หัวข้อ</p>
             <hr style="margin: 1rem 0;">
             <p style="color: #666; font-size: 0.9rem;">
               การยืนยันหมายถึงท่านยอมรับว่าข้อมูลถูกต้อง
@@ -1148,7 +1148,7 @@ export default function InstructorWorkloadPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700 text-center block">
-                    ชั่วโมงคุมสอบ
+                    ชั่วโมงคุมสอบนอกตาราง
                   </Label>
                   <Input
                     type="number"

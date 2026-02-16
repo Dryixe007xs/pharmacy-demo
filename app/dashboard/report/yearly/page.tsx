@@ -314,7 +314,7 @@ export default function YearlyReportPage() {
                   <th className="py-4 px-4 text-left w-[25%]">ผู้สอน / บทบาท</th>
                   <th className="py-4 px-2 text-center w-[10%]">บรรยาย (ชม.)</th>
                   <th className="py-4 px-2 text-center w-[10%]">ปฏิบัติ (ชม.)</th>
-                  <th className="py-4 px-2 text-center w-[10%]">คุมสอบ (ชม.)</th>
+                  <th className="py-4 px-2 text-center w-[10%]">คุมสอบนอกตาราง (ชม.)</th>
                   <th className="py-4 px-2 text-center w-[15%] text-purple-700 bg-purple-50/20">
                     วิพากษ์ข้อสอบ (หัวข้อ)*
                   </th>
