@@ -42,6 +42,7 @@ const SEMESTER_CONFIG = {
 
 // ===== TYPES =====
 type LecturerStatus = "PENDING" | "APPROVED" | "REJECTED" | "DRAFT";
+type CourseType = "INTERNAL" | "EXTERNAL";
 
 type Assignment = {
   id: number;
@@ -53,6 +54,14 @@ type Assignment = {
   examCritiqueHours: number;
   lecturerStatus: LecturerStatus;
   lecturerFeedback?: string;
+
+  // ฟิลด์สำหรับวิชานอกคณะ
+  courseType?: CourseType;
+  externalFaculty?: string | null;
+  externalCourseCode?: string | null;
+  externalCourseName?: string | null;
+  evidenceLink?: string | null;
+
   subject: {
     code: string;
     name_th: string;
@@ -73,6 +82,7 @@ type ExternalCourseForm = {
   lectureHours: number;
   labHours: number;
   examHours: number;
+  examCritiqueHours: number;
   evidenceLink: string;
 };
 
@@ -152,7 +162,7 @@ const Modal = ({
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 };
 
@@ -162,7 +172,7 @@ const Modal = ({
  */
 function filterValidAssignments(assignments: Assignment[]): Assignment[] {
   return assignments.filter(
-    (a) => a.lecturerStatus !== "DRAFT" && a.lecturerStatus !== null
+    (a) => a.lecturerStatus !== "DRAFT" && a.lecturerStatus !== null,
   );
 }
 
@@ -174,7 +184,10 @@ function calculateTotals(assignments: Assignment[]) {
     lecture: assignments.reduce((sum, a) => sum + a.lectureHours, 0),
     lab: assignments.reduce((sum, a) => sum + a.labHours, 0),
     exam: assignments.reduce((sum, a) => sum + (a.examHours || 0), 0),
-    critique: assignments.reduce((sum, a) => sum + (a.examCritiqueHours || 0), 0),
+    critique: assignments.reduce(
+      (sum, a) => sum + (a.examCritiqueHours || 0),
+      0,
+    ),
   };
 }
 
@@ -185,10 +198,19 @@ function validateExternalCourseForm(form: ExternalCourseForm): string | null {
   if (!form.faculty.trim()) return "กรุณากรอกชื่อคณะ/หน่วยงาน";
   if (!form.code.trim()) return "กรุณากรอกรหัสวิชา";
   if (!form.nameTh.trim()) return "กรุณากรอกชื่อรายวิชา (ไทย)";
-  if (form.lectureHours < 0 || form.labHours < 0 || form.examHours < 0) {
+  if (form.lectureHours < 0 || form.labHours < 0 || form.examHours < 0 || form.examCritiqueHours < 0) {
     return "ชั่วโมงต้องไม่ติดลบ";
   }
   return null;
+}
+
+/**
+ * ตรวจสอบว่าเป็นวิชานอกคณะหรือไม่
+ */
+function isExternalCourse(assignment: Assignment): boolean {
+  return (
+    assignment.courseType === "EXTERNAL" || !!assignment.externalCourseCode
+  );
 }
 
 // ===== CUSTOM HOOKS =====
@@ -211,7 +233,9 @@ function useInstructorAssignments(userId: string | undefined) {
     setError(null);
 
     try {
-      const resAssign = await fetch(`/api/assignments?lecturerId=${userId}&scope=year`);
+      const resAssign = await fetch(
+        `/api/assignments?lecturerId=${userId}&scope=year`,
+      );
 
       if (!resAssign.ok) {
         throw new Error(`API Error: ${resAssign.status}`);
@@ -221,9 +245,7 @@ function useInstructorAssignments(userId: string | undefined) {
       setAssignments(Array.isArray(dataAssign) ? dataAssign : []);
     } catch (err) {
       const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "เกิดข้อผิดพลาดในการโหลดข้อมูล";
+        err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการโหลดข้อมูล";
       setError(errorMessage);
       console.error("Error loading data:", err);
       toast.error(errorMessage);
@@ -243,11 +265,17 @@ function useAssignmentActions(onSuccess: () => void) {
 
   const verify = useCallback(
     async (assignment: Assignment) => {
+      const isExternal = isExternalCourse(assignment);
+      const courseInfo = isExternal
+        ? `${assignment.externalCourseCode || "N/A"} ${assignment.externalCourseName || "ไม่ระบุชื่อวิชา"}`
+        : `${assignment.subject.code} ${assignment.subject.name_th}`;
+
       const result = await Swal.fire({
         title: "ยืนยันข้อมูลชั่วโมงสอน?",
         html: `
           <div style="text-align: left; padding: 1rem;">
-            <p><strong>รายวิชา:</strong> ${assignment.subject.code} ${assignment.subject.name_th}</p>
+            <p><strong>รายวิชา:</strong> ${courseInfo}</p>
+            ${isExternal ? `<p><strong>คณะ:</strong> ${assignment.externalFaculty || "ไม่ระบุ"}</p>` : ""}
             <p><strong>บรรยาย:</strong> ${assignment.lectureHours} ชม.</p>
             <p><strong>ปฏิบัติ:</strong> ${assignment.labHours} ชม.</p>
             <p><strong>คุมสอบ:</strong> ${assignment.examHours || 0} ชม.</p>
@@ -301,9 +329,7 @@ function useAssignmentActions(onSuccess: () => void) {
         await Swal.fire({
           title: "เกิดข้อผิดพลาด",
           text:
-            error instanceof Error
-              ? error.message
-              : "ไม่สามารถบันทึกข้อมูลได้",
+            error instanceof Error ? error.message : "ไม่สามารถบันทึกข้อมูลได้",
           icon: "error",
           confirmButtonText: "ตกลง",
         });
@@ -311,21 +337,28 @@ function useAssignmentActions(onSuccess: () => void) {
         setProcessingId(null);
       }
     },
-    [onSuccess]
+    [onSuccess],
   );
 
   const dispute = useCallback(
     async (assignment: Assignment, existingFeedback?: string) => {
+      const isExternal = isExternalCourse(assignment);
+      const courseInfo = isExternal
+        ? `${assignment.externalCourseCode || "N/A"} ${assignment.externalCourseName || "ไม่ระบุชื่อวิชา"}`
+        : `${assignment.subject.code} ${assignment.subject.name_th}`;
+
       const { value: feedback } = await Swal.fire({
         title: "แจ้งขอแก้ไขข้อมูล",
         html: `
           <div style="text-align: left; margin-bottom: 1rem;">
-            <p><strong>รายวิชา:</strong> ${assignment.subject.code} ${assignment.subject.name_th}</p>
+            <p><strong>รายวิชา:</strong> ${courseInfo}</p>
+            ${isExternal ? `<p><strong>คณะ:</strong> ${assignment.externalFaculty || "ไม่ระบุ"}</p>` : ""}
           </div>
         `,
         input: "textarea",
         inputLabel: "ระบุสิ่งที่ต้องการแก้ไข",
-        inputPlaceholder: "เช่น ชั่วโมงบรรยายจริงคือ 15 ชม. หรือ ผมไม่ได้สอนวิชานี้...",
+        inputPlaceholder:
+          "เช่น ชั่วโมงบรรยายจริงคือ 15 ชม. หรือ ผมไม่ได้สอนวิชานี้...",
         inputValue: existingFeedback || "",
         showCancelButton: true,
         confirmButtonColor: "#dc2626",
@@ -373,10 +406,7 @@ function useAssignmentActions(onSuccess: () => void) {
 
         await Swal.fire({
           title: "เกิดข้อผิดพลาด",
-          text:
-            error instanceof Error
-              ? error.message
-              : "ไม่สามารถส่งคำขอได้",
+          text: error instanceof Error ? error.message : "ไม่สามารถส่งคำขอได้",
           icon: "error",
           confirmButtonText: "ตกลง",
         });
@@ -384,7 +414,7 @@ function useAssignmentActions(onSuccess: () => void) {
         setProcessingId(null);
       }
     },
-    [onSuccess]
+    [onSuccess],
   );
 
   return { verify, dispute, processingId };
@@ -442,9 +472,7 @@ function useExternalCourse(userId: string | undefined, onSuccess: () => void) {
         await Swal.fire({
           title: "เกิดข้อผิดพลาด",
           text:
-            error instanceof Error
-              ? error.message
-              : "ไม่สามารถบันทึกข้อมูลได้",
+            error instanceof Error ? error.message : "ไม่สามารถบันทึกข้อมูลได้",
           icon: "error",
           confirmButtonText: "ตกลง",
         });
@@ -452,7 +480,7 @@ function useExternalCourse(userId: string | undefined, onSuccess: () => void) {
         setIsSubmitting(false);
       }
     },
-    [userId, onSuccess]
+    [userId, onSuccess],
   );
 
   return { submitExternalCourse, isSubmitting };
@@ -468,6 +496,7 @@ export default function InstructorWorkloadPage() {
   const [isDisputeOpen, setIsDisputeOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Assignment | null>(null);
+  const [activeYear, setActiveYear] = useState<number | null>(null);
 
   // External Course Form
   const [externalCourseForm, setExternalCourseForm] =
@@ -479,12 +508,13 @@ export default function InstructorWorkloadPage() {
       lectureHours: 0,
       labHours: 0,
       examHours: 0,
+      examCritiqueHours: 0,
       evidenceLink: "",
     });
 
   // Custom Hooks
   const { assignments, loading, error, refetch } = useInstructorAssignments(
-    currentUser?.id
+    currentUser?.id,
   );
   const { verify, dispute, processingId } = useAssignmentActions(refetch);
   const { submitExternalCourse, isSubmitting } = useExternalCourse(
@@ -499,10 +529,11 @@ export default function InstructorWorkloadPage() {
         lectureHours: 0,
         labHours: 0,
         examHours: 0,
+        examCritiqueHours: 0,
         evidenceLink: "",
       });
       refetch();
-    }
+    },
   );
 
   // Effects
@@ -512,23 +543,52 @@ export default function InstructorWorkloadPage() {
     }
   }, [status, currentUser?.id, refetch]);
 
+  // Fetch active academic year
+  useEffect(() => {
+    const fetchActiveYear = async () => {
+      try {
+        const res = await fetch("/api/term-config/active");
+        if (res.ok) {
+          const data = await res.json();
+          setActiveYear(data.academicYear);
+        }
+      } catch (error) {
+        console.error("Error fetching active year:", error);
+      }
+    };
+    fetchActiveYear();
+  }, []);
+
   // Memoized Values
   const validAssignments = useMemo(
     () => filterValidAssignments(assignments),
-    [assignments]
+    [assignments],
   );
 
   const filteredAssignments = useMemo(() => {
-    return validAssignments.filter(
-      (a) =>
-        a.subject.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        a.subject.name_th.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    return validAssignments.filter((a) => {
+      const searchLower = searchTerm.toLowerCase();
+
+      if (isExternalCourse(a)) {
+        return (
+          (a.externalCourseCode?.toLowerCase().includes(searchLower) ??
+            false) ||
+          (a.externalCourseName?.toLowerCase().includes(searchLower) ??
+            false) ||
+          (a.externalFaculty?.toLowerCase().includes(searchLower) ?? false)
+        );
+      } else {
+        return (
+          a.subject?.code?.toLowerCase().includes(searchLower) ||
+          a.subject?.name_th?.toLowerCase().includes(searchLower)
+        );
+      }
+    });
   }, [validAssignments, searchTerm]);
 
   const totals = useMemo(
     () => calculateTotals(filteredAssignments),
-    [filteredAssignments]
+    [filteredAssignments],
   );
 
   const statusCounts = useMemo(() => {
@@ -536,10 +596,10 @@ export default function InstructorWorkloadPage() {
       pending: filteredAssignments.filter((a) => a.lecturerStatus === "PENDING")
         .length,
       approved: filteredAssignments.filter(
-        (a) => a.lecturerStatus === "APPROVED"
+        (a) => a.lecturerStatus === "APPROVED",
       ).length,
       rejected: filteredAssignments.filter(
-        (a) => a.lecturerStatus === "REJECTED"
+        (a) => a.lecturerStatus === "REJECTED",
       ).length,
     };
   }, [filteredAssignments]);
@@ -641,7 +701,7 @@ export default function InstructorWorkloadPage() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="w-full md:flex-1 max-w-2xl space-y-2">
             <Label className="text-sm font-medium text-slate-600">
-              ค้นหารหัสวิชา / ชื่อวิชา
+              ค้นหารหัสวิชา / ชื่อวิชา / คณะ
             </Label>
             <div className="relative">
               <Input
@@ -672,7 +732,7 @@ export default function InstructorWorkloadPage() {
       <main className="bg-white rounded-2xl border border-slate-200 shadow-md p-6">
         <div className="text-center mb-6">
           <h3 className="font-bold text-xl text-slate-800">
-            ตรวจสอบข้อมูลชั่วโมงปฏิบัติการ/บรรยาย ปีการศึกษา 2567
+            ตรวจสอบข้อมูลชั่วโมงปฏิบัติการ/บรรยาย ปีการศึกษา {activeYear || "..."}
           </h3>
           <p className="text-slate-600 mt-1">
             สถานะข้อมูล:{" "}
@@ -684,84 +744,116 @@ export default function InstructorWorkloadPage() {
 
         {/* Table */}
         <div className="rounded-xl border overflow-hidden">
-          <div className="rounded-xl border overflow-hidden">
-            {loading ? (
-              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                <Loader2 className="w-10 h-10 mb-4 text-purple-500 animate-spin" />
-                <p className="text-lg">กำลังโหลดข้อมูล...</p>
-              </div>
-            ) : error ? (
-              <div className="py-16 text-center">
-                <AlertOctagon className="w-16 h-16 mx-auto mb-4 text-red-400" />
-                <h3 className="text-lg font-bold text-red-600">
-                  เกิดข้อผิดพลาด
-                </h3>
-                <p className="text-red-500 mt-2">{error}</p>
-                <button
-                  onClick={refetch}
-                  className="mt-4 px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors"
-                >
-                  ลองใหม่อีกครั้ง
-                </button>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50">
-                  <TableRow>
-                    <TableHead className="font-bold text-slate-700 w-[30%]">
-                      {" "}
-                      {/* เพิ่ม w-[30%] */}
-                      รหัสวิชา / ชื่อรายวิชา
-                    </TableHead>
-                    <TableHead className="text-center font-bold text-slate-700 w-[8%]">
-                      {" "}
-                      {/* เพิ่ม w-[8%] */}
-                      ภาคการศึกษา
-                    </TableHead>
-                    <TableHead className="text-center font-bold text-slate-700 w-[6%]">
-                      หน่วยกิต
-                    </TableHead>
-                    <TableHead className="text-center font-bold text-slate-700 w-[8%]">
-                      บทบาท
-                    </TableHead>
-                    <TableHead className="text-center font-bold text-slate-700 w-[8%]">
-                      บรรยาย (ชม.)
-                    </TableHead>
-                    <TableHead className="text-center font-bold text-slate-700 w-[8%]">
-                      ปฏิบัติการ (ชม.)
-                    </TableHead>
-                    <TableHead className="text-center font-bold text-slate-700 w-[8%]">
-                      คุมสอบนอกตาราง (ชม.)
-                    </TableHead>
-                    <TableHead className="text-center font-bold text-slate-700 w-[8%]">
-                      วิพากษ์ข้อสอบ (หัวข้อ)
-                    </TableHead>
-                    <TableHead className="text-center font-bold text-slate-700 w-[16%]">
-                      {" "}
-                      {/* ลบ min-w-[200px] */}
-                      สถานะการยืนยัน
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredAssignments.length > 0 ? (
-                    <>
-                      {filteredAssignments.map((item) => (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+              <Loader2 className="w-10 h-10 mb-4 text-purple-500 animate-spin" />
+              <p className="text-lg">กำลังโหลดข้อมูล...</p>
+            </div>
+          ) : error ? (
+            <div className="py-16 text-center">
+              <AlertOctagon className="w-16 h-16 mx-auto mb-4 text-red-400" />
+              <h3 className="text-lg font-bold text-red-600">เกิดข้อผิดพลาด</h3>
+              <p className="text-red-500 mt-2">{error}</p>
+              <button
+                onClick={refetch}
+                className="mt-4 px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors"
+              >
+                ลองใหม่อีกครั้ง
+              </button>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50">
+                <TableRow>
+                  <TableHead className="font-bold text-slate-700 w-[30%]">
+                    รหัสวิชา / ชื่อรายวิชา
+                  </TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">
+                    ภาคการศึกษา
+                  </TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-[6%]">
+                    หน่วยกิต
+                  </TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">
+                    บทบาท
+                  </TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">
+                    บรรยาย (ชม.)
+                  </TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">
+                    ปฏิบัติการ (ชม.)
+                  </TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">
+                    คุมสอบนอกตาราง (ชม.)
+                  </TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">
+                    วิพากษ์ข้อสอบ (หัวข้อ)
+                  </TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-[16%]">
+                    สถานะการยืนยัน
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAssignments.length > 0 ? (
+                  <>
+                    {filteredAssignments.map((item) => {
+                      const isExternal = isExternalCourse(item);
+
+                      return (
                         <TableRow
                           key={item.id}
                           className="hover:bg-purple-50/30 transition-colors"
                         >
                           <TableCell>
-                            <div className="font-semibold text-slate-800">
-                              {item.subject.code}
+                            <div className="flex items-center gap-2 mb-1">
+                              {isExternal && (
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                                    🏛️ นอกคณะ
+                                  </span>
+                                </div>
+                              )}
                             </div>
-                            <div className="text-slate-600 text-sm">
-                              {item.subject.name_th}
-                            </div>
-                            <div className="text-xs text-slate-400 mt-1 inline-block bg-slate-100 px-2 py-0.5 rounded">
-                              {item.subject.program?.name_th}
-                            </div>
+
+                            {isExternal ? (
+                              <>
+                                <div className="font-semibold text-slate-800">
+                                  {item.externalCourseCode || "N/A"}
+                                </div>
+                                <div className="text-slate-600 text-sm">
+                                  {item.externalCourseName || "ไม่ระบุชื่อวิชา"}
+                                </div>
+                                <div className="text-xs text-slate-400 mt-1 inline-block bg-slate-100 px-2 py-0.5 rounded">
+                                  {item.externalFaculty || "ไม่ระบุคณะ"}
+                                </div>
+                                {item.evidenceLink && (
+                                  <a
+                                    href={item.evidenceLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 mt-1"
+                                  >
+                                    <LinkIcon size={12} />
+                                    ดูเอกสารอ้างอิง
+                                  </a>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <div className="font-semibold text-slate-800">
+                                  {item.subject?.code || "N/A"}
+                                </div>
+                                <div className="text-slate-600 text-sm">
+                                  {item.subject?.name_th || "ไม่ระบุ"}
+                                </div>
+                                <div className="text-xs text-slate-400 mt-1 inline-block bg-slate-100 px-2 py-0.5 rounded">
+                                  {item.subject?.program?.name_th || "ไม่ระบุ"}
+                                </div>
+                              </>
+                            )}
                           </TableCell>
+
                           <TableCell className="text-center">
                             {(() => {
                               const sem = item.semester || 1;
@@ -786,16 +878,23 @@ export default function InstructorWorkloadPage() {
                               );
                             })()}
                           </TableCell>
+
                           <TableCell className="text-center">
-                            <span className="bg-purple-50 text-purple-600 px-2.5 py-1 rounded text-xs font-semibold border border-purple-100">
-                              {item.subject.credit || "-"}
-                            </span>
+                            {isExternal ? (
+                              <span className="text-slate-400 text-xs">-</span>
+                            ) : (
+                              <span className="bg-purple-50 text-purple-600 px-2.5 py-1 rounded text-xs font-semibold border border-purple-100">
+                                {item.subject?.credit || "-"}
+                              </span>
+                            )}
                           </TableCell>
+
                           <TableCell className="text-center text-slate-600">
                             <span className="bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-1 rounded text-xs font-semibold">
                               ผู้สอน
                             </span>
                           </TableCell>
+
                           <TableCell className="text-center font-semibold text-slate-700">
                             {item.lectureHours}
                           </TableCell>
@@ -808,6 +907,7 @@ export default function InstructorWorkloadPage() {
                           <TableCell className="text-center font-semibold text-slate-700">
                             {item.examCritiqueHours || 0}
                           </TableCell>
+
                           <TableCell className="text-center">
                             {item.lecturerStatus === "APPROVED" ? (
                               <div className="flex items-center justify-center gap-2 text-green-600 font-semibold text-sm bg-green-50 py-1.5 px-3 rounded-full w-fit mx-auto border border-green-200">
@@ -862,50 +962,50 @@ export default function InstructorWorkloadPage() {
                             )}
                           </TableCell>
                         </TableRow>
-                      ))}
+                      );
+                    })}
 
-                      {/* Total Row */}
-                      <TableRow className="bg-gradient-to-r from-purple-50 to-pink-50 font-bold border-t-2 border-purple-200">
-                        <TableCell
-                          colSpan={4}
-                          className="text-right pr-6 text-slate-500"
-                        >
-                          รวมชั่วโมงทั้งหมด
-                        </TableCell>
-                        <TableCell className="text-center text-purple-700 text-lg">
-                          {totals.lecture}
-                        </TableCell>
-                        <TableCell className="text-center text-purple-700 text-lg">
-                          {totals.lab}
-                        </TableCell>
-                        <TableCell className="text-center text-purple-700 text-lg">
-                          {totals.exam}
-                        </TableCell>
-                        <TableCell className="text-center text-purple-700 text-lg">
-                          {totals.critique}
-                        </TableCell>
-                        <TableCell></TableCell>
-                      </TableRow>
-                    </>
-                  ) : (
-                    <TableRow>
+                    {/* Total Row */}
+                    <TableRow className="bg-gradient-to-r from-purple-50 to-pink-50 font-bold border-t-2 border-purple-200">
                       <TableCell
-                        colSpan={9}
-                        className="text-center p-12 text-slate-400"
+                        colSpan={4}
+                        className="text-right pr-6 text-slate-500"
                       >
-                        <FileText className="w-16 h-16 mx-auto mb-3 text-slate-300" />
-                        {currentUser
-                          ? searchTerm
-                            ? "ไม่พบรายวิชาที่ตรงกับเงื่อนไขการค้นหา"
-                            : "ไม่พบรายวิชาที่ต้องยืนยัน (หรือยังไม่มีการกรอกชั่วโมงสอนเข้ามา)"
-                          : "กรุณาเลือกผู้ใช้งานจาก Navbar เพื่อดูข้อมูล"}
+                        รวมชั่วโมงทั้งหมด
                       </TableCell>
+                      <TableCell className="text-center text-purple-700 text-lg">
+                        {totals.lecture}
+                      </TableCell>
+                      <TableCell className="text-center text-purple-700 text-lg">
+                        {totals.lab}
+                      </TableCell>
+                      <TableCell className="text-center text-purple-700 text-lg">
+                        {totals.exam}
+                      </TableCell>
+                      <TableCell className="text-center text-purple-700 text-lg">
+                        {totals.critique}
+                      </TableCell>
+                      <TableCell></TableCell>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </div>
+                  </>
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={9}
+                      className="text-center p-12 text-slate-400"
+                    >
+                      <FileText className="w-16 h-16 mx-auto mb-3 text-slate-300" />
+                      {currentUser
+                        ? searchTerm
+                          ? "ไม่พบรายวิชาที่ตรงกับเงื่อนไขการค้นหา"
+                          : "ไม่พบรายวิชาที่ต้องยืนยัน (หรือยังไม่มีการกรอกชั่วโมงสอนเข้ามา)"
+                        : "กรุณาเลือกผู้ใช้งานจาก Navbar เพื่อดูข้อมูล"}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </div>
 
         {/* Action Buttons Area */}
@@ -1005,7 +1105,7 @@ export default function InstructorWorkloadPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700 text-center block">
                     ชั่วโมงบรรยาย
@@ -1062,6 +1162,26 @@ export default function InstructorWorkloadPage() {
                       setExternalCourseForm({
                         ...externalCourseForm,
                         examHours: Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700 text-center block">
+                    วิพากษ์ข้อสอบ (หัวข้อ)
+                  </Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    className="text-center"
+                    onKeyDown={(e) =>
+                      ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()
+                    }
+                    value={externalCourseForm.examCritiqueHours || 0}
+                    onChange={(e) =>
+                      setExternalCourseForm({
+                        ...externalCourseForm,
+                        examCritiqueHours: Number(e.target.value),
                       })
                     }
                   />

@@ -19,7 +19,6 @@ model Curriculum {
   updatedAt DateTime @updatedAt
   
   chair     User?    @relation("CurriculumChair", fields: [chairId], references: [id])
-  programs  Program[]
   staffs    User[]   @relation("CurriculumStaff")
 
   @@map("curriculum_master")
@@ -37,7 +36,6 @@ model User {
   academicRank   String?
   workStatus     String?
   department     String?
-  curriculum     String?
   adminTitle     String?
   
   role           Role      @default(USER)
@@ -58,7 +56,7 @@ model User {
   teachingAssignments TeachingAssignment[]
   
   chairApprovals     TeachingAssignment[] @relation("ChairApprovals")
-  academicApprovals  TeachingAssignment[] @relation("AcademicApprovals") // ✅ สำหรับรองวิชาการ
+  academicApprovals  TeachingAssignment[] @relation("AcademicApprovals")
   
   curriculumRef      Curriculum?          @relation("CurriculumStaff", fields: [curriculumId], references: [id])
 
@@ -120,13 +118,9 @@ model Program {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
   
-  curriculumId   Int?
-  curriculumRef  Curriculum? @relation(fields: [curriculumId], references: [id])
   programChair   User?       @relation("ProgramChair", fields: [programChairId], references: [id])
-  
   subjects       Subject[]
 
-  @@index([curriculumId], map: "program_curriculumId_fkey")
   @@index([programChairId], map: "program_programChairId_fkey")
   @@map("program")
 }
@@ -181,7 +175,6 @@ model TeachingAssignment {
   headApprovedAt      DateTime?
   headApproverId      String?
   
-  // ✅ สถานะสุดท้ายที่ รองวิชาการ (Academic Approval)
   academicApprovalStatus ApprovalStatus  @default(PENDING)
   academicApprovedAt     DateTime?
   academicApproverId     String?
@@ -189,17 +182,24 @@ model TeachingAssignment {
   lecturerId          String
   subjectId           Int
   
+  // 🆕 ฟิลด์สำหรับวิชานอกคณะ
+  courseType          CourseType      @default(INTERNAL)
+  externalFaculty     String?
+  externalCourseCode  String?
+  externalCourseName  String?
+  evidenceLink        String?
+  
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
   
   headApprover        User?           @relation("ChairApprovals", fields: [headApproverId], references: [id])
-  academicApprover    User?           @relation("AcademicApprovals", fields: [academicApproverId], references: [id]) // ✅ ผูก Relation ไปที่รองวิชาการ
+  academicApprover    User?           @relation("AcademicApprovals", fields: [academicApproverId], references: [id])
   lecturer            User            @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
   subject             Subject         @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
   @@index([lecturerId, academicYear, semester])
   @@index([headApproverId], map: "teachingassignment_headApproverId_fkey")
-  @@index([academicApproverId], map: "teachingassignment_academicApproverId_fkey") // ✅ Index สำหรับรองวิชาการ
+  @@index([academicApproverId], map: "teachingassignment_academicApproverId_fkey")
   @@index([subjectId], map: "teachingassignment_subjectId_fkey")
   @@map("teachingassignment")
 }
@@ -278,4 +278,9 @@ enum ApprovalStatus {
   APPROVED
   REJECTED
   DRAFT
+}
+
+enum CourseType {
+  INTERNAL 
+  EXTERNAL 
 }

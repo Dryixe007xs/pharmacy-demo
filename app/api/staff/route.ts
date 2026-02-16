@@ -10,7 +10,10 @@ export async function GET() {
       include: { 
         managedPrograms: true,
         curriculumRef: {
-            select: { name: true, id: true }
+          select: { 
+            name: true, 
+            id: true 
+          }
         }
       }
     });
@@ -30,28 +33,24 @@ export async function GET() {
       return {
         id: user.id,
         email: user.email,
-        name: fullName, 
-        // ❌ image เอาออกแล้ว
+        name: fullName,
         role: user.role,
         academicRank: user.academicRank || "-",
         department: user.department || "",
         
-        curriculum: user.curriculumRef?.name || user.curriculum || "",
+        // ✅ ดึงจาก relation เท่านั้น
+        curriculum: user.curriculumRef?.name || null,
+        curriculumId: user.curriculumId || null,
         
         managedPrograms: managedProgramNames,
         createdAt: user.createdAt.toISOString(),
         workStatus: status,
         adminTitle: user.adminTitle || "",
-
-        position: user.title || "", 
-        academicPosition: user.title || "", 
-
-        firstName: user.firstName || "",       
-        lastName: user.lastName || "",         
-        type: user.userType || "GENERAL",      
-        adminPosition: user.adminTitle || "",  
         
-        curriculumId: user.curriculumRef?.id || null 
+        academicPosition: user.title || "",
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        type: user.userType || "ACADEMIC"
       };
     });
 
@@ -67,6 +66,14 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     
+    // Validate
+    if (!body.email || !body.firstName || !body.lastName) {
+      return NextResponse.json(
+        { error: "กรุณากรอกข้อมูลที่จำเป็น (อีเมล, ชื่อ, นามสกุล)" }, 
+        { status: 400 }
+      );
+    }
+
     let workStatusThai = "ปฏิบัติงาน";
     if (body.workStatus === "STUDY_LEAVE") workStatusThai = "ลาศึกษาต่อ";
     else if (body.workStatus === "TRAINING") workStatusThai = "ฝึกอบรมในประเทศ";
@@ -74,31 +81,34 @@ export async function POST(request: Request) {
     const newUser = await prisma.user.create({
       data: {
         email: body.email,
-        title: body.academicPosition || body.title, 
+        title: body.academicPosition || null,
         firstName: body.firstName,
         lastName: body.lastName,
+        department: body.department || null,
         
-        // ❌ image เอาออกแล้ว
-
-        department: body.department,
-        curriculum: body.curriculum,
-        
+        // ✅ บันทึกเฉพาะ curriculumId
         curriculumId: body.curriculumId ? Number(body.curriculumId) : null,
-
-        adminTitle: body.adminTitle, 
-        role: body.role,
+        
+        adminTitle: body.adminTitle || null,
+        role: body.role || 'LECTURER',
         workStatus: workStatusThai,
-        userType: body.role === 'ADMIN' ? 'SUPPORT' : 'ACADEMIC' 
+        userType: body.role === 'ADMIN' ? 'SUPPORT' : 'ACADEMIC'
       }
     });
 
-    return NextResponse.json(newUser);
+    return NextResponse.json(newUser, { status: 201 });
   } catch (error: any) {
     console.error("Create Error:", error);
     if (error.code === 'P2002') {
-        return NextResponse.json({ error: "อีเมลนี้มีอยู่ในระบบแล้ว" }, { status: 400 });
+      return NextResponse.json(
+        { error: "อีเมลนี้มีอยู่ในระบบแล้ว" }, 
+        { status: 400 }
+      );
     }
-    return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create user" }, 
+      { status: 500 }
+    );
   }
 }
 
@@ -107,41 +117,42 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json();
     
-    if (!body.id) return NextResponse.json({ error: "ID is required" }, { status: 400 });
+    if (!body.id) {
+      return NextResponse.json(
+        { error: "ID is required" }, 
+        { status: 400 }
+      );
+    }
 
     let workStatusThai = "ปฏิบัติงาน";
     if (body.workStatus === "STUDY_LEAVE") workStatusThai = "ลาศึกษาต่อ";
     else if (body.workStatus === "TRAINING") workStatusThai = "ฝึกอบรมในประเทศ";
 
     const updatedUser = await prisma.user.update({
-      where: { id: body.id }, 
+      where: { id: body.id },
       data: {
-        email: body.email,
-        title: body.academicPosition || body.title,
-
+        title: body.academicPosition || null,
         firstName: body.firstName,
         lastName: body.lastName,
+        department: body.department || null,
         
-        // ❌ image เอาออกแล้ว
-
-        department: body.department,
-        curriculum: body.curriculum,
-        
+        // ✅ บันทึกเฉพาะ curriculumId
         curriculumId: body.curriculumId ? Number(body.curriculumId) : null,
-
-        adminTitle: body.adminTitle,
+        
+        adminTitle: body.adminTitle || null,
         role: body.role,
         workStatus: workStatusThai,
         userType: body.role === 'ADMIN' ? 'SUPPORT' : 'ACADEMIC'
       }
     });
 
-    // ❌ เอา Logic ย้ายงานออกแล้ว เพราะ Frontend คุณจัดการได้เอง
-    
     return NextResponse.json(updatedUser);
   } catch (error) {
     console.error("Update Error:", error);
-    return NextResponse.json({ error: "Failed to update user" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to update user" }, 
+      { status: 500 }
+    );
   }
 }
 
@@ -151,7 +162,12 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    if (!id) return NextResponse.json({ error: "ID is required" }, { status: 400 });
+    if (!id) {
+      return NextResponse.json(
+        { error: "ID is required" }, 
+        { status: 400 }
+      );
+    }
 
     await prisma.user.delete({
       where: { id: id }
@@ -160,6 +176,9 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Delete Error:", error);
-    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to delete user" }, 
+      { status: 500 }
+    );
   }
 }

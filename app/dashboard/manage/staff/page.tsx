@@ -8,29 +8,21 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Toaster, toast } from 'sonner';
 
-// --- Constants ---
-const PHARMACY_GROUPS = [
-  "เภสัชกรรมคลินิก",
-  "เทคโนโลยีเภสัชกรรม",
-  "เภสัชศาสตร์สังคม และการบริหารเภสัชกิจ",
-  "เภสัชเคมี เภสัชเวทและการควบคุมคุณภาพ",
-  "เภสัชวิทยา"
-];
-
-const CURRICULUM_PHARMA = "หลักสูตรเภสัชศาสตรบัณฑิต สาขาวิชาการบริบาลทางเภสัชกรรม";
-const CURRICULUM_COSMO = "หลักสูตรวิทยาศาสตร์บัณฑิต สาขาวิทยาศาสตร์เครื่องสำอาง";
-const CURRICULUM_SUPPORT = "สายสนับสนุน"; 
-
 // --- Types ---
+type Curriculum = {
+  id: number;
+  name: string;
+};
+
 type StaffUser = {
   id: string;
   email: string;
-  name: string; 
-  image?: string;
+  name: string;
   role: string;
   academicRank?: string;
-  department: string; 
+  department: string;
   curriculum?: string;
+  curriculumId?: number | null;
   managedPrograms?: string;
   createdAt?: string;
   workStatus?: string;
@@ -65,13 +57,13 @@ const Modal = ({
 export default function ManageStaffPage() {
   // --- States ---
   const [staff, setStaff] = useState<StaffUser[]>([]);
+  const [curriculums, setCurriculums] = useState<Curriculum[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
   const [activeTab, setActiveTab] = useState<"ACADEMIC" | "SUPPORT">("ACADEMIC");
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterCurriculum, setFilterCurriculum] = useState("");
-  const [filterProgram, setFilterProgram] = useState("");
+  const [filterCurriculumId, setFilterCurriculumId] = useState<string>("");
 
   // Modal & Form
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -80,8 +72,21 @@ export default function ManageStaffPage() {
 
   // --- Fetching Logic ---
   useEffect(() => {
+    fetchCurriculums();
     fetchStaffData();
   }, []);
+
+  const fetchCurriculums = async () => {
+    try {
+      const res = await fetch("/api/curriculums");
+      if (!res.ok) throw new Error('โหลดหลักสูตรไม่สำเร็จ');
+      const data: Curriculum[] = await res.json();
+      setCurriculums(data);
+    } catch (err: any) {
+      console.error("Fetch Curriculums Error:", err);
+      toast.error("ไม่สามารถโหลดรายชื่อหลักสูตรได้");
+    }
+  };
 
   const fetchStaffData = async () => {
     try {
@@ -143,29 +148,35 @@ export default function ManageStaffPage() {
 
   const handleSave = async () => {
     try {
+        // Validation
+        if (!formData.email || !formData.firstName || !formData.lastName) {
+            toast.error("กรุณากรอกข้อมูลที่จำเป็น (อีเมล, ชื่อ, นามสกุล)");
+            return;
+        }
+
+        if (!formData.curriculumId) {
+            toast.error("กรุณาเลือกหลักสูตร/สังกัด");
+            return;
+        }
+
         const requiredAdminTitleRoles = ['PROGRAM_CHAIR', 'VICE_DEAN', 'ADMIN'];
         if (requiredAdminTitleRoles.includes(formData.role)) {
             if (!formData.jobPosition || formData.jobPosition.trim() === "") {
                 toast.error("กรุณากรอก 'ชื่อตำแหน่งบริหาร'");
-                return; 
+                return;
             }
         }
 
         const payload = {
             id: isEditMode ? formData.id : undefined,
             email: formData.email,
-            title: formData.title || "", 
-            academicPosition: formData.academicPosition,
+            academicPosition: formData.academicPosition || "",
             firstName: formData.firstName,
             lastName: formData.lastName,
-            
-            // ยังคงส่งค่า image เดิมไป (ถ้ามี) แต่ผู้ใช้แก้ไขไม่ได้แล้ว
-            image: formData.image,
-
             role: formData.role,
-            adminTitle: formData.jobPosition, 
-            department: formData.program,     
-            curriculum: formData.curriculum,  
+            adminTitle: formData.jobPosition || null,
+            department: formData.department || null,
+            curriculumId: formData.curriculumId, // ✅ ส่ง curriculumId
             workStatus: formData.workStatus
         };
 
@@ -176,10 +187,13 @@ export default function ManageStaffPage() {
             body: JSON.stringify(payload)
         });
 
-        if (!res.ok) throw new Error('บันทึกข้อมูลไม่สำเร็จ');
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || 'บันทึกข้อมูลไม่สำเร็จ');
+        }
 
         setIsModalOpen(false);
-        fetchStaffData(); 
+        fetchStaffData();
         toast.success(isEditMode ? "แก้ไขข้อมูลเรียบร้อย" : "เพิ่มบุคลากรเรียบร้อย");
     } catch (err: any) {
         toast.error(err.message);
@@ -189,13 +203,16 @@ export default function ManageStaffPage() {
   // --- Modal Control ---
   const openAddModal = () => {
     setIsEditMode(false);
-    const defaultCurriculum = activeTab === "SUPPORT" ? CURRICULUM_SUPPORT : "";
-    const defaultProgram = activeTab === "SUPPORT" ? "สำนักงานคณะ" : "";
-    setFormData({ 
-      title: "", academicPosition: "", firstName: "", lastName: "", 
-      email: "", role: "LECTURER", jobPosition: "", 
-      curriculum: defaultCurriculum, program: defaultProgram, workStatus: "ACTIVE",
-      image: "" 
+    setFormData({
+      academicPosition: "",
+      firstName: "",
+      lastName: "",
+      email: "",
+      role: "LECTURER",
+      jobPosition: "",
+      curriculumId: "",
+      department: "",
+      workStatus: "ACTIVE"
     });
     setIsModalOpen(true);
   };
@@ -204,30 +221,21 @@ export default function ManageStaffPage() {
     setIsEditMode(true);
     const { academicPosition, firstName, lastName } = splitName(user.name);
     
-    setFormData({ 
+    setFormData({
         id: user.id,
         email: user.email,
         role: user.role,
-        workStatus: user.workStatus === "ลาศึกษาต่อ" ? "STUDY_LEAVE" : user.workStatus === "ฝึกอบรมในประเทศ" ? "TRAINING" : "ACTIVE",
-        academicPosition: user.academicPosition || academicPosition, 
+        workStatus: user.workStatus === "ลาศึกษาต่อ" ? "STUDY_LEAVE" 
+                  : user.workStatus === "ฝึกอบรมในประเทศ" ? "TRAINING" 
+                  : "ACTIVE",
+        academicPosition: user.academicPosition || academicPosition,
         firstName: user.firstName || firstName,
         lastName: user.lastName || lastName,
-        jobPosition: user.adminTitle || "", 
-        curriculum: user.role === 'ADMIN' ? CURRICULUM_SUPPORT : (user.curriculum || user.department), 
-        program: user.department, 
-        image: user.image || ""
+        jobPosition: user.adminTitle || "",
+        curriculumId: user.curriculumId || "",
+        department: user.department || ""
     });
     setIsModalOpen(true);
-  };
-
-  const handleCurriculumChange = (value: string) => {
-    if (value === CURRICULUM_COSMO) {
-      setFormData({ ...formData, curriculum: value, program: "วิทยาศาสตร์เครื่องสำอาง" });
-    } else if (value === CURRICULUM_SUPPORT) {
-      setFormData({ ...formData, curriculum: value, program: "สำนักงานคณะ" });
-    } else {
-      setFormData({ ...formData, curriculum: value, program: "" });
-    }
   };
 
   // --- Filtering ---
@@ -236,24 +244,16 @@ export default function ManageStaffPage() {
       (user.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
       (user.email?.toLowerCase() || "").includes(searchTerm.toLowerCase());
 
-    const isSupportStaff = user.role === "ADMIN"; 
+    const isSupportStaff = user.role === "ADMIN";
 
     if (activeTab === "ACADEMIC" && isSupportStaff) return false;
     if (activeTab === "SUPPORT" && !isSupportStaff) return false;
 
-    if (activeTab === "ACADEMIC" && filterCurriculum) {
-      const userDept = (user.department || "").trim();
-      const userCurr = (user.curriculum || "").trim();
-
-      if (filterCurriculum === "PHARMACY") {
-        const isPharma = PHARMACY_GROUPS.includes(userDept) || userCurr.includes("เภสัชศาสตรบัณฑิต");
-        if (!isPharma) return false;
-        if (filterProgram && userDept !== filterProgram) return false;
-      } else if (filterCurriculum === "COSMETIC") {
-        const isCosmo = userDept.includes("เครื่องสำอาง") || userCurr.includes("วิทยาศาสตร์เครื่องสำอาง");
-        if (!isCosmo) return false;
-      }
+    // ✅ Filter by curriculumId
+    if (activeTab === "ACADEMIC" && filterCurriculumId) {
+      if (String(user.curriculumId) !== filterCurriculumId) return false;
     }
+
     return matchesSearch;
   });
 
@@ -280,7 +280,7 @@ export default function ManageStaffPage() {
          {/* Tabs */}
          <div className="flex border-b border-slate-200">
             <button 
-                onClick={() => { setActiveTab("ACADEMIC"); setFilterCurriculum(""); }} 
+                onClick={() => { setActiveTab("ACADEMIC"); setFilterCurriculumId(""); }} 
                 className={`flex-1 py-4 text-sm font-semibold flex justify-center items-center gap-2 transition-all relative ${activeTab === "ACADEMIC" ? "text-purple-700 bg-purple-50/30" : "text-slate-500 hover:bg-slate-50"}`}
             >
                 <GraduationCap size={18} className={activeTab === "ACADEMIC" ? "text-purple-600" : "text-slate-400"}/>
@@ -288,7 +288,7 @@ export default function ManageStaffPage() {
                 {activeTab === "ACADEMIC" && <span className="absolute bottom-0 w-full h-0.5 bg-purple-600"></span>}
             </button>
             <button 
-                onClick={() => { setActiveTab("SUPPORT"); setFilterCurriculum(""); }} 
+                onClick={() => { setActiveTab("SUPPORT"); setFilterCurriculumId(""); }} 
                 className={`flex-1 py-4 text-sm font-semibold flex justify-center items-center gap-2 transition-all relative ${activeTab === "SUPPORT" ? "text-purple-700 bg-purple-50/30" : "text-slate-500 hover:bg-slate-50"}`}
             >
                 <Users size={18} className={activeTab === "SUPPORT" ? "text-purple-600" : "text-slate-400"}/>
@@ -304,37 +304,40 @@ export default function ManageStaffPage() {
                 {/* Search & Filters */}
                 <div className="flex flex-col md:flex-row w-full xl:w-auto gap-3 items-center">
                     <div className="relative w-full md:w-72">
-                        <input type="text" placeholder="ค้นหาชื่อ หรือ อีเมล..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full h-10 pl-10 pr-4 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-slate-50/30 focus:bg-white" />
+                        <input 
+                          type="text" 
+                          placeholder="ค้นหาชื่อ หรือ อีเมล..." 
+                          value={searchTerm} 
+                          onChange={(e) => setSearchTerm(e.target.value)} 
+                          className="w-full h-10 pl-10 pr-4 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-slate-50/30 focus:bg-white" 
+                        />
                         <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                     </div>
 
+                    {/* ✅ Filter หลักสูตร - ดึงจาก API */}
                     {activeTab === "ACADEMIC" && (
-                        <div className="flex gap-3 w-full md:w-auto">
-                            <div className="relative w-full md:w-48">
-                                <select value={filterCurriculum} onChange={(e) => { setFilterCurriculum(e.target.value); setFilterProgram(""); }} className="w-full h-10 pl-9 pr-8 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white cursor-pointer appearance-none text-slate-600">
-                                    <option value="">ทุกหลักสูตร</option>
-                                    <option value="PHARMACY">เภสัชศาสตรบัณฑิต</option>
-                                    <option value="COSMETIC">วิทย์ฯ เครื่องสำอาง</option>
-                                </select>
-                                <Filter className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
-                                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
-                            </div>
-
-                            {filterCurriculum === "PHARMACY" && (
-                                <div className="relative w-full md:w-56">
-                                    <select value={filterProgram} onChange={(e) => setFilterProgram(e.target.value)} className="w-full h-10 pl-3 pr-8 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white cursor-pointer appearance-none text-slate-600">
-                                            <option value="">ทุกกลุ่มวิชา</option>
-                                            {PHARMACY_GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}
-                                    </select>
-                                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
-                                </div>
-                            )}
+                        <div className="relative w-full md:w-64">
+                            <select 
+                              value={filterCurriculumId} 
+                              onChange={(e) => setFilterCurriculumId(e.target.value)} 
+                              className="w-full h-10 pl-9 pr-8 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white cursor-pointer appearance-none text-slate-600"
+                            >
+                                <option value="">ทุกหลักสูตร</option>
+                                {curriculums.map((c) => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                            <Filter className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
                         </div>
                     )}
                 </div>
 
                 {/* Add Button */}
-                <button onClick={openAddModal} className="w-full xl:w-auto flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow-sm transition-all active:scale-95 whitespace-nowrap">
+                <button 
+                  onClick={openAddModal} 
+                  className="w-full xl:w-auto flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow-sm transition-all active:scale-95 whitespace-nowrap"
+                >
                     <Plus size={18} /> เพิ่มบุคลากร
                 </button>
             </div>
@@ -346,7 +349,7 @@ export default function ManageStaffPage() {
               <thead>
                 <tr className="bg-slate-50/50 border-b border-slate-200 text-slate-700 text-xs font-semibold uppercase tracking-wider">
                   <th className="py-4 px-6 w-[35%]">ชื่อ - สกุล</th>
-                  <th className="py-4 px-4 w-[25%]">สังกัด / กลุ่มวิชา</th>
+                  <th className="py-4 px-4 w-[25%]">หลักสูตร / กลุ่มวิชา</th>
                   <th className="py-4 px-4 text-center w-[15%]">สถานะ</th>
                   <th className="py-4 px-4 text-center w-[15%]">บทบาท</th>
                   <th className="py-4 px-4 text-center w-[10%]">จัดการ</th>
@@ -361,7 +364,6 @@ export default function ManageStaffPage() {
                         <td className="py-4 px-6">
                             <div className="flex items-center">
                                 <Avatar className="w-10 h-10 bg-slate-100 mr-3 border border-slate-200 text-slate-500">
-                                    <AvatarImage src={user.image} alt={user.name} />
                                     <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
                                 </Avatar>
                                 <div>
@@ -371,12 +373,17 @@ export default function ManageStaffPage() {
                             </div>
                         </td>
                         <td className="py-4 px-4">
-                            <div className="flex flex-col">
+                            <div className="flex flex-col gap-1">
                                 <span className="text-slate-700 font-medium truncate max-w-[250px]">
-                                    {user.department && user.department !== "-" ? user.department : <span className="text-slate-300 italic">ไม่ระบุสังกัด</span>}
+                                    {user.curriculum || <span className="text-slate-300 italic">ไม่ระบุหลักสูตร</span>}
                                 </span>
+                                {user.department && user.department !== "-" && (
+                                    <span className="text-xs text-slate-500">
+                                        {user.department}
+                                    </span>
+                                )}
                                 {user.managedPrograms && (
-                                    <span className="text-[11px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded w-fit mt-1 border border-purple-100 font-medium">
+                                    <span className="text-[11px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded w-fit border border-purple-100 font-medium">
                                         ประธานหลักสูตร
                                     </span>
                                 )}
@@ -410,7 +417,7 @@ export default function ManageStaffPage() {
          </div>
       </div>
 
-      {/* --- REUSABLE MODAL FORM --- */}
+      {/* --- MODAL FORM --- */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -422,52 +429,82 @@ export default function ManageStaffPage() {
               <div className="space-y-4">
                   <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2 border-b pb-2"><Briefcase size={14}/> ข้อมูลการทำงาน</h4>
                   
+                  {/* ✅ Dropdown หลักสูตร - ดึงจาก API */}
                   <div className="space-y-2">
-                      <label className="text-sm font-semibold text-slate-700">หลักสูตร / สังกัด <span className="text-red-500">*</span></label>
+                      <label className="text-sm font-semibold text-slate-700">
+                        หลักสูตร / สังกัด <span className="text-red-500">*</span>
+                      </label>
                       <select 
-                          value={formData.curriculum || ""} 
-                          onChange={(e) => handleCurriculumChange(e.target.value)}
+                          value={formData.curriculumId || ""} 
+                          onChange={(e) => setFormData({...formData, curriculumId: e.target.value})}
                           className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-white cursor-pointer"
                       >
                           <option value="">-- เลือกหลักสูตร --</option>
-                          <option value={CURRICULUM_PHARMA}>หลักสูตรเภสัชศาสตรบัณฑิต</option>
-                          <option value={CURRICULUM_COSMO}>หลักสูตรวิทยาศาสตร์เครื่องสำอาง</option>
-                          <option value={CURRICULUM_SUPPORT}>สายสนับสนุน / สำนักงานคณะ</option>
+                          {curriculums.map((c) => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
                       </select>
                   </div>
 
-                  {formData.curriculum === CURRICULUM_PHARMA && (
-                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                        <label className="text-sm font-semibold text-slate-700">กลุ่มวิชา <span className="text-red-500">*</span></label>
-                        <select 
-                            value={formData.program || ""} 
-                            onChange={(e) => setFormData({...formData, program: e.target.value})} 
-                            className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-white cursor-pointer"
-                        >
-                            <option value="">-- เลือกกลุ่มวิชา --</option>
-                            {PHARMACY_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
-                        </select>
-                    </div>
-                  )}
+                  {/* ✅ กลุ่มวิชา/สังกัด (optional field) */}
+                  <div className="space-y-2">
+                      <label className="text-sm font-semibold text-slate-700">
+                        กลุ่มวิชา / สังกัดย่อย (ถ้ามี)
+                      </label>
+                      <input 
+                        type="text" 
+                        value={formData.department || ""} 
+                        onChange={(e) => setFormData({...formData, department: e.target.value})}
+                        placeholder="เช่น เภสัชกรรมคลินิก, สำนักงานคณะ"
+                        className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                      />
+                  </div>
               </div>
 
-              {/* ส่วนใส่รูปถูกลบออกไปแล้ว */}
               <div className="space-y-4">
                  <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2 border-b pb-2 mt-2"><Users size={14}/> ข้อมูลส่วนตัว</h4>
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      <div className="space-y-2">
                         <label className="text-sm font-semibold text-slate-700">คำนำหน้า (ตำแหน่งวิชาการ)</label>
-                        <input type="text" value={formData.academicPosition || ""} onChange={(e) => setFormData({...formData, academicPosition: e.target.value})} placeholder="เช่น ผศ.ดร." className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" />
+                        <input 
+                          type="text" 
+                          value={formData.academicPosition || ""} 
+                          onChange={(e) => setFormData({...formData, academicPosition: e.target.value})} 
+                          placeholder="เช่น ผศ.ดร., อ." 
+                          className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" 
+                        />
                      </div>
                      <div className="space-y-2">
                         <label className="text-sm font-semibold text-slate-700">E-Mail <span className="text-red-500">*</span></label>
-                        <input type="email" disabled={isEditMode} value={formData.email || ""} onChange={(e) => setFormData({...formData, email: e.target.value})} className={`w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all ${isEditMode ? 'bg-slate-100 text-slate-500' : ''}`}/>
+                        <input 
+                          type="email" 
+                          disabled={isEditMode} 
+                          value={formData.email || ""} 
+                          onChange={(e) => setFormData({...formData, email: e.target.value})} 
+                          className={`w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all ${isEditMode ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
+                        />
                      </div>
                  </div>
                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">ชื่อจริง <span className="text-red-500">*</span></label><input type="text" value={formData.firstName || ""} onChange={(e) => setFormData({...formData, firstName: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" /></div>
-                    <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">นามสกุล <span className="text-red-500">*</span></label><input type="text" value={formData.lastName || ""} onChange={(e) => setFormData({...formData, lastName: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" /></div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-slate-700">ชื่อจริง <span className="text-red-500">*</span></label>
+                      <input 
+                        type="text" 
+                        value={formData.firstName || ""} 
+                        onChange={(e) => setFormData({...formData, firstName: e.target.value})} 
+                        className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-slate-700">นามสกุล <span className="text-red-500">*</span></label>
+                      <input 
+                        type="text" 
+                        value={formData.lastName || ""} 
+                        onChange={(e) => setFormData({...formData, lastName: e.target.value})} 
+                        className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" 
+                      />
+                    </div>
                  </div>
               </div>
 
@@ -476,25 +513,58 @@ export default function ManageStaffPage() {
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <label className="text-sm font-semibold text-slate-700">สถานะปฏิบัติงาน</label>
-                        <select value={formData.workStatus || "ACTIVE"} onChange={(e) => setFormData({...formData, workStatus: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-white cursor-pointer"><option value="ACTIVE">ปฏิบัติงานปกติ</option><option value="STUDY_LEAVE">ลาศึกษาต่อ</option><option value="TRAINING">ฝึกอบรมในประเทศ</option></select>
+                        <select 
+                          value={formData.workStatus || "ACTIVE"} 
+                          onChange={(e) => setFormData({...formData, workStatus: e.target.value})} 
+                          className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-white cursor-pointer"
+                        >
+                          <option value="ACTIVE">ปฏิบัติงานปกติ</option>
+                          <option value="STUDY_LEAVE">ลาศึกษาต่อ</option>
+                          <option value="TRAINING">ฝึกอบรมในประเทศ</option>
+                        </select>
                     </div>
                     <div className="space-y-2">
                          <label className="text-sm font-semibold text-slate-700">สิทธิ์การใช้งาน (System Role)</label>
-                         <select value={formData.role || "LECTURER"} onChange={(e) => setFormData({...formData, role: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-white cursor-pointer"><option value="LECTURER">อาจารย์ผู้สอน (ทั่วไป)</option><option value="PROGRAM_CHAIR">ประธานหลักสูตร</option><option value="VICE_DEAN">รองคณบดี/ผู้บริหาร</option><option value="ADMIN">ผู้ดูแลระบบ (Admin)</option></select>
+                         <select 
+                           value={formData.role || "LECTURER"} 
+                           onChange={(e) => setFormData({...formData, role: e.target.value})} 
+                           className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-white cursor-pointer"
+                         >
+                           <option value="LECTURER">อาจารย์ผู้สอน (ทั่วไป)</option>
+                           <option value="PROGRAM_CHAIR">ประธานหลักสูตร</option>
+                           <option value="VICE_DEAN">รองคณบดี/ผู้บริหาร</option>
+                           <option value="ADMIN">ผู้ดูแลระบบ (Admin)</option>
+                         </select>
                     </div>
                  </div>
                  <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700">
                         ชื่อตำแหน่งบริหาร {['PROGRAM_CHAIR', 'VICE_DEAN', 'ADMIN'].includes(formData.role) && <span className="text-red-500 text-xs">(จำเป็นต้องระบุ*)</span>}
                     </label>
-                    <input type="text" value={formData.jobPosition || ""} onChange={(e) => setFormData({...formData, jobPosition: e.target.value})} placeholder="เช่น ประธานหลักสูตรฯ, หัวหน้างาน..." className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" />
+                    <input 
+                      type="text" 
+                      value={formData.jobPosition || ""} 
+                      onChange={(e) => setFormData({...formData, jobPosition: e.target.value})} 
+                      placeholder="เช่น ประธานหลักสูตรฯ, หัวหน้างาน..." 
+                      className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" 
+                    />
                  </div>
               </div>
           </div>
           
           <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 sticky bottom-0 bg-white z-20">
-              <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm hover:bg-white hover:text-slate-700 text-slate-600 font-medium transition-all shadow-sm">ยกเลิก</button>
-              <button onClick={handleSave} className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium shadow-md shadow-green-200 hover:shadow-lg transition-all active:scale-95">บันทึกข้อมูล</button>
+              <button 
+                onClick={() => setIsModalOpen(false)} 
+                className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm hover:bg-white hover:text-slate-700 text-slate-600 font-medium transition-all shadow-sm"
+              >
+                ยกเลิก
+              </button>
+              <button 
+                onClick={handleSave} 
+                className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 font-medium shadow-md shadow-green-200 hover:shadow-lg transition-all active:scale-95"
+              >
+                บันทึกข้อมูล
+              </button>
           </div>
       </Modal>
     </div>
