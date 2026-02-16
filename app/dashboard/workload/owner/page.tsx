@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation"; 
 import { 
@@ -11,9 +11,7 @@ import {
 import { Toaster, toast } from 'sonner';
 import Swal from 'sweetalert2';
 
-// ... (Types และ Constants เหมือนเดิม) ...
-// (ขอละเว้นส่วน Types เพื่อความกระชับ แต่ในไฟล์จริงต้องมีนะครับ ถ้าต้องการบอกได้ครับ)
-
+// ... (Types และ Constants - คงเดิมทั้งหมด) ...
 type LecturerStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DRAFT' | null;
 type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUBMITTED';
 
@@ -630,7 +628,8 @@ const CourseTableSection = ({ title, courses, loading, onOpenModal }: CourseTabl
   );
 };
 
-export default function CourseOwnerPage() {
+// ✅ แยก Component ที่ใช้ useSearchParams
+function CourseOwnerPageContent() {
   const { data: session, status } = useSession();
   const currentUser = session?.user;
   
@@ -668,22 +667,19 @@ export default function CourseOwnerPage() {
     setAssignments(course.teachingAssignments || []);
     setIsModalOpen(true);
     refreshAssignments(course.id, course.semester);
-  }, [refreshAssignments]);
+  }, [refreshAssignments, setSelectedCourse, setAssignments]);
 
-  // ✅ จุดที่แก้บั๊ก: เอา isModalOpen ออกจาก dependency array
   useEffect(() => {
     if (!loading && subjectIdFromUrl && courses.length > 0) {
       const targetCourse = courses.find(c => String(c.id) === String(subjectIdFromUrl));
-      if (targetCourse) {
-        if (!isModalOpen) { // เช็คในนี้แทน
-            setSelectedCourse(targetCourse);
-            setAssignments(targetCourse.teachingAssignments || []);
-            setIsModalOpen(true);
-            refreshAssignments(targetCourse.id, targetCourse.semester);
-        }
+      if (targetCourse && !isModalOpen) {
+        setSelectedCourse(targetCourse);
+        setAssignments(targetCourse.teachingAssignments || []);
+        setIsModalOpen(true);
+        refreshAssignments(targetCourse.id, targetCourse.semester);
       }
     }
-  }, [loading, subjectIdFromUrl, courses, refreshAssignments]); // ❌ เอา isModalOpen ออกแล้ว
+  }, [loading, subjectIdFromUrl, courses, refreshAssignments, isModalOpen, setSelectedCourse, setAssignments]);
 
   const filteredCourses = useMemo(() => {
     if (!currentUser) return [];
@@ -817,6 +813,22 @@ export default function CourseOwnerPage() {
     </div>
   );
 }
+
+// ✅ Component หลัก - Wrap ด้วย Suspense
+export default function CourseOwnerPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen items-center justify-center text-slate-400">
+        <Loader2 className="w-8 h-8 animate-spin mr-2" />
+        กำลังโหลดข้อมูล...
+      </div>
+    }>
+      <CourseOwnerPageContent />
+    </Suspense>
+  );
+}
+
+// ... (Components ที่เหลือ: CourseModal, AssignmentRow, SuccessOverlay - คงเดิมทั้งหมด)
 
 function CourseModal({ course, assignments, currentUser, staffs, onClose, actions }: any) {
   const [isAddingLecturer, setIsAddingLecturer] = useState(false);
