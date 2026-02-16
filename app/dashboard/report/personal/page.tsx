@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation"; 
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,8 @@ interface LecturerProfile {
     department: string;
 }
 
-export default function PersonalReportPage() {
+// ✅ แยก Component ที่ใช้ useSearchParams ออกมา
+function PersonalReportContent() {
   const { data: session, status } = useSession();
   
   const searchParams = useSearchParams();
@@ -333,5 +334,18 @@ export default function PersonalReportPage() {
 
       </div>
     </div>
+  );
+}
+
+// ✅ Component หลักที่ wrap ด้วย Suspense
+export default function PersonalReportPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="animate-spin w-8 h-8 text-slate-400"/>
+      </div>
+    }>
+      <PersonalReportContent />
+    </Suspense>
   );
 }
