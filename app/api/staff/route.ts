@@ -31,8 +31,7 @@ export async function GET() {
         id: user.id,
         email: user.email,
         name: fullName, 
-        // ✅ GET: ส่งค่า image กลับไปแสดงผล
-        image: user.image || null, 
+        // ❌ image เอาออกแล้ว
         role: user.role,
         academicRank: user.academicRank || "-",
         department: user.department || "",
@@ -79,8 +78,7 @@ export async function POST(request: Request) {
         firstName: body.firstName,
         lastName: body.lastName,
         
-        // ✅ POST: เพิ่มบรรทัดนี้เพื่อบันทึกรูปภาพตอนสร้างใหม่
-        image: body.image || null, 
+        // ❌ image เอาออกแล้ว
 
         department: body.department,
         curriculum: body.curriculum,
@@ -124,8 +122,7 @@ export async function PUT(request: Request) {
         firstName: body.firstName,
         lastName: body.lastName,
         
-        // ✅ PUT: เพิ่มบรรทัดนี้เพื่อบันทึกรูปภาพตอนแก้ไข
-        image: body.image || null,
+        // ❌ image เอาออกแล้ว
 
         department: body.department,
         curriculum: body.curriculum,
@@ -139,6 +136,8 @@ export async function PUT(request: Request) {
       }
     });
 
+    // ❌ เอา Logic ย้ายงานออกแล้ว เพราะ Frontend คุณจัดการได้เอง
+    
     return NextResponse.json(updatedUser);
   } catch (error) {
     console.error("Update Error:", error);

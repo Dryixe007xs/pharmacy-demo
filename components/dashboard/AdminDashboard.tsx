@@ -10,14 +10,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Helper Status Badge
+// ✅ 1. เพิ่มสถานะ "รอรองฯ วิชาการ" (PENDING_DEAN)
 const getStatusBadge = (status: string) => {
     switch(status) {
         case 'APPROVED': return { text: "อนุมัติแล้ว", color: "text-green-600 bg-green-50 border-green-200" };
+        case 'PENDING_DEAN': return { text: "รอรองฯ วิชาการ", color: "text-purple-600 bg-purple-50 border-purple-200" }; // เพิ่มสีม่วง
         case 'PENDING_HEAD': return { text: "รอประธานฯ", color: "text-blue-600 bg-blue-50 border-blue-200" };
         case 'IN_PROGRESS': return { text: "กำลังดำเนินการ", color: "text-orange-600 bg-orange-50 border-orange-200" };
         case 'REJECTED': return { text: "ถูกตีกลับ", color: "text-red-600 bg-red-50 border-red-200" };
-        case 'WAITING': return { text: "ยังไม่เริ่ม", color: "text-slate-500 bg-slate-100 border-slate-200" };
+        case 'WAITING': return { text: "ยังไม่สมบูรณ์", color: "text-slate-500 bg-slate-100 border-slate-200" };
         default: return { text: "ไม่มีข้อมูล", color: "text-slate-400 bg-slate-50 border-slate-100" };
     }
 };
@@ -37,17 +38,13 @@ export default function AdminDashboard({ session }: { session: any }) {
     const [expandedRows, setExpandedRows] = useState<string[]>([]);
     const [instructors, setInstructors] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [availableYears, setAvailableYears] = useState<string[]>([]); // ✅ เก็บรายการปีที่มีใน DB
+    const [availableYears, setAvailableYears] = useState<string[]>([]);
     
-    // ✅ Default Filter: ตั้งเป็น 'all' (ทั้งปี) และ year เป็นว่างไว้ก่อนเพื่อรอ fetch จาก DB
     const [selectedYear, setSelectedYear] = useState<string>(""); 
     const [selectedSemester, setSelectedSemester] = useState<string>("all");
 
-    // ฟังก์ชันดึงข้อมูลปีการศึกษาที่มีในระบบ (เพื่อเอามาใส่ Dropdown และหา Active Year)
     const fetchYears = async () => {
         try {
-            // สมมติว่ามี Endpoint นี้ หรือดึงจาก dashboard API รอบแรก
-            // ในที่นี้ผมจะจำลองการดึงจาก API dashboard โดยไม่ระบุ parameter เพื่อขอ meta data
             const res = await fetch(`/api/admin/dashboard?meta=true`); 
             const json = await res.json();
             
@@ -55,7 +52,6 @@ export default function AdminDashboard({ session }: { session: any }) {
                 setAvailableYears(json.availableYears.map(String));
             }
             
-            // ถ้ายังไม่มีปีที่เลือก ให้ใช้ปี Active จาก DB หรือปีล่าสุด
             if (!selectedYear && json.activeYear) {
                 return String(json.activeYear);
             } else if (!selectedYear && json.availableYears?.length > 0) {
@@ -64,7 +60,7 @@ export default function AdminDashboard({ session }: { session: any }) {
             return selectedYear || String(new Date().getFullYear() + 543);
         } catch (e) {
             console.error("Failed to fetch years", e);
-            return String(new Date().getFullYear() + 543); // Fallback
+            return String(new Date().getFullYear() + 543);
         }
     };
 
@@ -73,7 +69,6 @@ export default function AdminDashboard({ session }: { session: any }) {
         try {
             let resultData: any[] = [];
 
-            // ✅ Logic ใหม่: ถ้าเลือก "all" ให้ดึงข้อมูลทั้ง 3 เทอม (1, 2, 3) มา merge กัน
             if (semester === "all") {
                 const terms = [1, 2, 3];
                 const responses = await Promise.all(
@@ -87,15 +82,12 @@ export default function AdminDashboard({ session }: { session: any }) {
                     const data = res.data || [];
 
                     data.forEach((inst: any) => {
-                        // ใส่เลขเทอมกำกับในแต่ละวิชา
                         const coursesWithSem = inst.courses.map((c: any) => ({ ...c, semester: currentSem }));
                         
                         if (instructorMap.has(inst.id)) {
-                            // ถ้ามีอาจารย์คนนี้แล้ว ให้เอารายวิชาไปต่อท้าย (Merge)
                             const existingInst = instructorMap.get(inst.id);
                             existingInst.courses.push(...coursesWithSem);
                         } else {
-                            // ถ้ายังไม่มี ให้สร้างใหม่
                             instructorMap.set(inst.id, { ...inst, courses: coursesWithSem });
                         }
                     });
@@ -104,7 +96,6 @@ export default function AdminDashboard({ session }: { session: any }) {
                 resultData = Array.from(instructorMap.values());
 
             } else {
-                // ✅ กรณีเลือกเทอมเฉพาะ (1, 2, หรือ 3)
                 const res = await fetch(`/api/admin/dashboard?year=${year}&semester=${semester}`);
                 const json = await res.json();
                 
@@ -123,12 +114,10 @@ export default function AdminDashboard({ session }: { session: any }) {
         }
     };
 
-    // ✅ useEffect แรก: หาปี Active ก่อน แล้วค่อยดึงข้อมูล
     useEffect(() => {
         const init = async () => {
             const activeYear = await fetchYears();
             setSelectedYear(activeYear);
-            // เมื่อได้ปีแล้ว ค่อยดึงข้อมูล Dashboard (default semester = 'all')
             fetchData(activeYear, "all");
         };
         init();
@@ -158,7 +147,8 @@ export default function AdminDashboard({ session }: { session: any }) {
     // Stats Logic
     const totalInstructors = instructors.length;
     const totalCourses = instructors.reduce((acc, curr) => acc + curr.courses.length, 0);
-    const completedCourses = instructors.reduce((acc, curr) => acc + curr.courses.filter((c: any) => c.status === 'APPROVED').length, 0);
+    // นับเฉพาะที่ Dean Approved แล้วจริงๆ
+    const completedCourses = instructors.reduce((acc, curr) => acc + curr.courses.filter((c: any) => c.deanApprovalStatus === 'APPROVED' || c.status === 'APPROVED').length, 0);
     const percentComplete = totalCourses > 0 ? Math.round((completedCourses/totalCourses)*100) : 0;
 
     return (
@@ -174,9 +164,8 @@ export default function AdminDashboard({ session }: { session: any }) {
                         <Calendar size={16} /> ปีการศึกษา:
                     </div>
                     
-                    {/* ✅ Dropdown เลือกเทอม (Default = ทั้งหมด) */}
                     <Select value={selectedSemester} onValueChange={(v) => handleFilterChange('semester', v)}>
-                        <SelectTrigger className="w-[140px] h-9 text-sm bg-slate-50 font-bold">
+                        <SelectTrigger className="w-[160px] h-9 text-sm bg-slate-50 font-bold">
                             <SelectValue placeholder="เทอม" />
                         </SelectTrigger>
                         <SelectContent>
@@ -189,7 +178,6 @@ export default function AdminDashboard({ session }: { session: any }) {
 
                     <span className="text-slate-300">/</span>
 
-                    {/* ✅ Dropdown เลือกปี (Dynamic จาก DB) */}
                     <Select value={selectedYear} onValueChange={(v) => handleFilterChange('year', v)}>
                         <SelectTrigger className="w-[100px] h-9 text-sm bg-slate-50">
                             <SelectValue placeholder="ปี" />
@@ -212,7 +200,7 @@ export default function AdminDashboard({ session }: { session: any }) {
                 <Card className="border-l-4 border-l-blue-500 shadow-sm">
                     <CardContent className="p-5 flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-slate-500 font-medium">อาจารย์ที่มีภาระงาน</p>
+                            <p className="text-sm text-slate-500 font-medium">ผู้รับผิดชอบรายวิชาที่มีภาระงาน</p>
                             <h3 className="text-3xl font-bold text-slate-800 mt-1">{totalInstructors} <span className="text-sm font-normal text-slate-400">ท่าน</span></h3>
                         </div>
                         <div className="bg-blue-50 p-3 rounded-full text-blue-600"><Users size={24}/></div>
@@ -269,7 +257,7 @@ export default function AdminDashboard({ session }: { session: any }) {
                             <tbody className="divide-y divide-slate-100 bg-white">
                                 {filteredData.map((instructor) => {
                                     const total = instructor.courses.length;
-                                    const finished = instructor.courses.filter((c:any) => c.status === 'APPROVED').length;
+                                    const finished = instructor.courses.filter((c:any) => c.status === 'APPROVED' || c.deanApprovalStatus === 'APPROVED').length;
                                     const percent = total > 0 ? (finished / total) * 100 : 0;
                                     const isExpanded = expandedRows.includes(instructor.id);
 
@@ -314,7 +302,17 @@ export default function AdminDashboard({ session }: { session: any }) {
                                                                         instructor.courses
                                                                             .sort((a: any, b: any) => a.semester - b.semester || a.code.localeCompare(b.code))
                                                                             .map((course: any, idx: number) => {
-                                                                                const status = getStatusBadge(course.status);
+                                                                                
+                                                                                // ✅ 2. แก้ Logic การแสดงสถานะตรงนี้
+                                                                                let displayStatus = course.status;
+
+                                                                                // ถ้าประธานอนุมัติแล้ว แต่รองฯ ยัง Pending => ให้ขึ้นว่า "รอรองฯ"
+                                                                                // (สมมติว่า backend ส่ง deanApprovalStatus มาด้วย หรือถ้าไม่มี logic นี้อาจจะไม่ทำงาน แต่ปลอดภัยไว้ก่อน)
+                                                                                if (course.headApprovalStatus === 'APPROVED' && course.deanApprovalStatus === 'PENDING') {
+                                                                                    displayStatus = 'PENDING_DEAN';
+                                                                                }
+
+                                                                                const status = getStatusBadge(displayStatus);
                                                                                 const semBadge = getSemesterBadge(course.semester);
                                                                                 
                                                                                 return (

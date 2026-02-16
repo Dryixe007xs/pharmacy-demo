@@ -141,11 +141,6 @@ export function Navbar() {
                 จำลองสิทธิ์
              </span>
         )}
-        
-        <button className="p-2 text-slate-500 hover:bg-slate-50 hover:text-purple-600 rounded-full transition-all relative">
-          <Bell size={20} />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-        </button>
 
         <div className="h-6 w-px bg-slate-200 hidden sm:block"></div>
 
@@ -191,12 +186,6 @@ export function Navbar() {
           </DropdownMenuTrigger>
           
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>บัญชีของฉัน {isImpersonating && "(สวมรอย)"}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>
-               แก้ไขข้อมูลส่วนตัว
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 cursor-pointer">
               <LogOut className="mr-2 h-4 w-4" />
               <span>ออกจากระบบ</span>

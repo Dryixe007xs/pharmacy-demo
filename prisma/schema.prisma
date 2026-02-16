@@ -57,8 +57,8 @@ model User {
   responsibleSubjects Subject[]            @relation("SubjectResponsible")
   teachingAssignments TeachingAssignment[]
   
-  deanApprovals      TeachingAssignment[] @relation("DeanApprovals")
   chairApprovals     TeachingAssignment[] @relation("ChairApprovals")
+  academicApprovals  TeachingAssignment[] @relation("AcademicApprovals") // ✅ สำหรับรองวิชาการ
   
   curriculumRef      Curriculum?          @relation("CurriculumStaff", fields: [curriculumId], references: [id])
 
@@ -181,9 +181,10 @@ model TeachingAssignment {
   headApprovedAt      DateTime?
   headApproverId      String?
   
-  deanApprovalStatus  ApprovalStatus  @default(PENDING)
-  deanApprovedAt      DateTime?
-  deanApproverId      String?
+  // ✅ สถานะสุดท้ายที่ รองวิชาการ (Academic Approval)
+  academicApprovalStatus ApprovalStatus  @default(PENDING)
+  academicApprovedAt     DateTime?
+  academicApproverId     String?
   
   lecturerId          String
   subjectId           Int
@@ -191,14 +192,14 @@ model TeachingAssignment {
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
   
-  deanApprover        User?           @relation("DeanApprovals", fields: [deanApproverId], references: [id])
   headApprover        User?           @relation("ChairApprovals", fields: [headApproverId], references: [id])
+  academicApprover    User?           @relation("AcademicApprovals", fields: [academicApproverId], references: [id]) // ✅ ผูก Relation ไปที่รองวิชาการ
   lecturer            User            @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
   subject             Subject         @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
   @@index([lecturerId, academicYear, semester])
-  @@index([deanApproverId], map: "teachingassignment_deanApproverId_fkey")
   @@index([headApproverId], map: "teachingassignment_headApproverId_fkey")
+  @@index([academicApproverId], map: "teachingassignment_academicApproverId_fkey") // ✅ Index สำหรับรองวิชาการ
   @@index([subjectId], map: "teachingassignment_subjectId_fkey")
   @@map("teachingassignment")
 }
@@ -222,7 +223,6 @@ model TermConfiguration {
   id           String   @id @default(cuid())
   academicYear Int
   semester     Int
-  // isActive removed; timeline dates determine current status
 
   step1Start   DateTime?
   step1End     DateTime?

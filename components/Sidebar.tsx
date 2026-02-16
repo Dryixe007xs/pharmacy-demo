@@ -87,7 +87,7 @@ const menuItems: MenuItem[] = [
       { 
           title: "รายงานสรุปของบุคลากรรายบุคคล", 
           href: "/dashboard/report/staff-summary", 
-          roles: ['ADMIN', 'PROGRAM_CHAIR', 'VICE_DEAN'] 
+          roles: ['ADMIN'] 
       },
       { 
           title: "รายงานสรุปรายปี", 
@@ -100,7 +100,7 @@ const menuItems: MenuItem[] = [
     title: "กำหนดปฏิทินนัดหมาย",
     icon: CalendarDays,
     href: "/dashboard/calendar",
-    roles: ['ADMIN'], 
+    roles: ['ADMIN']
   },
 ];
 

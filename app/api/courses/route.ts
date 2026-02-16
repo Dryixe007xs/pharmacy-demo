@@ -1,3 +1,4 @@
+// app/api/courses/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth"; 
@@ -12,36 +13,42 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const filter = searchParams.get('filter'); 
 
-    // ✅ กรณีที่ 1: ดึงรายวิชาสำหรับ Dashboard อาจารย์ (Active / Year)
+    // ✅ กรณีที่ 1: ดึงรายวิชาที่เปิดสอนในปีปัจจุบัน (Active Year)
+    // ใช้สำหรับหน้า Dashboard ของอาจารย์ เพื่อให้รู้ว่าวิชานี้อยู่เทอมไหน
     if (filter === 'active' || filter === 'year') {
-        // 1. หาปีการศึกษาที่ Active
         const activeYear = await prisma.academicYear.findFirst({
             where: { isActive: true },
             include: {
                 terms: {
                     include: {
                         courseOfferings: {
-                            where: { isOpen: true },
+                            where: { isOpen: true }, // เอาเฉพาะที่เปิด
                             include: {
                                 subject: {
                                     include: {
                                         program: {
-                                            select: { name_th: true }
+                                            include: {
+                                                programChair: {
+                                                    select: {
+                                                        id: true, firstName: true, lastName: true, title: true, email: true, adminTitle: true
+                                                    }
+                                                }
+                                            }
                                         },
                                         responsibleUser: {
                                             select: {
                                                 id: true, firstName: true, lastName: true, email: true, title: true,
                                             }
                                         },
-                                        // ✅ ดึง Assignment เพื่อเอามาคำนวณ Status
                                         teachingAssignments: {
-                                            select: {
-                                                academicYear: true,
-                                                semester: true,
-                                                lecturerStatus: true,
-                                                responsibleStatus: true, // ใช้ตัวนี้เช็คว่าผู้รับผิดชอบกดอนุมัติหรือยัง
-                                                headApprovalStatus: true,
-                                            }
+                                            include: {
+                                                lecturer: {
+                                                    select: {
+                                                        id: true, firstName: true, lastName: true, title: true, email: true
+                                                    }
+                                                }
+                                            },
+                                            orderBy: { id: 'asc' }
                                         }
                                     }
                                 }
@@ -54,44 +61,21 @@ export async function GET(req: Request) {
 
         if (!activeYear) return NextResponse.json([]);
 
-        // 2. แปลงข้อมูลและคำนวณสถานะ (Flatten & Calculate Status)
+        // 🔄 Flatten Data: แปลงโครงสร้างจาก ปี -> เทอม -> วิชา ให้เป็น List รายวิชาชั้นเดียว
         const courses = [];
         for (const term of activeYear.terms) {
             for (const offering of term.courseOfferings) {
-                
-                // กรองเอาเฉพาะ Assignment ของปีและเทอมนี้
-                const termAssignments = offering.subject.teachingAssignments.filter(
+                // กรอง Teaching Assignment ให้ตรงกับเทอมและปีปัจจุบันเท่านั้น
+                const relevantAssignments = offering.subject.teachingAssignments.filter(
                     a => a.academicYear === activeYear.id && a.semester === term.semester
                 );
 
-                // ✅ LOGIC คำนวณสถานะ (Status Calculation)
-                let calculatedStatus = 'WAITING'; // Default: ยังไม่มีข้อมูล
-
-                if (termAssignments.length > 0) {
-                    // เช็คว่าทุกคนได้รับ Approved จาก Responsible หรือยัง
-                    const allApproved = termAssignments.every(a => a.responsibleStatus === 'APPROVED');
-                    // เช็คว่ามีใครโดน Reject ไหม
-                    const anyRejected = termAssignments.some(a => a.responsibleStatus === 'REJECTED');
-                    // เช็คว่าอาจารย์ส่งมาหรือยัง
-                    const anySubmitted = termAssignments.some(a => a.lecturerStatus === 'APPROVED'); 
-
-                    if (allApproved) {
-                        calculatedStatus = 'APPROVED'; // อนุมัติครบทุกคนแล้ว
-                    } else if (anyRejected) {
-                        calculatedStatus = 'REJECTED'; // มีบางคนต้องแก้ไข
-                    } else if (anySubmitted) {
-                        calculatedStatus = 'PENDING';  // มีคนส่งมาแล้ว รอเราตรวจสอบ
-                    } else {
-                        calculatedStatus = 'IN_PROGRESS'; // มีชื่ออาจารย์ แต่ยังไม่มีใครส่ง
-                    }
-                }
-
                 courses.push({
                     ...offering.subject,
-                    teachingAssignments: [], // ไม่ต้องส่งไปเยอะ หนัก payload
-                    semester: term.semester,
+                    teachingAssignments: relevantAssignments, // ใส่เฉพาะ Assignment ของเทอมนี้
+                    semester: term.semester,   // ✅ สำคัญ: แปะเลขเทอมลงไป (1, 2, 3)
                     termConfigId: term.id,
-                    status: calculatedStatus // ✅ ใช้ค่าที่คำนวณใหม่
+                    status: relevantAssignments.length > 0 ? 'IN_PROGRESS' : 'WAITING' // Mock status หรือ logic ตามจริง
                 });
             }
         }
@@ -99,11 +83,37 @@ export async function GET(req: Request) {
         return NextResponse.json(courses);
     }
 
-    // ✅ กรณีที่ 2: ดึงรายวิชาทั้งหมด (สำหรับ Admin) - เหมือนเดิม
+    // ✅ กรณีที่ 2: ดึง Master Data รายวิชาทั้งหมด (สำหรับ Admin จัดการ)
     const courses = await prisma.subject.findMany({
       include: { 
-        program: { select: { name_th: true, year: true } },
-        responsibleUser: { select: { firstName: true, lastName: true, title: true } }
+        program: {
+            select: {
+                id: true, name_th: true, year: true, degree_level: true, programChairId: true,
+                programChair: {      
+                    select: {
+                        id: true, firstName: true, lastName: true, title: true, email: true, adminTitle: true
+                    }
+                }
+            }
+        },
+        responsibleUser: {
+            select: {
+                id: true, firstName: true, lastName: true, email: true, title: true, 
+            }
+        },
+        teachingAssignments: {
+           include: {
+             lecturer: {
+                select: {
+                    id: true, firstName: true, lastName: true, title: true, email: true,
+                    curriculumRef: { 
+                        select: { id: true, name: true, chairId: true } 
+                    }
+                }
+             }, 
+           },
+           orderBy: { id: 'asc' }
+        }
       },
       orderBy: { id: 'desc' }
     });
@@ -116,33 +126,81 @@ export async function GET(req: Request) {
   }
 }
 
-// ... (POST, PUT, DELETE ให้คงเดิมไว้ครับ)
+// POST: Create a new course
 export async function POST(req: Request) {
-    // (ใช้โค้ดเดิม)
-    try {
-        const body = await req.json();
-        const newCourse = await prisma.subject.create({ data: body });
-        return NextResponse.json(newCourse);
-    } catch (e) { return NextResponse.json({ error: 'Error' }, { status: 500 }); }
+  try {
+    const body = await req.json();
+    const { 
+      code, name_th, name_en, credit, programId, responsibleUserId, instructor 
+    } = body;
+
+    const newCourse = await prisma.subject.create({
+        data: {
+            code,
+            name_th,
+            name_en,
+            credit,
+            programId: Number(programId), 
+            responsibleUserId: responsibleUserId || null, 
+            instructor,
+        }
+    });
+    return NextResponse.json(newCourse);
+  } catch (error) {
+    console.error("Error creating course:", error);
+    return NextResponse.json({ error: 'Error creating course' }, { status: 500 });
+  }
 }
 
+// PUT: Update a course
 export async function PUT(req: Request) {
-    // (ใช้โค้ดเดิม)
-    try {
-        const body = await req.json();
-        const { id, ...data } = body;
-        const updated = await prisma.subject.update({ where: { id: Number(id) }, data });
-        return NextResponse.json(updated);
-    } catch (e) { return NextResponse.json({ error: 'Error' }, { status: 500 }); }
+  try {
+    const body = await req.json();
+    const { 
+      id, code, name_th, name_en, credit, programId, responsibleUserId, instructor 
+    } = body;
+
+    if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
+
+    const updatedCourse = await prisma.subject.update({
+        where: { id: Number(id) }, 
+        data: {
+            code,
+            name_th,
+            name_en,
+            credit,
+            programId: Number(programId),
+            responsibleUserId: responsibleUserId || null,
+            instructor,
+        }
+    });
+    return NextResponse.json(updatedCourse);
+  } catch (error) {
+    console.error("Error updating course:", error);
+    return NextResponse.json({ error: 'Error updating course' }, { status: 500 });
+  }
 }
 
+// DELETE: Delete a course
 export async function DELETE(req: Request) {
-    // (ใช้โค้ดเดิม)
-    try {
-        const { searchParams } = new URL(req.url);
-        const id = searchParams.get('id');
-        await prisma.teachingAssignment.deleteMany({ where: { subjectId: Number(id) } });
-        await prisma.subject.delete({ where: { id: Number(id) } });
-        return NextResponse.json({ success: true });
-    } catch (e) { return NextResponse.json({ error: 'Error' }, { status: 500 }); }
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
+
+    // ลบ TeachingAssignments ที่เกี่ยวข้องก่อน (ถ้าไม่ได้ตั้ง Cascade ใน DB)
+    await prisma.teachingAssignment.deleteMany({
+        where: { subjectId: Number(id) }
+    });
+
+    await prisma.subject.delete({
+        where: { id: Number(id) }
+    });
+
+    return NextResponse.json({ message: 'Course deleted successfully' });
+  } catch (error) {
+    console.error("Error deleting course:", error);
+    return NextResponse.json({ error: 'Error deleting course' }, { status: 500 });
+  }
 }

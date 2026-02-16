@@ -1,8 +1,5 @@
-// app/api/report/personal/route.ts
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -13,7 +10,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. ดึงข้อมูลอาจารย์
+    // 1. หา Active Year เพื่อดึงเฉพาะงานของปีการศึกษาปัจจุบัน
+    const activeYear = await prisma.academicYear.findFirst({
+        where: { isActive: true }
+    });
+
+    // 2. ดึงข้อมูลโปรไฟล์อาจารย์
     const lecturerRaw = await prisma.user.findUnique({
         where: { id: lecturerId },
         include: {
@@ -34,20 +36,26 @@ export async function GET(request: Request) {
         department: "คณะเภสัชศาสตร์"
     };
 
-    // 2. ดึงภาระงานสอน
+    // 3. กำหนดเงื่อนไขการดึงภาระงานสอน
+    let whereClause: any = {
+      lecturerId: lecturerId,
+      academicApprovalStatus: 'APPROVED', // ต้องผ่านรองวิชาการแล้วเท่านั้น
+    };
+
+    // ถ้ามีปีที่เปิดใช้งานอยู่ ให้ดึงเฉพาะของปีนั้น
+    if (activeYear) {
+        whereClause.academicYear = activeYear.id;
+    }
+
+    // 4. ดึงข้อมูล
     const assignments = await prisma.teachingAssignment.findMany({
-      where: {
-        lecturerId: lecturerId,
-        // ✅ เพิ่มเงื่อนไขนี้: ดึงเฉพาะที่คณบดีอนุมัติแล้วเท่านั้น (จบกระบวนการ)
-        deanApprovalStatus: 'APPROVED', 
-      },
+      where: whereClause,
       include: {
         subject: {
             select: {
                 code: true,
                 name_th: true,
                 responsibleUserId: true,
-                // ตรวจสอบชื่อ field ใน Schema ว่าเป็น 'credit' หรือ 'credits' ให้ตรงกันนะครับ
                 credit: true, 
             }
         }, 

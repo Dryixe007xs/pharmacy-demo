@@ -9,39 +9,36 @@ export async function GET(request: Request) {
   const yearParam = searchParams.get('year');
 
   try {
-    // 1. หาข้อมูล Term ID ที่ต้องการก่อน (สำคัญมาก เพื่อเอาไปกรอง CourseOffering)
+    // 1. หาข้อมูล Term ID เป้าหมาย (Logic เดิม: หาเทอมล่าสุด)
     let targetYear: number;
     let targetSemester: number;
 
-    // ถ้ามีการส่งค่ามา ให้ใช้ค่านั้น ถ้าไม่มีให้หา Active Term
     if (semesterParam && yearParam) {
         targetYear = parseInt(yearParam);
         targetSemester = parseInt(semesterParam);
     } else {
-        const activeTerm = await prisma.termConfiguration.findFirst({ where: { isActive: true } });
-        if (!activeTerm) return NextResponse.json({ data: [], meta: {} });
-        targetYear = activeTerm.academicYear;
-        targetSemester = activeTerm.semester;
+        const latestTerm = await prisma.termConfiguration.findFirst({
+            orderBy: [
+                { academicYear: 'desc' },
+                { semester: 'desc' }
+            ]
+        });
+
+        if (!latestTerm) return NextResponse.json({ data: [], meta: {} });
+        targetYear = latestTerm.academicYear;
+        targetSemester = latestTerm.semester;
     }
 
-    // หา ID ของ Term นั้นๆ เพื่อเอาไป Query ต่อ
     const targetTermConfig = await prisma.termConfiguration.findFirst({
-        where: {
-            academicYear: targetYear,
-            semester: targetSemester
-        }
+        where: { academicYear: targetYear, semester: targetSemester }
     });
 
     if (!targetTermConfig) {
         return NextResponse.json({ data: [], meta: { year: targetYear, semester: targetSemester } });
     }
 
-    // 2. ดึงข้อมูลอาจารย์ + วิชา (โดยกรองเฉพาะวิชาที่เปิดสอนในเทอมนี้)
+    // 2. ดึงข้อมูลอาจารย์
     const instructors = await prisma.user.findMany({
-        where: {
-            // (Optional) อาจจะกรองเฉพาะคนที่มี Role เป็น USER/INSTRUCTOR
-            // role: { not: 'ADMIN' } 
-        },
         orderBy: { firstName: 'asc' },
         select: {
             id: true,
@@ -49,12 +46,11 @@ export async function GET(request: Request) {
             lastName: true,
             title: true,
             responsibleSubjects: {
-                // ✅ แก้ไขจุดนี้: กรองเฉพาะวิชาที่ "เปิดสอน" (Open) ในเทอมนี้เท่านั้น
                 where: {
                     courseOfferings: {
                         some: {
-                            termConfigId: targetTermConfig.id, // ต้องตรงกับเทอมที่เลือก
-                            isOpen: true // และสถานะต้องเปิด
+                            termConfigId: targetTermConfig.id,
+                            isOpen: true
                         }
                     }
                 },
@@ -62,16 +58,17 @@ export async function GET(request: Request) {
                     id: true,
                     code: true,
                     name_th: true,
-                    // ดึง Assignments มาเช็คสถานะเหมือนเดิม
                     teachingAssignments: {
                         where: {
+                            // เช็ค Assignment ที่ผูกกับ Subject นี้
                             academicYear: targetYear,
                             semester: targetSemester
                         },
                         select: {
                             lecturerStatus: true,
                             responsibleStatus: true,
-                            headApprovalStatus: true
+                            headApprovalStatus: true,
+                            academicApprovalStatus: true // ✅ เปลี่ยนมาใช้รองวิชาการแทนคณบดี
                         }
                     }
                 }
@@ -79,18 +76,29 @@ export async function GET(request: Request) {
         }
     });
 
-    // 3. Transform Data (เหมือนเดิม แต่ตอนนี้ courses จะมีแค่ 78 วิชาตามที่ต้องการแล้ว)
+    // 3. แปลงข้อมูล
     const dashboardData = instructors.map(inst => {
         const courses = inst.responsibleSubjects.map(sub => {
             const assigns = sub.teachingAssignments;
-            let status = 'WAITING'; // เริ่มต้นเป็น รอเริ่ม (เพราะวิชาเปิดแล้ว แต่ยังไม่มี Assignment)
+            let status = 'WAITING'; 
+            
+            // ตัวแปรสำหรับส่งไป Frontend ให้เช็คละเอียด
+            let headStatus = 'PENDING';
+            let academicStatus = 'PENDING'; // ✅ เปลี่ยนตัวแปรให้ตรงความหมาย
 
             if (assigns.length > 0) {
-                const allApproved = assigns.every(a => a.headApprovalStatus === 'APPROVED');
-                const anyRejected = assigns.some(a => a.headApprovalStatus === 'REJECTED' || a.responsibleStatus === 'REJECTED');
+                const allHeadApproved = assigns.every(a => a.headApprovalStatus === 'APPROVED');
+                const allAcademicApproved = assigns.every(a => a.academicApprovalStatus === 'APPROVED'); // ✅ เปลี่ยน logic เช็ครองวิชาการ
+                const anyRejected = assigns.some(a => a.headApprovalStatus === 'REJECTED' || a.responsibleStatus === 'REJECTED' || a.academicApprovalStatus === 'REJECTED');
                 const allSubmitted = assigns.every(a => a.responsibleStatus === 'APPROVED');
 
-                if (allApproved) status = 'APPROVED';
+                // Set ค่าสถานะรวม เพื่อส่งไปให้ Frontend ใช้
+                if (allHeadApproved) headStatus = 'APPROVED';
+                if (allAcademicApproved) academicStatus = 'APPROVED';
+
+                // Logic คำนวณ Status หลัก (สำหรับแสดงผลเบื้องต้น)
+                if (allAcademicApproved) status = 'APPROVED'; // ✅ จบกระบวนการจริงที่รองวิชาการ (สีเขียว)
+                else if (allHeadApproved) status = 'PENDING_ACADEMIC'; // ✅ ประธานจบ รอรองฯ (เปลี่ยนจาก PENDING_DEAN)
                 else if (anyRejected) status = 'REJECTED';
                 else if (allSubmitted) status = 'PENDING_HEAD';
                 else status = 'IN_PROGRESS';
@@ -100,7 +108,9 @@ export async function GET(request: Request) {
                 id: sub.id,
                 code: sub.code,
                 name: sub.name_th,
-                status: status
+                status: status,                 // สถานะสรุป
+                headApprovalStatus: headStatus, // ส่งค่านี้ไปให้ Frontend ใช้เช็ค
+                academicApprovalStatus: academicStatus  // ✅ เปลี่ยนชื่อ Key เป็น academic แทน dean
             };
         });
 
@@ -110,7 +120,7 @@ export async function GET(request: Request) {
             department: "คณะเภสัชศาสตร์",
             courses: courses
         };
-    }).filter(inst => inst.courses.length > 0); // ตัดอาจารย์ที่ไม่มีสอนในเทอมนี้ออก
+    }).filter(inst => inst.courses.length > 0);
 
     return NextResponse.json({
         data: dashboardData,

@@ -8,6 +8,7 @@ export async function GET(request: Request) {
   const subjectId = searchParams.get('subjectId');
   const lecturerId = searchParams.get('lecturerId'); 
   const scope = searchParams.get('scope'); 
+  const reqSemester = searchParams.get('semester'); // ✅ รับค่า semester จาก URL
 
   try {
     const activeYear = await prisma.academicYear.findFirst({
@@ -21,7 +22,10 @@ export async function GET(request: Request) {
         academicYear: activeYear.id, 
     };
 
-    if (scope !== 'year') {
+    // ✅ ใช้ semester ที่ส่งมา ถ้าไม่ส่งมาถึงค่อยใช้ Logic เช็ค Date
+    if (reqSemester) {
+        whereClause.semester = Number(reqSemester);
+    } else if (scope !== 'year') {
         const now = new Date();
         const currentTerm = activeYear.terms.find(t => 
             t.step1Start && t.step4End && now >= new Date(t.step1Start) && now <= new Date(t.step4End)
@@ -58,7 +62,6 @@ export async function GET(request: Request) {
                 name_en: true,
                 credit: true, 
                 responsibleUserId: true,
-                // ❌ ลบ semester: true ออก เพราะใน Subject ไม่มี field นี้
                 program: { select: { name_th: true } },
                 responsibleUser: { select: { firstName: true, lastName: true, title: true } }
             }
@@ -77,7 +80,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { subjectId, lecturerId, lecturerStatus } = body;
+    const { subjectId, lecturerId, lecturerStatus, semester } = body; // ✅ รับค่า semester มาด้วย
 
     // 1. หา Active Year
     const activeYear = await prisma.academicYear.findFirst({
@@ -89,18 +92,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "ระบบยังไม่เปิดภาคการศึกษา (No Active Year)" }, { status: 400 });
     }
 
-    // ✅ แก้ไข: ลบการดึง subject.semester ออก แล้วใช้ Logic วันที่แทน
-    let targetSemester = 1; // Default
-    
-    // หาเทอมปัจจุบันตามช่วงเวลา
-    const now = new Date();
-    const currentTerm = activeYear.terms.find(t => 
-        t.step1Start && t.step4End && now >= new Date(t.step1Start) && now <= new Date(t.step4End)
-    );
-    
-    if (currentTerm) {
-        targetSemester = currentTerm.semester;
-    }
+    // ✅ ใช้ semester ที่ส่งมาจาก Frontend ถ้าไม่ได้ส่งมาให้เป็น 1
+    const targetSemester = semester ? Number(semester) : 1; 
 
     // 2. ตรวจสอบข้อมูลซ้ำ
     const existing = await prisma.teachingAssignment.findFirst({
@@ -124,7 +117,7 @@ export async function POST(request: Request) {
         subjectId: Number(subjectId),
         lecturerId: lecturerId,
         academicYear: activeYear.id,
-        semester: targetSemester,
+        semester: targetSemester, // ✅ บันทึกลงเทอมที่ถูกต้อง
         lectureHours: 0,
         labHours: 0,
         examHours: 0,
@@ -132,7 +125,7 @@ export async function POST(request: Request) {
         lecturerStatus: initialStatus,
         responsibleStatus: ApprovalStatus.PENDING,
         headApprovalStatus: ApprovalStatus.PENDING,
-        deanApprovalStatus: ApprovalStatus.PENDING
+        academicApprovalStatus: ApprovalStatus.PENDING 
       },
       include: { lecturer: true }
     });
@@ -150,7 +143,7 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const { 
         id, lectureHours, labHours, examHours, examCritiqueHours, 
-        lecturerStatus, lecturerFeedback, responsibleStatus, headApprovalStatus, deanApprovalStatus 
+        lecturerStatus, lecturerFeedback, responsibleStatus, headApprovalStatus, academicApprovalStatus 
     } = body;
 
     const dataToUpdate: any = {};
@@ -164,14 +157,14 @@ export async function PUT(request: Request) {
     if (hoursUpdated) {
         if (responsibleStatus === undefined) dataToUpdate.responsibleStatus = ApprovalStatus.PENDING;
         if (headApprovalStatus === undefined) dataToUpdate.headApprovalStatus = ApprovalStatus.PENDING;
-        if (deanApprovalStatus === undefined) dataToUpdate.deanApprovalStatus = ApprovalStatus.PENDING;
+        if (academicApprovalStatus === undefined) dataToUpdate.academicApprovalStatus = ApprovalStatus.PENDING; 
     }
 
     if (lecturerStatus !== undefined) dataToUpdate.lecturerStatus = lecturerStatus === null ? ApprovalStatus.DRAFT : lecturerStatus;
     if (lecturerFeedback !== undefined) dataToUpdate.lecturerFeedback = lecturerFeedback;
     if (responsibleStatus !== undefined) dataToUpdate.responsibleStatus = responsibleStatus;
     if (headApprovalStatus !== undefined) dataToUpdate.headApprovalStatus = headApprovalStatus;
-    if (deanApprovalStatus !== undefined) dataToUpdate.deanApprovalStatus = deanApprovalStatus;
+    if (academicApprovalStatus !== undefined) dataToUpdate.academicApprovalStatus = academicApprovalStatus; 
 
     const updated = await prisma.teachingAssignment.update({
       where: { id: Number(id) },

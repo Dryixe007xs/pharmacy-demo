@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Clock, Users, BookOpen, Search, Calendar, 
-  ChevronRight, Workflow, HelpCircle, AlertTriangle, CheckCircle2, XCircle, Timer, Info, Layers, Loader2
+  ChevronRight, Workflow, HelpCircle, AlertTriangle, CheckCircle2, XCircle, Timer, Info, Layers, Loader2,
+  FileText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
@@ -25,6 +26,7 @@ type Course = {
   responsibleUserId: string; 
   status?: string;
   program?: { name_th: string; };
+  teachingAssignments?: any[]; 
   summary?: any;
 };
 
@@ -44,6 +46,8 @@ type Assignment = {
   };
   lecturerStatus: string;
   responsibleStatus: string;
+  headApprovalStatus?: string;
+  academicApprovalStatus?: string; 
 };
 
 type TermConfig = {
@@ -64,12 +68,23 @@ const SEMESTER_INFO: Record<number, { label: string, color: string, iconColor: s
     3: { label: "ภาคฤดูร้อน", color: "text-yellow-700", iconColor: "text-yellow-500", bgColor: "bg-yellow-50", border: "border-yellow-100" }
 };
 
+// --- HELPER COMPONENTS & FUNCTIONS ---
+
 const StatusBadge = ({ status }: { status?: string }) => {
     switch (status) {
-        case 'APPROVED': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200 whitespace-nowrap"><CheckCircle2 className="w-3 h-3 mr-1"/> อนุมัติแล้ว</span>;
-        case 'REJECTED': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200 whitespace-nowrap"><XCircle className="w-3 h-3 mr-1"/> ให้แก้ไข</span>;
-        case 'PENDING': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200 whitespace-nowrap"><Timer className="w-3 h-3 mr-1"/> รอตรวจสอบ</span>;
-        default: return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200 whitespace-nowrap">รอดำเนินการ</span>;
+        case 'APPROVED': 
+            return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200 whitespace-nowrap"><CheckCircle2 className="w-3 h-3 mr-1"/> อนุมัติแล้ว</span>;
+        case 'PENDING_DEAN': 
+            return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200 whitespace-nowrap"><FileText className="w-3 h-3 mr-1"/> รอรองฯ วิชาการ</span>;
+        case 'PENDING_HEAD': 
+            return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 whitespace-nowrap"><Timer className="w-3 h-3 mr-1"/> รอประธานฯ</span>;
+        case 'REJECTED': 
+            return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200 whitespace-nowrap"><XCircle className="w-3 h-3 mr-1"/> ให้แก้ไข</span>;
+        case 'PENDING': 
+        case 'IN_PROGRESS':
+            return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200 whitespace-nowrap"><Timer className="w-3 h-3 mr-1"/> กำลังดำเนินการ</span>;
+        default: 
+            return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200 whitespace-nowrap">รอดำเนินการ</span>;
     }
 };
 
@@ -114,6 +129,7 @@ const CourseTableSection = ({
   title, 
   courses, 
   loading, 
+  currentUser,
   targetSemesters,
   type 
 }: { 
@@ -138,13 +154,11 @@ const CourseTableSection = ({
         <table className="w-full text-left table-fixed"> 
           <thead className="bg-slate-50/50 border-b border-slate-200 text-slate-700 text-sm font-semibold uppercase tracking-wider">
             <tr>
-              {/* ✅ ปรับสัดส่วนความกว้างใหม่ */}
               <th className="p-4 pl-6 w-[12%]">รหัสวิชา</th>
               <th className="p-4 w-[33%]">ชื่อรายวิชา</th>
               <th className="p-4 w-[10%] text-center">{type === 'responsible' ? 'หน่วยกิต' : 'ภาระงาน'}</th>
               <th className="p-4 w-[20%] text-center">ข้อมูลเพิ่มเติม</th>
               <th className="p-4 w-[13%] text-center">สถานะ</th>
-              {/* ✅ เพิ่มพื้นที่ปุ่มเป็น 12% */}
               <th className="p-4 pr-6 w-[12%] text-center"></th> 
             </tr>
           </thead>
@@ -173,6 +187,9 @@ const CourseTableSection = ({
                         const assignment = type === 'teaching' ? item : null;
                         const key = type === 'responsible' ? course.id : assignment.id;
 
+                        // Logic แสดงผลสถานะ
+                        const showStatus = type === 'responsible' ? course.status : assignment.lecturerStatus;
+
                         return (
                             <tr key={key} className="hover:bg-slate-50/80 transition-colors group">
                                 <td className="p-4 pl-6 font-medium text-slate-700 align-top truncate">{course.code}</td>
@@ -198,22 +215,12 @@ const CourseTableSection = ({
                                     </div>
                                 </td>
                                 <td className="p-4 text-center align-top">
-                                    {type === 'responsible' 
-                                        ? <StatusBadge status={course.status} />
-                                        : <div className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium inline-flex items-center gap-1 border whitespace-nowrap", 
-                                            assignment.lecturerStatus === 'APPROVED' ? "bg-green-100 text-green-800 border-green-200" :
-                                            assignment.lecturerStatus === 'PENDING' ? "bg-blue-100 text-blue-800 border-blue-200" :
-                                            assignment.lecturerStatus === 'REJECTED' ? "bg-red-100 text-red-800 border-red-200" : "bg-slate-100 text-slate-600 border-slate-200"
-                                        )}>
-                                            {assignment.lecturerStatus === 'APPROVED' ? 'อนุมัติแล้ว' : assignment.lecturerStatus === 'PENDING' ? 'รอตรวจสอบ' : assignment.lecturerStatus === 'REJECTED' ? 'แก้ไข' : 'รอดำเนินการ'}
-                                        </div>
-                                    }
+                                    <StatusBadge status={showStatus} />
                                 </td>
-                                {/* ✅ ปุ่มจัดการ: เต็มช่อง (w-full) */}
                                 <td className="p-4 pr-6 text-center align-top">
                                     <Button asChild size="sm" variant={type === 'responsible' ? "outline" : "ghost"} 
                                         className={cn(
-                                            "h-9 w-full shadow-sm transition-all text-xs font-semibold", // ใช้ w-full เพื่อให้เต็มช่องที่ขยายมา
+                                            "h-9 w-full shadow-sm transition-all text-xs font-semibold", 
                                             type === 'responsible' 
                                                 ? "bg-white hover:bg-purple-600 hover:text-white text-purple-700 border-purple-200 hover:border-purple-600" 
                                                 : "text-orange-600 hover:text-white hover:bg-orange-500 bg-orange-50"
@@ -259,18 +266,42 @@ export default function InstructorDashboard({ session }: { session: any }) {
         try {
             if(!currentUser?.id) return;
 
-            const resTerm = await fetch("/api/term-config/active");
+            const resTerm = await fetch("/api/term-config/active", { cache: 'no-store' });
             const termData = await resTerm.json();
             setActiveTerm(termData);
 
-            const resCourses = await fetch("/api/courses?filter=year"); 
+            const resCourses = await fetch("/api/courses?filter=year", { cache: 'no-store' }); 
             const allCourses = await resCourses.json();
+            
             if (Array.isArray(allCourses)) {
                 let myCourses = allCourses.filter((c: any) => String(c.responsibleUserId) === String(currentUser.id));
+                
+                // Re-Calculate Status Logic
+                myCourses = myCourses.map((course: any) => {
+                    const assigns = course.teachingAssignments || [];
+                    
+                    if (assigns.length > 0) {
+                        const allHeadApproved = assigns.every((a: any) => a.headApprovalStatus === 'APPROVED');
+                        // ✅ เช็ค academicApprovalStatus ตามที่ต้องการ
+                        const allDeanApproved = assigns.every((a: any) => a.academicApprovalStatus === 'APPROVED');
+                        
+                        const anyRejected = assigns.some((a: any) => a.headApprovalStatus === 'REJECTED' || a.responsibleStatus === 'REJECTED');
+                        const allSubmitted = assigns.every((a: any) => a.responsibleStatus === 'APPROVED'); 
+
+                        // Override status logic
+                        if (allDeanApproved) course.status = 'APPROVED'; // เขียว (เสร็จสิ้น)
+                        else if (allHeadApproved) course.status = 'PENDING_DEAN'; // ม่วง (รอรองฯ)
+                        else if (anyRejected) course.status = 'REJECTED'; // แดง
+                        else if (allSubmitted) course.status = 'PENDING_HEAD'; // ฟ้า (รอประธาน)
+                        else course.status = 'IN_PROGRESS'; // ส้ม
+                    }
+                    return course;
+                });
+
                 setResponsibleCourses(myCourses);
             }
 
-            const resAssign = await fetch(`/api/assignments?lecturerId=${currentUser.id}&scope=year`);
+            const resAssign = await fetch(`/api/assignments?lecturerId=${currentUser.id}&scope=year`, { cache: 'no-store' });
             const myAssign = await resAssign.json();
             if (Array.isArray(myAssign)) {
                 const mappedAssign = myAssign.map((a: any) => ({
@@ -398,7 +429,6 @@ export default function InstructorDashboard({ session }: { session: any }) {
         <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-4 flex items-center gap-3 text-yellow-800 shadow-sm"><AlertTriangle className="w-5 h-5 text-yellow-600" /><div><h3 className="font-bold text-sm">ระบบยังไม่เปิดใช้งาน</h3><p className="text-xs opacity-80">ขณะนี้ยังไม่มีปีการศึกษาที่เปิดใช้งาน</p></div></div>
       )}
 
-      {/* ✅ Grid 9:3 (ขยายพื้นที่ส่วนรายวิชา) */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         <div className="col-span-1 md:col-span-9 space-y-4">
           <div className="bg-white p-4 rounded-xl border shadow-sm min-h-[500px]">
@@ -415,14 +445,16 @@ export default function InstructorDashboard({ session }: { session: any }) {
             ) : activeTab === "responsible" ? (
               <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
                 <CourseTableSection title="รายวิชา" courses={filteredRespCourses} loading={loading} currentUser={currentUser} targetSemesters={[1, 2, 3]} type="responsible" />
-                {filteredRespCourses.length === 0 && (
+                {/* ✅ ซ่อนข้อความถ้ากำลังโหลด */}
+                {!loading && filteredRespCourses.length === 0 && (
                     <div className="p-10 text-center border rounded-xl bg-slate-50/50 text-slate-400 flex flex-col items-center gap-2"><BookOpen className="w-8 h-8 opacity-20" /><p>คุณไม่มีรายวิชาที่รับผิดชอบ</p></div>
                 )}
               </div>
             ) : (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
                 <CourseTableSection title="รายวิชา" courses={filteredTeaching} loading={loading} currentUser={currentUser} targetSemesters={[1, 2, 3]} type="teaching" />
-                {filteredTeaching.length === 0 && (
+                {/* ✅ ซ่อนข้อความถ้ากำลังโหลด */}
+                {!loading && filteredTeaching.length === 0 && (
                     <div className="p-10 text-center border rounded-xl bg-slate-50/50 text-slate-400 flex flex-col items-center gap-2"><BookOpen className="w-8 h-8 opacity-20" /><p>ยังไม่มีรายวิชาที่ถูกมอบหมายให้สอน</p></div>
                 )}
               </div>
@@ -430,7 +462,6 @@ export default function InstructorDashboard({ session }: { session: any }) {
           </div>
         </div>
 
-        {/* ✅ Right Column Reduced */}
         <div className="col-span-1 md:col-span-3 space-y-4">
             <Card className="shadow-sm">
                 <CardContent className="p-5">
@@ -438,7 +469,8 @@ export default function InstructorDashboard({ session }: { session: any }) {
                         <div>
                             <p className="text-sm font-medium text-slate-500 mb-1">ภาระงานรวม</p>
                             <Select value={statFilter} onValueChange={setStatFilter}>
-                                <SelectTrigger className="h-7 text-xs w-[120px] bg-slate-50 border-slate-200 font-bold text-slate-700"><SelectValue /></SelectTrigger>
+                                {/* ✅ ปรับความกว้างเป็น 150px */}
+                                <SelectTrigger className="h-7 text-xs w-[150px] bg-slate-50 border-slate-200 font-bold text-slate-700"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">ทั้งปีการศึกษา</SelectItem>
                                     <SelectItem value="1">ภาคเรียนที่ 1</SelectItem>

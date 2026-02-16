@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, BookOpen, Loader2, Printer, Building2, Calendar, GraduationCap, Info } from "lucide-react";
+import { ArrowLeft, Mail, BookOpen, Loader2, Printer, Building2, Calendar, GraduationCap, Info, Layers } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 
 // --- Interfaces ---
@@ -15,7 +15,7 @@ interface StaffProfile {
   department: string;
   curriculum: string;
   adminPosition?: string;
-  academicPosition?: string; // เพิ่ม academicPosition เพื่อให้ type ครบ
+  academicPosition?: string; 
 }
 
 interface ReportCourse {
@@ -26,9 +26,7 @@ interface ReportCourse {
   lecture: number;
   lab: number;
   exam: number;
-  critique: number; // เพิ่มวิพากษ์
-  statusLabel: string;
-  statusColor: string;
+  critique: number; 
 }
 
 interface SemesterData {
@@ -44,7 +42,7 @@ export default function StaffIndividualReportPage() {
   const [staff, setStaff] = useState<StaffProfile | null>(null);
   const [reportData, setReportData] = useState<SemesterData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [academicYear, setAcademicYear] = useState<string | number>("-"); // เพิ่ม Active Year
+  const [academicYear, setAcademicYear] = useState<string | number>("-"); 
 
   useEffect(() => {
     if (!staffId) return;
@@ -86,31 +84,26 @@ export default function StaffIndividualReportPage() {
         const term3: ReportCourse[] = [];
 
         assignList.forEach((assign: any) => {
-            if (assign.deanApprovalStatus !== 'APPROVED') {
+            // ✅ ใช้ academicApprovalStatus แทน deanApprovalStatus
+            if (assign.academicApprovalStatus !== 'APPROVED') {
                 return;
             }
 
             const isResponsible = String(assign.lecturerId) === String(assign.subject.responsibleUserId);
             const role = isResponsible ? "ผู้รับผิดชอบรายวิชา" : "ผู้สอน";
             
-            // ใช้ Style เดียวกับ Personal Report
-            const statusLabel = "อนุมัติแล้ว";
-            const statusColor = "bg-green-100 text-green-700 border-green-200";
-
             const courseObj: ReportCourse = {
                 code: assign.subject.code,
                 name: assign.subject.name_th,
                 credit: assign.subject.credit || assign.subject.credits || "-",
                 role: role,
-                lecture: assign.lectureHours || 0,
-                lab: assign.labHours || 0,
-                exam: assign.examHours || 0,
-                critique: assign.examCritiqueHours || 0, // ดึงค่าวิพากษ์
-                statusLabel: statusLabel,
-                statusColor: statusColor
+                lecture: Number(assign.lectureHours) || 0,
+                lab: Number(assign.labHours) || 0,
+                exam: Number(assign.examHours) || 0,
+                critique: Number(assign.examCritiqueHours) || 0, 
             };
 
-            const sem = assign.semester;
+            const sem = Number(assign.semester);
             if (sem === 1) term1.push(courseObj);
             else if (sem === 2) term2.push(courseObj);
             else if (sem === 3) term3.push(courseObj);
@@ -162,7 +155,7 @@ export default function StaffIndividualReportPage() {
       {/* Styles for Print */}
       <style jsx global>{`
         @media print {
-            @page { margin: 10mm; size: landscape; } /* ใช้แนวนอนเหมือน Personal Report */
+            @page { margin: 10mm; size: landscape; } 
             body { -webkit-print-color-adjust: exact; }
             .no-print { display: none !important; }
             .page-break { page-break-before: always; }
@@ -229,30 +222,35 @@ export default function StaffIndividualReportPage() {
             <table className="w-full text-left border-collapse">
                 <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-sm uppercase tracking-wide font-semibold">
-                        <th className="py-4 px-6 w-[25%]">รหัสวิชา / ชื่อรายวิชา</th>
+                        <th className="py-4 px-6 w-[35%]">รหัสวิชา / ชื่อรายวิชา</th>
                         <th className="py-4 px-6 w-[15%] text-center">บทบาท</th>
-                        <th className="py-4 px-4 w-[10%] text-center">ชั่วโมงบรรยาย</th>
-                        <th className="py-4 px-4 w-[10%] text-center">ชั่วโมงปฏิบัติ</th>
-                        <th className="py-4 px-4 w-[10%] text-center">คุมสอบนอกตาราง</th>
-                        
-                        {/* คอลัมน์วิพากษ์ */}
-                        <th className="py-4 px-4 w-[10%] text-center text-purple-700 bg-purple-50/20 border-b border-purple-100">
+                        <th className="py-4 px-4 w-[12.5%] text-center">ชั่วโมงบรรยาย</th>
+                        <th className="py-4 px-4 w-[12.5%] text-center">ชั่วโมงปฏิบัติ</th>
+                        <th className="py-4 px-4 w-[12.5%] text-center">คุมสอบนอกตาราง</th>
+                        <th className="py-4 px-4 w-[12.5%] text-center text-purple-700 bg-purple-50/20 border-b border-purple-100">
                             วิพากษ์ข้อสอบ <br/>
                             <span className="text-[10px] font-normal">(หัวข้อ)*</span>
                         </th>
-                        
-                        <th className="py-4 px-6 w-[10%] text-center font-bold text-slate-800 bg-slate-100/50">
-                            รวม (ชม.)
-                        </th>
-                        <th className="py-4 px-6 w-[10%] text-center">สถานะ</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                     {reportData.map((term, index) => (
                         <React.Fragment key={index}>
-                            <tr className="bg-purple-50/30">
-                                <td colSpan={8} className="py-3 px-6 font-bold text-purple-800 text-sm border-b border-slate-100">
-                                    {term.title}
+                            
+                            {/* ✅ Header ภาคการศึกษาแบบสวยงาม */}
+                            <tr className="bg-slate-50">
+                                <td colSpan={6} className="p-0 border-t-[3px] border-slate-200">
+                                    <div className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-indigo-50/80 to-transparent border-l-[6px] border-indigo-500 shadow-[inset_0_-1px_0_rgba(226,232,240,1)] print:border-l-4 print:border-slate-400 print:bg-slate-100">
+                                        <div className="p-2 bg-indigo-100/50 rounded-lg text-indigo-600 print:text-slate-600 print:bg-white">
+                                            <Layers size={18} strokeWidth={2.5} />
+                                        </div>
+                                        <h3 className="font-bold text-indigo-900 text-base tracking-wide print:text-black">
+                                            {term.title}
+                                        </h3>
+                                        <span className="ml-2 bg-white px-3 py-1 rounded-full text-xs font-semibold text-indigo-600 border border-indigo-100 shadow-sm print:border-slate-300 print:text-slate-600">
+                                            {term.courses.length} รายวิชา
+                                        </span>
+                                    </div>
                                 </td>
                             </tr>
                             
@@ -278,84 +276,65 @@ export default function StaffIndividualReportPage() {
                                             <td className="py-4 px-4 text-center align-top text-slate-600">{course.lecture || '-'}</td>
                                             <td className="py-4 px-4 text-center align-top text-slate-600">{course.lab || '-'}</td>
                                             <td className="py-4 px-4 text-center align-top text-slate-600">{course.exam || '-'}</td>
-                                            
-                                            {/* ค่าวิพากษ์ */}
                                             <td className="py-4 px-4 text-center align-top text-purple-600 bg-purple-50/10 font-medium">
                                                 {course.critique ? course.critique : '-'}
-                                            </td>
-                                            
-                                            {/* รวมชม. */}
-                                            <td className="py-4 px-6 text-center align-top font-bold text-slate-800 bg-slate-50/30">
-                                                {(course.lecture + course.lab + (course.exam || 0) + (course.critique || 0)).toFixed(2)}
-                                            </td>
-                                            <td className="py-4 px-6 text-center align-top">
-                                                <span className={`inline-block px-2 py-1 rounded-md text-[11px] font-medium border ${course.statusColor}`}>
-                                                    {course.statusLabel}
-                                                </span>
                                             </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={8} className="py-8 text-center text-slate-300 italic bg-white">
+                                    <td colSpan={6} className="py-8 text-center text-slate-300 italic bg-white">
                                         - ไม่มีรายวิชาในภาคการศึกษานี้ -
                                     </td>
                                 </tr>
                             )}
 
-                            {/* Subtotal */}
+                            {/* ✅ รวมยอดแต่ละเทอม */}
                             {term.courses.length > 0 && (
-                                <tr className="bg-slate-50/50 font-semibold text-slate-700 border-t border-slate-200 text-sm">
-                                    <td colSpan={2} className="py-3 px-6 text-right text-xs uppercase tracking-wider">รวมเฉพาะ{term.title}</td>
-                                    <td className="py-3 px-4 text-center">{term.courses.reduce((a, b) => a + b.lecture, 0).toFixed(2)}</td>
-                                    <td className="py-3 px-4 text-center">{term.courses.reduce((a, b) => a + b.lab, 0).toFixed(2)}</td>
-                                    <td className="py-3 px-4 text-center">{term.courses.reduce((a, b) => a + b.exam, 0).toFixed(2)}</td>
-                                    <td className="py-3 px-4 text-center text-purple-600">{term.courses.reduce((a, b) => a + b.critique, 0).toFixed(2)}</td>
-                                    <td className="py-3 px-6 text-center text-white bg-slate-600">
-                                        {(term.courses.reduce((a, b) => a + b.lecture + b.lab + (b.exam || 0) + (b.critique || 0), 0)).toFixed(2)}
+                                <tr className="bg-slate-50/80 font-semibold text-slate-700 border-y-2 border-slate-200 text-sm">
+                                    <td colSpan={2} className="py-3.5 px-6 text-right text-xs uppercase tracking-wider text-slate-500">
+                                        รวมเฉพาะ <span className="text-slate-700 font-bold">{term.title}</span>
                                     </td>
-                                    <td></td>
+                                    <td className="py-3.5 px-4 text-center text-blue-700 font-bold">{term.courses.reduce((a, b) => a + b.lecture, 0).toFixed(2)}</td>
+                                    <td className="py-3.5 px-4 text-center text-blue-700 font-bold">{term.courses.reduce((a, b) => a + b.lab, 0).toFixed(2)}</td>
+                                    <td className="py-3.5 px-4 text-center text-blue-700 font-bold">{term.courses.reduce((a, b) => a + b.exam, 0).toFixed(2)}</td>
+                                    <td className="py-3.5 px-4 text-center text-purple-700 font-bold bg-purple-50/30">{term.courses.reduce((a, b) => a + b.critique, 0).toFixed(2)}</td>
                                 </tr>
                             )}
                         </React.Fragment>
                     ))}
                     
-                    {/* Grand Total Row */}
-                    <tr className="bg-slate-800 text-white font-bold text-base print:bg-gray-200 print:text-black print:border-t-2 print:border-black">
-                        <td colSpan={2} className="py-4 px-6 text-right">รวมตลอดปีการศึกษา</td>
-                        <td className="py-4 px-4 text-center">
+                    {/* ✅ Grand Total Row แบบใหม่ */}
+                    <tr className="bg-slate-800 text-white font-bold text-base print:bg-gray-200 print:text-black print:border-t-2 print:border-black shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] relative z-10">
+                        <td colSpan={2} className="py-5 px-6 text-right tracking-wide uppercase text-sm">รวมตลอดปีการศึกษา</td>
+                        <td className="py-5 px-4 text-center">
                             {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.lecture, 0), 0).toFixed(2)}
                         </td>
-                        <td className="py-4 px-4 text-center">
+                        <td className="py-5 px-4 text-center">
                             {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.lab, 0), 0).toFixed(2)}
                         </td>
-                        <td className="py-4 px-4 text-center">
+                        <td className="py-5 px-4 text-center">
                             {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.exam, 0), 0).toFixed(2)}
                         </td>
-                        <td className="py-4 px-4 text-center text-purple-300 print:text-black">
+                        <td className="py-5 px-4 text-center text-purple-200 print:text-black border-r border-slate-700 print:border-none bg-slate-900/50">
                             {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.critique, 0), 0).toFixed(2)}
                         </td>
-                        <td className="py-4 px-6 text-center bg-slate-900 print:bg-gray-400 border-l border-slate-700">
-                            {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.lecture + b.lab + (b.exam || 0) + (b.critique || 0), 0), 0).toFixed(2)}
-                        </td>
-                        <td></td>
                     </tr>
                 </tbody>
             </table>
         </div>
 
         {/* Footer Remark */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 text-xs text-slate-500">
+        <div className="p-5 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 rounded-b-2xl">
             <div className="flex items-start gap-2 mb-2">
                 <Info size={14} className="mt-0.5 shrink-0 text-purple-500" />
-                <span className="font-medium text-slate-600">หมายเหตุการคำนวณภาระงาน:</span>
+                <span className="font-medium text-slate-700">หมายเหตุการคำนวณภาระงาน:</span>
             </div>
             <ul className="list-disc pl-10 space-y-1">
                 <li>ช่อง <strong>"วิพากษ์ข้อสอบ"</strong> แสดงจำนวนหัวข้อที่ทำจริง</li>
-                <li>ในการคำนวณ <strong>"รวม (ชม.)"</strong> คิดภาระงานเทียบเท่า <strong>1 หัวข้อ = 1 ชั่วโมงทำการ</strong> (*)</li>
             </ul>
             
-            <div className="mt-4 pt-4 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400">
+            <div className="mt-5 pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:justify-between items-center gap-2 text-[10px] text-slate-400">
                 <span>ระบบฐานข้อมูลภาระงานสอน คณะเภสัชศาสตร์ มหาวิทยาลัยพะเยา</span>
                 <span>พิมพ์เมื่อ: {new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
             </div>
