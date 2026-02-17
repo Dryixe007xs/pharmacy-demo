@@ -17,9 +17,6 @@ export async function GET() {
             email: true
           },
         },
-        curriculumRef: { 
-            select: { id: true, name: true } 
-        }
       },
       orderBy: { year: 'desc' }
     });
@@ -33,7 +30,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name_th, year, degree_level, programChairId, curriculumId } = body;
+    const { name_th, year, degree_level, programChairId } = body;
 
     if (!name_th || !year) {
       return NextResponse.json({ error: "Name and Year are required" }, { status: 400 });
@@ -42,20 +39,14 @@ export async function POST(req: Request) {
     const newProgram = await prisma.program.create({
       data: {
         name_th,
-        year: Number(year), // ปีเป็นตัวเลข ถูกแล้ว
+        year: Number(year),
         degree_level: degree_level || "ปริญญาตรี",
-        
-        // ✅ แก้ไข: ไม่ใช้ Number() กับ programChairId เพราะมันเป็น String ("user-11")
         programChairId: programChairId ? String(programChairId) : null,
-        
-        // curriculumId น่าจะเป็น Int (ถ้าใน Database เป็น Int)
-        curriculumId: curriculumId ? Number(curriculumId) : null 
       },
       include: {
         programChair: {
-            select: { id: true, firstName: true, lastName: true }
+          select: { id: true, firstName: true, lastName: true }
         },
-        curriculumRef: { select: { id: true, name: true } }
       }
     });
 
@@ -70,7 +61,7 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { id, name_th, year, degree_level, programChairId, curriculumId } = body;
+    const { id, name_th, year, degree_level, programChairId } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Program ID is required" }, { status: 400 });
@@ -80,14 +71,8 @@ export async function PUT(req: Request) {
     if (name_th) updateData.name_th = name_th;
     if (year) updateData.year = Number(year);
     if (degree_level) updateData.degree_level = degree_level;
-    
-    // ✅ แก้ไข: ไม่ใช้ Number() กับ programChairId
     if (programChairId !== undefined) {
-        updateData.programChairId = programChairId ? String(programChairId) : null;
-    }
-
-    if (curriculumId !== undefined) {
-        updateData.curriculumId = curriculumId ? Number(curriculumId) : null;
+      updateData.programChairId = programChairId ? String(programChairId) : null;
     }
 
     const updatedProgram = await prisma.program.update({
@@ -95,9 +80,8 @@ export async function PUT(req: Request) {
       data: updateData,
       include: { 
         programChair: {
-            select: { id: true, firstName: true, lastName: true }
+          select: { id: true, firstName: true, lastName: true }
         },
-        curriculumRef: { select: { id: true, name: true } }
       }
     });
 
@@ -108,7 +92,7 @@ export async function PUT(req: Request) {
   }
 }
 
-// DELETE: ลบหลักสูตร (คงเดิม)
+// DELETE: ลบหลักสูตร
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);

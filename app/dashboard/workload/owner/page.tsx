@@ -969,8 +969,8 @@ function CourseModal({ course, assignments, currentUser, staffs, onClose, action
                 <div className="col-span-3 pl-2">ชื่อ-สกุล</div>
                 <div className="col-span-1 text-center">บรรยาย (ชม.)</div>
                 <div className="col-span-1 text-center">ปฏิบัติ (ชม.)</div>
-                <div className="col-span-2 text-center">คุมสอบ (ชม.)</div>
-                <div className="col-span-2 text-center">วิพากษ์ (หัวข้อ)</div>
+                <div className="col-span-2 text-center">คุมสอบนอกตาราง (ชม.)</div>
+                <div className="col-span-2 text-center">วิพากษ์ข้อสอบ (หัวข้อ)</div>
                 <div className="col-span-3 text-center">จัดการ</div>
               </div>
 

@@ -26,7 +26,8 @@ interface ReportCourse {
   lecture: number;
   lab: number;
   exam: number;
-  critique: number; 
+  critique: number;
+  isExternal?: boolean; // 👈 เพิ่ม
 }
 
 interface SemesterData {
@@ -84,23 +85,31 @@ export default function StaffIndividualReportPage() {
         const term3: ReportCourse[] = [];
 
         assignList.forEach((assign: any) => {
-            // ✅ ใช้ academicApprovalStatus แทน deanApprovalStatus
             if (assign.academicApprovalStatus !== 'APPROVED') {
                 return;
             }
 
-            const isResponsible = String(assign.lecturerId) === String(assign.subject.responsibleUserId);
+            const isExternal = assign.courseType === "EXTERNAL";
+            const isResponsible = String(assign.lecturerId) === String(assign.subject?.responsibleUserId);
             const role = isResponsible ? "ผู้รับผิดชอบรายวิชา" : "ผู้สอน";
             
             const courseObj: ReportCourse = {
-                code: assign.subject.code,
-                name: assign.subject.name_th,
-                credit: assign.subject.credit || assign.subject.credits || "-",
+                // 👈 แยก code/name/credit ตาม courseType
+                code: isExternal 
+                    ? assign.externalCourseCode || "-"
+                    : assign.subject?.code || "-",
+                name: isExternal
+                    ? assign.externalCourseName || "-"
+                    : assign.subject?.name_th || "-",
+                credit: isExternal
+                    ? assign.externalCredit || "-"
+                    : assign.subject?.credit || assign.subject?.credits || "-",
                 role: role,
                 lecture: Number(assign.lectureHours) || 0,
                 lab: Number(assign.labHours) || 0,
                 exam: Number(assign.examHours) || 0,
-                critique: Number(assign.examCritiqueHours) || 0, 
+                critique: Number(assign.examCritiqueHours) || 0,
+                isExternal, // 👈 เพิ่ม
             };
 
             const sem = Number(assign.semester);
@@ -132,9 +141,37 @@ export default function StaffIndividualReportPage() {
 
   if (loading) {
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-3">
-            <Loader2 className="animate-spin w-10 h-10 text-purple-600"/>
-            <p className="text-slate-400 text-sm animate-pulse">กำลังดึงข้อมูลรายงาน...</p>
+        <div className="min-h-screen bg-slate-100/50 p-6 font-sarabun">
+          <Toaster position="top-center" richColors />
+          
+          {/* Skeleton Header */}
+          <div className="max-w-full mx-auto mb-6 flex justify-between items-center animate-pulse">
+            <div className="h-10 w-24 bg-slate-200 rounded"></div>
+            <div className="h-10 w-32 bg-slate-200 rounded-full"></div>
+          </div>
+
+          {/* Skeleton Content */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden p-8">
+            <div className="flex gap-8 items-center mb-8 animate-pulse">
+              <div className="w-24 h-24 rounded-2xl bg-slate-200"></div>
+              <div className="flex-1 space-y-3">
+                <div className="h-8 bg-slate-200 rounded w-1/3"></div>
+                <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+                <div className="flex gap-4">
+                  <div className="h-8 bg-slate-200 rounded w-32"></div>
+                  <div className="h-8 bg-slate-200 rounded w-40"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Skeleton Table */}
+            <div className="space-y-4 animate-pulse">
+              <div className="h-12 bg-slate-100 rounded"></div>
+              <div className="h-16 bg-slate-50 rounded"></div>
+              <div className="h-16 bg-slate-50 rounded"></div>
+              <div className="h-16 bg-slate-50 rounded"></div>
+            </div>
+          </div>
         </div>
       );
   }
@@ -176,7 +213,7 @@ export default function StaffIndividualReportPage() {
           </Button>
       </div>
 
-      {/* Main Container (A4 Style) */}
+      {/* Main Container */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:shadow-none print:border-none print:rounded-none">
         
         {/* Profile Header */}
@@ -237,7 +274,6 @@ export default function StaffIndividualReportPage() {
                     {reportData.map((term, index) => (
                         <React.Fragment key={index}>
                             
-                            {/* ✅ Header ภาคการศึกษาแบบสวยงาม */}
                             <tr className="bg-slate-50">
                                 <td colSpan={6} className="p-0 border-t-[3px] border-slate-200">
                                     <div className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-indigo-50/80 to-transparent border-l-[6px] border-indigo-500 shadow-[inset_0_-1px_0_rgba(226,232,240,1)] print:border-l-4 print:border-slate-400 print:bg-slate-100">
@@ -256,29 +292,42 @@ export default function StaffIndividualReportPage() {
                             
                             {term.courses.length > 0 ? (
                                 term.courses.map((course, cIndex) => (
-                                    <tr key={cIndex} className="hover:bg-slate-50 transition-colors group text-sm">
-                                            <td className="py-4 px-6 align-top">
-                                                <div className="flex flex-col gap-1">
-                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                                                        <span className="font-semibold text-slate-800 text-base">{course.code}</span>
+                                    <tr
+                                        key={cIndex}
+                                        className={`hover:bg-slate-50 transition-colors group text-sm ${
+                                            course.isExternal ? "bg-orange-50/20" : ""
+                                        }`}
+                                    >
+                                        <td className="py-4 px-6 align-top">
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                    <span className="font-semibold text-slate-800 text-base">{course.code}</span>
+                                                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                                        {/* 👈 badge นอกคณะ */}
+                                                        {course.isExternal && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-600 border border-orange-200">
+                                                                🏛️ นอกคณะ
+                                                            </span>
+                                                        )}
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100">
                                                             <BookOpen size={12} /> {course.credit} หน่วยกิต
                                                         </span>
                                                     </div>
-                                                    <div className="text-slate-500 font-light">{course.name}</div>
                                                 </div>
-                                            </td>
-                                            <td className="py-4 px-6 text-center align-top">
-                                                <span className={`px-3 py-1 rounded-full text-xs font-medium border ${course.role.includes('รับผิดชอบ') ? 'bg-orange-50 text-orange-700 border-orange-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
-                                                    {course.role}
-                                                </span>
-                                            </td>
-                                            <td className="py-4 px-4 text-center align-top text-slate-600">{course.lecture || '-'}</td>
-                                            <td className="py-4 px-4 text-center align-top text-slate-600">{course.lab || '-'}</td>
-                                            <td className="py-4 px-4 text-center align-top text-slate-600">{course.exam || '-'}</td>
-                                            <td className="py-4 px-4 text-center align-top text-purple-600 bg-purple-50/10 font-medium">
-                                                {course.critique ? course.critique : '-'}
-                                            </td>
+                                                <div className="text-slate-500 font-light">{course.name}</div>
+                                            </div>
+                                        </td>
+                                        <td className="py-4 px-6 text-center align-top">
+                                            <span className={`px-3 py-1 rounded-full text-xs font-medium border ${course.role.includes('รับผิดชอบ') ? 'bg-orange-50 text-orange-700 border-orange-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
+                                                {course.role}
+                                            </span>
+                                        </td>
+                                        <td className="py-4 px-4 text-center align-top text-slate-600">{course.lecture || '-'}</td>
+                                        <td className="py-4 px-4 text-center align-top text-slate-600">{course.lab || '-'}</td>
+                                        <td className="py-4 px-4 text-center align-top text-slate-600">{course.exam || '-'}</td>
+                                        <td className="py-4 px-4 text-center align-top text-purple-600 bg-purple-50/10 font-medium">
+                                            {course.critique ? course.critique : '-'}
+                                        </td>
                                     </tr>
                                 ))
                             ) : (
@@ -289,7 +338,6 @@ export default function StaffIndividualReportPage() {
                                 </tr>
                             )}
 
-                            {/* ✅ รวมยอดแต่ละเทอม */}
                             {term.courses.length > 0 && (
                                 <tr className="bg-slate-50/80 font-semibold text-slate-700 border-y-2 border-slate-200 text-sm">
                                     <td colSpan={2} className="py-3.5 px-6 text-right text-xs uppercase tracking-wider text-slate-500">
@@ -304,7 +352,6 @@ export default function StaffIndividualReportPage() {
                         </React.Fragment>
                     ))}
                     
-                    {/* ✅ Grand Total Row แบบใหม่ */}
                     <tr className="bg-slate-800 text-white font-bold text-base print:bg-gray-200 print:text-black print:border-t-2 print:border-black shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] relative z-10">
                         <td colSpan={2} className="py-5 px-6 text-right tracking-wide uppercase text-sm">รวมตลอดปีการศึกษา</td>
                         <td className="py-5 px-4 text-center">
@@ -332,6 +379,7 @@ export default function StaffIndividualReportPage() {
             </div>
             <ul className="list-disc pl-10 space-y-1">
                 <li>ช่อง <strong>"วิพากษ์ข้อสอบ"</strong> แสดงจำนวนหัวข้อที่ทำจริง</li>
+                <li>รายวิชาที่มี badge <strong>🏛️ นอกคณะ</strong> คือรายวิชาที่สอนให้กับคณะอื่น</li>
             </ul>
             
             <div className="mt-5 pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:justify-between items-center gap-2 text-[10px] text-slate-400">

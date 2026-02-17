@@ -429,6 +429,8 @@ export default function CourseDataPage() {
   };
 
   const filteredCourses = courses.filter((c) => {
+    if (c.code === "EXTERNAL-PLACEHOLDER") return false;
+    
     const matchesProgram = selectedProgram ? c.program?.id?.toString() === selectedProgram : true;
     let matchesLevel = true;
     if (selectedLevel) {

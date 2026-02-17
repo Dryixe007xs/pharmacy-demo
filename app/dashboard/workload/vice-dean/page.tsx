@@ -21,6 +21,7 @@ import {
   ChevronRight,
   BookOpen,
   RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -57,6 +58,13 @@ interface InstructorLoad {
   critique: number;
   headStatus: string;
   academicStatus: string;
+  lecturerFeedback?: string | null;
+  isExternal: boolean;
+  externalFaculty?: string | null;
+  externalCourseCode?: string | null;
+  externalCourseName?: string | null;
+  externalCredit?: string | null;
+  evidenceLink?: string | null;
 }
 
 interface CourseWorkload {
@@ -64,6 +72,7 @@ interface CourseWorkload {
   originalCourseId: number;
   code: string;
   name: string;
+  nameEn: string;
   credit: string | number;
   programName: string;
   semester: number;
@@ -71,15 +80,7 @@ interface CourseWorkload {
   status: WorkloadStatus;
 }
 
-interface ApiError {
-  message: string;
-  instructorId?: number;
-}
-
 // ===== UTILITY FUNCTIONS =====
-/**
- * กำหนดสถานะของภาระงานตามสถานะการอนุมัติของอาจารย์
- */
 function determineWorkloadStatus(
   instructors: InstructorLoad[]
 ): WorkloadStatus {
@@ -97,16 +98,10 @@ function determineWorkloadStatus(
   return "waiting_chair";
 }
 
-/**
- * คำนวณน้ำหนักลำดับความสำคัญของสถานะ
- */
 function getStatusWeight(status: WorkloadStatus): number {
   return STATUS_PRIORITY[status] ?? 999;
 }
 
-/**
- * แปลง API response เป็น CourseWorkload
- */
 function transformCourseData(allCourses: any[]): CourseWorkload[] {
   const workloadData: CourseWorkload[] = [];
 
@@ -114,7 +109,6 @@ function transformCourseData(allCourses: any[]): CourseWorkload[] {
     const assignments = course.teachingAssignments || [];
     if (assignments.length === 0) return;
 
-    // จัดกลุ่ม assignments ตามภาคการศึกษา
     const assignmentsBySemester: Record<number, any[]> = {};
     assignments.forEach((a: any) => {
       const sem = a.semester || 1;
@@ -122,49 +116,100 @@ function transformCourseData(allCourses: any[]): CourseWorkload[] {
       assignmentsBySemester[sem].push(a);
     });
 
-    // สร้างข้อมูลสำหรับแต่ละภาคการศึกษา
     Object.entries(assignmentsBySemester).forEach(([semKey, semAssignments]) => {
       const sem = Number(semKey);
 
-      const instructors: InstructorLoad[] = semAssignments.map((a: any) => ({
-        id: a.id,
-        name: a.lecturer
-          ? `${a.lecturer.title || ""}${a.lecturer.firstName} ${a.lecturer.lastName}`.trim()
-          : "ไม่ระบุชื่อ",
-        role:
-          String(a.lecturerId) === String(course.responsibleUserId)
-            ? "ผู้รับผิดชอบรายวิชา"
-            : "ผู้สอน",
-        lecture: Number(a.lectureHours) || 0,
-        lab: Number(a.labHours) || 0,
-        exam: Number(a.examHours) || 0,
-        critique: Number(a.examCritiqueHours) || 0,
-        headStatus: a.headApprovalStatus || "PENDING",
-        academicStatus: a.academicApprovalStatus || "PENDING",
-      }));
-
-      // เรียงผู้รับผิดชอบรายวิชาไว้ด้านบน
-      instructors.sort((a, b) =>
-        a.role === "ผู้รับผิดชอบรายวิชา" ? -1 : 1
+      // แยก external/internal
+      const internalAssignments = semAssignments.filter(
+        (a: any) => a.courseType !== "EXTERNAL" && !a.externalCourseCode
+      );
+      const externalAssignments = semAssignments.filter(
+        (a: any) => a.courseType === "EXTERNAL" || !!a.externalCourseCode
       );
 
-      const currentStatus = determineWorkloadStatus(instructors);
+      // ── วิชาในคณะ ──
+      if (internalAssignments.length > 0) {
+        const instructors: InstructorLoad[] = internalAssignments.map((a: any) => ({
+          id: a.id,
+          name: a.lecturer
+            ? `${a.lecturer.title || ""}${a.lecturer.firstName} ${a.lecturer.lastName}`.trim()
+            : "ไม่ระบุชื่อ",
+          role:
+            String(a.lecturerId) === String(course.responsibleUserId)
+              ? "ผู้รับผิดชอบรายวิชา"
+              : "ผู้สอน",
+          lecture: Number(a.lectureHours) || 0,
+          lab: Number(a.labHours) || 0,
+          exam: Number(a.examHours) || 0,
+          critique: Number(a.examCritiqueHours) || 0,
+          headStatus: a.headApprovalStatus || "PENDING",
+          academicStatus: a.academicApprovalStatus || "PENDING",
+          lecturerFeedback: a.lecturerFeedback ?? null,
+          isExternal: false,
+          externalFaculty: null,
+          externalCourseCode: null,
+          externalCourseName: null,
+          externalCredit: null,
+          evidenceLink: null,
+        }));
 
-      workloadData.push({
-        id: `${course.id}-${sem}`,
-        originalCourseId: course.id,
-        code: course.code || "ไม่ระบุรหัส",
-        name: course.name_th || course.name || "ไม่ระบุชื่อวิชา",
-        credit: course.credit || course.credits || "-",
-        programName: course.program?.name_th || "ไม่ระบุหลักสูตร",
-        semester: sem,
-        instructors,
-        status: currentStatus,
+        instructors.sort((a, b) =>
+          a.role === "ผู้รับผิดชอบรายวิชา" ? -1 : 1
+        );
+
+        workloadData.push({
+          id: `${course.id}-${sem}`,
+          originalCourseId: course.id,
+          code: course.code || "ไม่ระบุรหัส",
+          name: course.name_th || course.name || "ไม่ระบุชื่อวิชา",
+          nameEn: course.name_en || "",
+          credit: course.credit || course.credits || "-",
+          programName: course.program?.name_th || "ไม่ระบุหลักสูตร",
+          semester: sem,
+          instructors,
+          status: determineWorkloadStatus(instructors),
+        });
+      }
+
+      // ── วิชานอกคณะ: แต่ละ assignment = 1 card ──
+      externalAssignments.forEach((a: any) => {
+        const instructor: InstructorLoad = {
+          id: a.id,
+          name: a.lecturer
+            ? `${a.lecturer.title || ""}${a.lecturer.firstName} ${a.lecturer.lastName}`.trim()
+            : "ไม่ระบุชื่อ",
+          role: "ผู้สอน",
+          lecture: Number(a.lectureHours) || 0,
+          lab: Number(a.labHours) || 0,
+          exam: Number(a.examHours) || 0,
+          critique: Number(a.examCritiqueHours) || 0,
+          headStatus: a.headApprovalStatus || "PENDING",
+          academicStatus: a.academicApprovalStatus || "PENDING",
+          lecturerFeedback: a.lecturerFeedback ?? null,
+          isExternal: true,
+          externalFaculty: a.externalFaculty ?? null,
+          externalCourseCode: a.externalCourseCode ?? null,
+          externalCourseName: a.externalCourseName ?? null,
+          externalCredit: a.externalCredit ?? null,
+          evidenceLink: a.evidenceLink ?? null,
+        };
+
+        workloadData.push({
+          id: `ext-${a.id}`,
+          originalCourseId: course.id,
+          code: a.externalCourseCode || "ไม่ระบุรหัส",
+          name: a.externalCourseName || "ไม่ระบุชื่อวิชา",
+          nameEn: a.externalCourseNameEn || "",
+          credit: a.externalCredit || "-",
+          programName: a.externalFaculty || "ไม่ระบุคณะ",
+          semester: sem,
+          instructors: [instructor],
+          status: determineWorkloadStatus([instructor]),
+        });
       });
     });
   });
 
-  // เรียงตามความสำคัญของสถานะ
   workloadData.sort((a, b) => {
     const weightA = getStatusWeight(a.status);
     const weightB = getStatusWeight(b.status);
@@ -177,9 +222,6 @@ function transformCourseData(allCourses: any[]): CourseWorkload[] {
 }
 
 // ===== CUSTOM HOOKS =====
-/**
- * Hook สำหรับจัดการข้อมูลภาระงาน
- */
 function useWorkloadData() {
   const [courses, setCourses] = useState<CourseWorkload[]>([]);
   const [loading, setLoading] = useState(true);
@@ -191,7 +233,7 @@ function useWorkloadData() {
 
     try {
       const resCourses = await fetch("/api/courses");
-      
+
       if (!resCourses.ok) {
         throw new Error(`API Error: ${resCourses.status}`);
       }
@@ -205,27 +247,23 @@ function useWorkloadData() {
       const workloadData = transformCourseData(allCourses);
       setCourses(workloadData);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการโหลดข้อมูล";
+      const errorMessage =
+        err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการโหลดข้อมูล";
       setError(errorMessage);
-      console.error("Error fetching data:", err);
       toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  return { courses, loading, error, refetch: fetchData, setCourses };
+  return { courses, loading, error, refetch: fetchData };
 }
 
-/**
- * Hook สำหรับจัดการการอนุมัติ
- */
-function useWorkloadApproval(onSuccess: () => void) {
+function useWorkloadApproval(onSuccess: () => void, viceDeanId?: string) {
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const approve = useCallback(
     async (course: CourseWorkload) => {
-      // ตรวจสอบความถูกต้อง
       if (!course.instructors || course.instructors.length === 0) {
         await Swal.fire({
           title: "ไม่สามารถอนุมัติได้",
@@ -236,13 +274,11 @@ function useWorkloadApproval(onSuccess: () => void) {
         return;
       }
 
-      // คำนวณข้อมูลสรุป
       const totalHours = course.instructors.reduce(
         (sum, inst) => sum + inst.lecture + inst.lab + inst.exam + inst.critique,
         0
       );
 
-      // แสดง Popup ยืนยัน
       const result = await Swal.fire({
         title: "ยืนยันการอนุมัติภาระงาน?",
         html: `
@@ -270,7 +306,6 @@ function useWorkloadApproval(onSuccess: () => void) {
       setApprovingId(course.id);
 
       try {
-        // อัปเดตทีละคน และเก็บผลลัพธ์
         const results = await Promise.allSettled(
           course.instructors.map((inst) =>
             fetch("/api/assignments", {
@@ -279,30 +314,27 @@ function useWorkloadApproval(onSuccess: () => void) {
               body: JSON.stringify({
                 id: inst.id,
                 academicApprovalStatus: "APPROVED",
+                approverId: viceDeanId, // 👈 ส่ง approverId
               }),
             }).then((res) => {
-              if (!res.ok) {
+              if (!res.ok)
                 throw new Error(`ไม่สามารถอัปเดตข้อมูลของ ${inst.name}`);
-              }
               return res.json();
             })
           )
         );
 
-        // ตรวจสอบความล้มเหลว
         const failures = results.filter((r) => r.status === "rejected");
 
         if (failures.length > 0) {
           const failedReasons = failures
             .map((f) => (f as PromiseRejectedResult).reason.message)
             .join("\n");
-
           throw new Error(
             `อัปเดตล้มเหลว ${failures.length} จาก ${course.instructors.length} คน:\n${failedReasons}`
           );
         }
 
-        // สำเร็จ - เรียก callback เพื่ออัปเดต UI
         onSuccess();
 
         await Swal.fire({
@@ -316,8 +348,6 @@ function useWorkloadApproval(onSuccess: () => void) {
           showConfirmButton: false,
         });
       } catch (error) {
-        console.error("Approval error:", error);
-
         await Swal.fire({
           title: "เกิดข้อผิดพลาด",
           text:
@@ -327,14 +357,12 @@ function useWorkloadApproval(onSuccess: () => void) {
           icon: "error",
           confirmButtonText: "ตกลง",
         });
-
-        // ดึงข้อมูลใหม่เพื่อให้ UI ตรงกับฐานข้อมูล
         onSuccess();
       } finally {
         setApprovingId(null);
       }
     },
-    [onSuccess]
+    [onSuccess, viceDeanId]
   );
 
   return { approve, approvingId };
@@ -345,24 +373,21 @@ export default function ViceDeanPage() {
   const { data: session, status } = useSession();
   const currentUser = session?.user;
 
-  // State Management
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProgram, setSelectedProgram] = useState("all");
 
-  // Custom Hooks
-  const { courses, loading, error, refetch, setCourses } = useWorkloadData();
-  const { approve, approvingId } = useWorkloadApproval(refetch);
+  const { courses, loading, error, refetch } = useWorkloadData();
+  const { approve, approvingId } = useWorkloadApproval(refetch, currentUser?.id);
 
-  // Effects
   useEffect(() => {
     if (status === "authenticated") {
       refetch();
     }
   }, [status, refetch]);
 
-  // Memoized Values
   const uniquePrograms = useMemo(
-    () => Array.from(new Set(courses.map((c) => c.programName).filter(Boolean))),
+    () =>
+      Array.from(new Set(courses.map((c) => c.programName).filter(Boolean))),
     [courses]
   );
 
@@ -377,20 +402,20 @@ export default function ViceDeanPage() {
     });
   }, [courses, searchTerm, selectedProgram]);
 
-  const statusCounts = useMemo(() => {
-    return {
+  const statusCounts = useMemo(
+    () => ({
       pending: filteredCourses.filter((c) => c.status === "pending_approval").length,
       waiting: filteredCourses.filter((c) => c.status === "waiting_chair").length,
       approved: filteredCourses.filter((c) => c.status === "approved").length,
-    };
-  }, [filteredCourses]);
+    }),
+    [filteredCourses]
+  );
 
-  // ===== RENDER =====
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 p-6 font-sarabun">
       <Toaster position="top-center" richColors />
 
-      {/* Header Section */}
+      {/* Header */}
       <header className="mb-8">
         <div className="flex items-center gap-2 text-slate-400 mb-2 text-sm font-medium">
           <span>จัดการชั่วโมงการสอน</span>
@@ -403,61 +428,37 @@ export default function ViceDeanPage() {
         {currentUser && !loading && (
           <p className="text-slate-600 mt-2 font-light">
             ยินดีต้อนรับ,{" "}
-            <span className="font-semibold text-indigo-600">
-              {currentUser.name}
-            </span>
+            <span className="font-semibold text-indigo-600">{currentUser.name}</span>
           </p>
         )}
 
-        {/* Status Summary Cards */}
+        {/* Status Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-orange-100 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500 font-medium">รอการอนุมัติ</p>
-                <p className="text-3xl font-bold text-orange-600">{statusCounts.pending}</p>
+          {[
+            { label: "รอการอนุมัติ", value: statusCounts.pending, color: "orange", Icon: AlertOctagon },
+            { label: "กำลังตรวจสอบ", value: statusCounts.waiting, color: "slate", Icon: Clock },
+            { label: "อนุมัติแล้ว", value: statusCounts.approved, color: "green", Icon: CheckCircle },
+          ].map(({ label, value, color, Icon }, i) => (
+            <motion.div
+              key={label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className={`bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-${color}-100 shadow-sm`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500 font-medium">{label}</p>
+                  <p className={`text-3xl font-bold text-${color}-600`}>{value}</p>
+                </div>
+                <Icon className={`text-${color}-400`} size={32} />
               </div>
-              <AlertOctagon className="text-orange-400" size={32} />
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-slate-100 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500 font-medium">กำลังตรวจสอบ</p>
-                <p className="text-3xl font-bold text-slate-600">{statusCounts.waiting}</p>
-              </div>
-              <Clock className="text-slate-400" size={32} />
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-green-100 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500 font-medium">อนุมัติแล้ว</p>
-                <p className="text-3xl font-bold text-green-600">{statusCounts.approved}</p>
-              </div>
-              <CheckCircle className="text-green-400" size={32} />
-            </div>
-          </motion.div>
+            </motion.div>
+          ))}
         </div>
       </header>
 
-      {/* Filter Section */}
+      {/* Filter */}
       <div className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl border border-slate-200/60 shadow-lg mb-6 sticky top-4 z-20">
         <div className="flex flex-col md:flex-row gap-4 items-center w-full">
           <div className="w-full md:w-[320px] shrink-0">
@@ -491,10 +492,7 @@ export default function ViceDeanPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <Search
-              className="absolute left-3.5 bottom-3 text-slate-400"
-              size={18}
-            />
+            <Search className="absolute left-3.5 bottom-3 text-slate-400" size={18} />
           </div>
 
           <button
@@ -539,44 +537,37 @@ export default function ViceDeanPage() {
                   transition={{ delay: index * 0.05 }}
                   className="bg-white rounded-2xl border border-slate-200 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden"
                 >
-                  {/* Table Layout */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gradient-to-r from-slate-50 to-slate-100/50 text-slate-600 font-semibold">
                         <tr>
                           <th className="py-4 px-6 text-left w-[20%]">รายวิชา</th>
-                          <th className="py-4 px-4 text-center w-[12%]">
-                            ภาคการศึกษา
-                          </th>
-                          <th className="py-4 px-6 text-left w-[18%]">
-                            อาจารย์ผู้สอน
-                          </th>
-                          <th className="py-4 px-4 text-center w-[10%]">สถานะ</th>
-                          <th className="py-4 px-3 text-center w-[10%]">
-                            บรรยาย<br />(ชม.)
-                          </th>
-                          <th className="py-4 px-3 text-center w-[10%]">
-                            ปฏิบัติการ<br />(ชม.)
-                          </th>
-                          <th className="py-4 px-3 text-center w-[10%]">
-                            คุมสอบนอกตาราง<br />(ชม.)
-                          </th>
-                          <th className="py-4 px-3 text-center w-[10%]">
-                            วิพากษ์ข้อสอบ<br />(หัวข้อ)
-                          </th>
+                          <th className="py-4 px-4 text-center w-[10%]">ภาคการศึกษา</th>
+                          <th className="py-4 px-6 text-left w-[18%]">อาจารย์ผู้สอน</th>
+                          <th className="py-4 px-4 text-center w-[8%]">สถานะ</th>
+                          <th className="py-4 px-3 text-center w-[9%]">บรรยาย<br />(ชม.)</th>
+                          <th className="py-4 px-3 text-center w-[9%]">ปฏิบัติการ<br />(ชม.)</th>
+                          <th className="py-4 px-3 text-center w-[9%]">คุมสอบนอกตาราง<br />(ชม.)</th>
+                          <th className="py-4 px-3 text-center w-[9%]">วิพากษ์ข้อสอบ<br />(หัวข้อ)</th>
+                          <th className="py-4 px-3 text-center w-[10%]">เอกสาร / หมายเหตุ</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {course.instructors.map((instructor, idx) => (
                           <tr
                             key={instructor.id}
-                            className="group hover:bg-indigo-50/30 transition-colors"
+                            className={`group transition-colors ${
+                              instructor.isExternal
+                                ? "bg-orange-50/30 hover:bg-orange-50/60"
+                                : "hover:bg-indigo-50/30"
+                            }`}
                           >
                             {idx === 0 ? (
                               <>
+                                {/* คอลัมน์รายวิชา */}
                                 <td
                                   rowSpan={course.instructors.length + 1}
-                                  className="py-6 px-6 align-top border-r border-slate-100 bg-white group-hover:bg-white"
+                                  className="py-6 px-6 align-top border-r border-slate-100 bg-white"
                                 >
                                   <div className="flex flex-col gap-2.5">
                                     <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -588,28 +579,36 @@ export default function ViceDeanPage() {
                                         {course.credit} หน่วยกิต
                                       </span>
                                     </div>
-                                    <span className="text-slate-700 font-medium leading-snug">
-                                      {course.name}
-                                    </span>
+                                    <div className="flex flex-col">
+                                      <span className="text-slate-700 font-medium leading-snug">
+                                        {course.name}
+                                      </span>
+                                      <span className="text-slate-400 text-xs mt-1">
+                                        {course.nameEn}
+                                      </span>
+                                    </div>
                                     <span className="inline-flex w-fit items-center px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600 mt-1">
                                       {course.programName}
                                     </span>
+                                    {/* badge นอกคณะ */}
+                                    {course.instructors.some((i) => i.isExternal) && (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-orange-100 text-orange-700 border border-orange-200 w-fit mt-1">
+                                        🏛️ รายวิชานอกคณะ
+                                      </span>
+                                    )}
                                   </div>
                                 </td>
 
+                                {/* คอลัมน์ภาคการศึกษา */}
                                 <td
                                   rowSpan={course.instructors.length + 1}
-                                  className="py-6 px-4 align-top border-r border-slate-100 bg-white group-hover:bg-white text-center"
+                                  className="py-6 px-4 align-top border-r border-slate-100 bg-white text-center"
                                 >
                                   {(() => {
                                     const config =
                                       SEMESTER_CONFIG[
                                         course.semester as keyof typeof SEMESTER_CONFIG
                                       ];
-                                    const colorClass = config
-                                      ? `bg-${config.color}-50 text-${config.color}-700 border-${config.color}-200`
-                                      : "bg-gray-50 text-gray-700 border-gray-200";
-
                                     return (
                                       <div
                                         className={`inline-flex items-center justify-center px-3.5 py-1.5 rounded-full font-bold text-xs border whitespace-nowrap ${
@@ -619,7 +618,7 @@ export default function ViceDeanPage() {
                                             ? "bg-blue-50 text-blue-700 border-blue-200"
                                             : course.semester === 3
                                             ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                            : colorClass
+                                            : "bg-gray-50 text-gray-700 border-gray-200"
                                         }`}
                                       >
                                         {config?.label || `เทอม ${course.semester}`}
@@ -630,9 +629,14 @@ export default function ViceDeanPage() {
                               </>
                             ) : null}
 
-                            <td className="py-4 px-6 text-slate-700 font-medium">
-                              {instructor.name}
+                            {/* ชื่ออาจารย์ */}
+                            <td className="py-4 px-6 align-middle">
+                              <span className="text-slate-700 font-medium">
+                                {instructor.name}
+                              </span>
                             </td>
+
+                            {/* สถานะ */}
                             <td className="py-4 px-4 text-center">
                               {instructor.role === "ผู้รับผิดชอบรายวิชา" ? (
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 border border-purple-200 whitespace-nowrap">
@@ -644,6 +648,8 @@ export default function ViceDeanPage() {
                                 </span>
                               )}
                             </td>
+
+                            {/* ชั่วโมง */}
                             <td className="py-4 px-3 text-center text-slate-700 font-semibold">
                               {instructor.lecture}
                             </td>
@@ -655,6 +661,38 @@ export default function ViceDeanPage() {
                             </td>
                             <td className="py-4 px-3 text-center text-slate-700 font-semibold">
                               {instructor.critique}
+                            </td>
+
+                            {/* เอกสาร / หมายเหตุ */}
+                            <td className="py-4 px-3 text-center">
+                              {instructor.isExternal ? (
+                                instructor.evidenceLink ? (
+                                  <a
+                                    href={instructor.evidenceLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 hover:text-blue-700 transition-colors whitespace-nowrap"
+                                    title={instructor.evidenceLink}
+                                  >
+                                    <ExternalLink size={12} />
+                                    ดูเอกสาร
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-300 text-xs">—</span>
+                                )
+                              ) : instructor.lecturerFeedback ? (
+                                <div
+                                  className="inline-flex items-start gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-yellow-50 text-yellow-800 border border-yellow-200 text-left max-w-[180px]"
+                                  title={instructor.lecturerFeedback}
+                                >
+                                  <FileText size={11} className="mt-0.5 shrink-0 text-yellow-500" />
+                                  <span className="line-clamp-2">
+                                    {instructor.lecturerFeedback}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-slate-300 text-xs">—</span>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -677,11 +715,9 @@ export default function ViceDeanPage() {
                             {course.instructors.reduce((s, i) => s + i.exam, 0)}
                           </td>
                           <td className="py-3.5 px-3 text-center font-bold text-indigo-600 text-lg">
-                            {course.instructors.reduce(
-                              (s, i) => s + i.critique,
-                              0
-                            )}
+                            {course.instructors.reduce((s, i) => s + i.critique, 0)}
                           </td>
+                          <td></td>
                         </tr>
                       </tbody>
                     </table>
@@ -711,9 +747,7 @@ export default function ViceDeanPage() {
                             disabled={approvingId === course.id}
                             onClick={() => approve(course)}
                             className={`bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-8 py-3 rounded-xl shadow-md hover:shadow-green-200/50 hover:shadow-xl transition-all flex items-center gap-2.5 font-semibold ${
-                              approvingId === course.id
-                                ? "opacity-80 cursor-wait"
-                                : ""
+                              approvingId === course.id ? "opacity-80 cursor-wait" : ""
                             }`}
                           >
                             {approvingId === course.id ? (
@@ -721,9 +755,7 @@ export default function ViceDeanPage() {
                             ) : (
                               <FileCheck className="h-5 w-5" />
                             )}
-                            {approvingId === course.id
-                              ? "กำลังบันทึก..."
-                              : "อนุมัติข้อมูล"}
+                            {approvingId === course.id ? "กำลังบันทึก..." : "อนุมัติข้อมูล"}
                           </motion.button>
                         </motion.div>
                       )}
@@ -736,9 +768,7 @@ export default function ViceDeanPage() {
                           className="flex items-center gap-2.5 px-6 py-2.5 bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 rounded-full border border-green-200 shadow-sm"
                         >
                           <CheckCircle size={22} className="text-green-600" />
-                          <span className="font-bold text-sm">
-                            อนุมัติเรียบร้อยแล้ว
-                          </span>
+                          <span className="font-bold text-sm">อนุมัติเรียบร้อยแล้ว</span>
                         </motion.div>
                       )}
 
@@ -768,9 +798,7 @@ export default function ViceDeanPage() {
             className="py-24 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50"
           >
             <FileText className="w-20 h-20 mx-auto mb-5 text-slate-300" />
-            <h3 className="text-xl font-bold text-slate-600 mb-2">
-              ไม่พบรายวิชา
-            </h3>
+            <h3 className="text-xl font-bold text-slate-600 mb-2">ไม่พบรายวิชา</h3>
             <p className="text-slate-400 mb-4">
               {searchTerm || selectedProgram !== "all"
                 ? "ไม่พบรายวิชาที่ตรงกับเงื่อนไขการค้นหา"

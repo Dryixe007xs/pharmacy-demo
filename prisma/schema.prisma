@@ -43,7 +43,7 @@ model User {
   
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-  
+  deletedAt      DateTime?
   curriculumId   Int?
   
   accounts       Account[]
@@ -59,6 +59,11 @@ model User {
   academicApprovals  TeachingAssignment[] @relation("AcademicApprovals")
   
   curriculumRef      Curriculum?          @relation("CurriculumStaff", fields: [curriculumId], references: [id])
+
+  // --- เพิ่ม index ใหม่ ---
+  @@index([role])
+  @@index([userType, role])
+  // ------------------------
 
   @@index([curriculumId], map: "user_curriculumId_fkey")
   @@map("user") 
@@ -157,7 +162,6 @@ model TeachingAssignment {
   id                  Int             @id @default(autoincrement())
   academicYear        Int
   semester            Int
-  section             String?
   
   lectureHours        Float           @default(0)
   labHours            Float           @default(0)
@@ -171,22 +175,23 @@ model TeachingAssignment {
   responsibleStatus   ApprovalStatus  @default(PENDING)
   responsibleActionAt DateTime?
   
-  headApprovalStatus  ApprovalStatus  @default(PENDING)
+  headApprovalStatus  ApprovalStatus?
   headApprovedAt      DateTime?
   headApproverId      String?
   
-  academicApprovalStatus ApprovalStatus  @default(PENDING)
+  academicApprovalStatus ApprovalStatus?
   academicApprovedAt     DateTime?
   academicApproverId     String?
   
   lecturerId          String
   subjectId           Int
   
-  // 🆕 ฟิลด์สำหรับวิชานอกคณะ
   courseType          CourseType      @default(INTERNAL)
   externalFaculty     String?
   externalCourseCode  String?
   externalCourseName  String?
+  externalCourseNameEn  String?
+  externalCredit        String?
   evidenceLink        String?
   
   createdAt           DateTime        @default(now())
@@ -194,8 +199,13 @@ model TeachingAssignment {
   
   headApprover        User?           @relation("ChairApprovals", fields: [headApproverId], references: [id])
   academicApprover    User?           @relation("AcademicApprovals", fields: [academicApproverId], references: [id])
-  lecturer            User            @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
-  subject             Subject         @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  lecturer            User            @relation(fields: [lecturerId], references: [id], onDelete: Restrict)
+  subject             Subject         @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  // --- เพิ่ม index ใหม่ ---
+  @@index([academicYear, semester])
+  @@index([subjectId, academicYear, semester])
+  // ------------------------
 
   @@index([lecturerId, academicYear, semester])
   @@index([headApproverId], map: "teachingassignment_headApproverId_fkey")

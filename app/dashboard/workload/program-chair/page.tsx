@@ -16,6 +16,8 @@ import {
   RefreshCw,
   FileCheck,
   AlertCircle,
+  Link as LinkIcon,   // ✅ เพิ่ม
+  ExternalLink,       // ✅ เพิ่ม
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -52,6 +54,13 @@ interface InstructorLoad {
   critique: number;
   responsibleStatus: string;
   headApprovalStatus: string;
+  lecturerFeedback?: string | null;   // ✅ หมายเหตุจากผู้รับผิดชอบ (วิชาในคณะ)
+  isExternal: boolean;
+  externalFaculty?: string | null;
+  externalCourseCode?: string | null;
+  externalCourseName?: string | null;
+  externalCredit?: string | null;
+  evidenceLink?: string | null;
 }
 
 interface CourseWorkload {
@@ -69,9 +78,6 @@ interface CourseWorkload {
 }
 
 // ===== UTILITY FUNCTIONS =====
-/**
- * กำหนดสถานะของภาระงานตามสถานะการอนุมัติ
- */
 function determineWorkloadStatus(
   instructors: InstructorLoad[]
 ): WorkloadStatus {
@@ -93,16 +99,10 @@ function determineWorkloadStatus(
   return "waiting_owner";
 }
 
-/**
- * คำนวณน้ำหนักลำดับความสำคัญของสถานะ
- */
 function getStatusWeight(status: WorkloadStatus): number {
   return STATUS_PRIORITY[status] ?? 999;
 }
 
-/**
- * กรองรายวิชาที่เกี่ยวข้องกับประธานหลักสูตร
- */
 function filterRelevantCourses(
   allCourses: any[],
   chairId: string,
@@ -115,14 +115,10 @@ function filterRelevantCourses(
       (t: any) => String(t.headApproverId) === String(chairId)
     );
     const isAdmin = userRole === "ADMIN";
-
     return isProgramChair || hasTaskForMe || isAdmin;
   });
 }
 
-/**
- * แปลง API response เป็น CourseWorkload สำหรับประธานหลักสูตร
- */
 function transformCourseDataForChair(
   myCourses: any[],
   chairId: string,
@@ -134,7 +130,6 @@ function transformCourseDataForChair(
     const assignments = course.teachingAssignments || [];
     if (assignments.length === 0) return;
 
-    // จัดกลุ่ม assignments ตามภาคการศึกษา
     const assignmentsBySemester: Record<number, any[]> = {};
     assignments.forEach((a: any) => {
       const sem = a.semester || 1;
@@ -145,9 +140,11 @@ function transformCourseDataForChair(
     Object.entries(assignmentsBySemester).forEach(([semKey, semAssignments]) => {
       const sem = Number(semKey);
 
-      // กรองเฉพาะ assignments ที่เกี่ยวข้อง
       const relevantAssignments = semAssignments.filter((a: any) => {
-        if (userRole === "ADMIN" || String(course.program?.programChairId) === String(chairId)) {
+        if (
+          userRole === "ADMIN" ||
+          String(course.program?.programChairId) === String(chairId)
+        ) {
           return true;
         }
         return String(a.headApproverId) === String(chairId);
@@ -155,47 +152,97 @@ function transformCourseDataForChair(
 
       if (relevantAssignments.length === 0) return;
 
-      const instructors: InstructorLoad[] = relevantAssignments.map((a: any) => ({
-        id: a.id,
-        name: a.lecturer
-          ? `${a.lecturer.title || ""}${a.lecturer.firstName} ${a.lecturer.lastName}`.trim()
-          : "ไม่ระบุชื่อ",
-        role:
-          String(a.lecturerId) === String(course.responsibleUserId)
-            ? "ผู้รับผิดชอบรายวิชา"
-            : "ผู้สอน",
-        lecture: Number(a.lectureHours) || 0,
-        lab: Number(a.labHours) || 0,
-        exam: Number(a.examHours) || 0,
-        critique: Number(a.examCritiqueHours) || 0,
-        responsibleStatus: a.responsibleStatus || "PENDING",
-        headApprovalStatus: a.headApprovalStatus || "PENDING",
-      }));
-
-      // เรียงผู้รับผิดชอบรายวิชาไว้ด้านบน
-      instructors.sort((a, b) =>
-        a.role === "ผู้รับผิดชอบรายวิชา" ? -1 : 1
+      // ✅ แยก external assignments ออกจาก internal
+      const internalAssignments = relevantAssignments.filter(
+        (a: any) => a.courseType !== "EXTERNAL" && !a.externalCourseCode
+      );
+      const externalAssignments = relevantAssignments.filter(
+        (a: any) => a.courseType === "EXTERNAL" || !!a.externalCourseCode
       );
 
-      const currentStatus = determineWorkloadStatus(instructors);
+      // ── วิชาในคณะ: group รวมกันตามปกติ ──
+      if (internalAssignments.length > 0) {
+        const instructors: InstructorLoad[] = internalAssignments.map((a: any) => ({
+          id: a.id,
+          name: a.lecturer
+            ? `${a.lecturer.title || ""}${a.lecturer.firstName} ${a.lecturer.lastName}`.trim()
+            : "ไม่ระบุชื่อ",
+          role:
+            String(a.lecturerId) === String(course.responsibleUserId)
+              ? "ผู้รับผิดชอบรายวิชา"
+              : "ผู้สอน",
+          lecture: Number(a.lectureHours) || 0,
+          lab: Number(a.labHours) || 0,
+          exam: Number(a.examHours) || 0,
+          critique: Number(a.examCritiqueHours) || 0,
+          responsibleStatus: a.responsibleStatus || "PENDING",
+          headApprovalStatus: a.headApprovalStatus || "PENDING",
+          lecturerFeedback: a.lecturerFeedback ?? null,
+          isExternal: false,
+          externalFaculty: null,
+          externalCourseCode: null,
+          externalCourseName: null,
+          externalCredit: null,
+          evidenceLink: null,
+        }));
 
-      workloadData.push({
-        id: `${course.id}-${sem}`,
-        originalCourseId: course.id,
-        code: course.code || "ไม่ระบุรหัส",
-        name: course.name_th || course.name || "ไม่ระบุชื่อวิชา",
-        nameEn: course.name_en || "",
-        credit: course.credit || course.credits || "-",
-        programName: course.program?.name_th || "ไม่ระบุหลักสูตร",
-        semester: sem,
-        responsibleUser: "",
-        instructors,
-        status: currentStatus,
+        instructors.sort((a, b) => a.role === "ผู้รับผิดชอบรายวิชา" ? -1 : 1);
+
+        workloadData.push({
+          id: `${course.id}-${sem}`,
+          originalCourseId: course.id,
+          code: course.code || "ไม่ระบุรหัส",
+          name: course.name_th || course.name || "ไม่ระบุชื่อวิชา",
+          nameEn: course.name_en || "",
+          credit: course.credit || course.credits || "-",
+          programName: course.program?.name_th || "ไม่ระบุหลักสูตร",
+          semester: sem,
+          responsibleUser: "",
+          instructors,
+          status: determineWorkloadStatus(instructors),
+        });
+      }
+
+      // ✅ วิชานอกคณะ: แต่ละ assignment = 1 card แยกกัน
+      externalAssignments.forEach((a: any) => {
+        const instructor: InstructorLoad = {
+          id: a.id,
+          name: a.lecturer
+            ? `${a.lecturer.title || ""}${a.lecturer.firstName} ${a.lecturer.lastName}`.trim()
+            : "ไม่ระบุชื่อ",
+          role: "ผู้สอน",
+          lecture: Number(a.lectureHours) || 0,
+          lab: Number(a.labHours) || 0,
+          exam: Number(a.examHours) || 0,
+          critique: Number(a.examCritiqueHours) || 0,
+          responsibleStatus: a.responsibleStatus || "PENDING",
+          headApprovalStatus: a.headApprovalStatus || "PENDING",
+          lecturerFeedback: a.lecturerFeedback ?? null,
+          isExternal: true,
+          externalFaculty: a.externalFaculty ?? null,
+          externalCourseCode: a.externalCourseCode ?? null,
+          externalCourseName: a.externalCourseName ?? null,
+          externalCredit: a.externalCredit ?? null,
+          evidenceLink: a.evidenceLink ?? null,
+        };
+
+        workloadData.push({
+          id: `ext-${a.id}`,
+          originalCourseId: course.id,
+          code: a.externalCourseCode || "ไม่ระบุรหัส",
+          name: a.externalCourseName || "ไม่ระบุชื่อวิชา",
+          nameEn: a.externalCourseNameEn || "",    // ✅ ดึงจาก externalCourseNameEn
+          credit: a.externalCredit || "-",
+          programName: a.externalFaculty || "ไม่ระบุคณะ",
+          semester: sem,
+          responsibleUser: "",
+          instructors: [instructor],
+          status: determineWorkloadStatus([instructor]),
+        });
       });
     });
   });
 
-  // เรียงตามความสำคัญของสถานะ
   workloadData.sort((a, b) => {
     const weightA = getStatusWeight(a.status);
     const weightB = getStatusWeight(b.status);
@@ -208,9 +255,6 @@ function transformCourseDataForChair(
 }
 
 // ===== CUSTOM HOOKS =====
-/**
- * Hook สำหรับจัดการข้อมูลภาระงาน (ประธานหลักสูตร)
- */
 function useProgramChairData(chairId: string | undefined, userRole?: string) {
   const [courses, setCourses] = useState<CourseWorkload[]>([]);
   const [loading, setLoading] = useState(true);
@@ -228,28 +272,18 @@ function useProgramChairData(chairId: string | undefined, userRole?: string) {
 
     try {
       const resCourses = await fetch("/api/courses");
-
-      if (!resCourses.ok) {
-        throw new Error(`API Error: ${resCourses.status}`);
-      }
+      if (!resCourses.ok) throw new Error(`API Error: ${resCourses.status}`);
 
       const allCourses = await resCourses.json();
-
-      if (!Array.isArray(allCourses)) {
-        throw new Error("Invalid API response format");
-      }
+      if (!Array.isArray(allCourses)) throw new Error("Invalid API response format");
 
       const myCourses = filterRelevantCourses(allCourses, chairId, userRole);
       const workloadData = transformCourseDataForChair(myCourses, chairId, userRole);
-
       setCourses(workloadData);
     } catch (err) {
       const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "เกิดข้อผิดพลาดในการโหลดข้อมูล";
+        err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการโหลดข้อมูล";
       setError(errorMessage);
-      console.error("Error fetching data:", err);
       toast.error(errorMessage);
     } finally {
       setLoading(false);
@@ -259,15 +293,11 @@ function useProgramChairData(chairId: string | undefined, userRole?: string) {
   return { courses, loading, error, refetch: fetchData };
 }
 
-/**
- * Hook สำหรับจัดการการอนุมัติและส่งกลับ
- */
-function useChairApproval(onSuccess: () => void) {
+function useChairApproval(onSuccess: () => void, chairId?: string) {
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   const approve = useCallback(
     async (course: CourseWorkload) => {
-      // ตรวจสอบความถูกต้อง
       if (!course.instructors || course.instructors.length === 0) {
         await Swal.fire({
           title: "ไม่สามารถรับรองได้",
@@ -278,7 +308,6 @@ function useChairApproval(onSuccess: () => void) {
         return;
       }
 
-      // คำนวณข้อมูลสรุป
       const totalHours = course.instructors.reduce(
         (sum, inst) => sum + inst.lecture + inst.lab + inst.exam + inst.critique,
         0
@@ -319,30 +348,26 @@ function useChairApproval(onSuccess: () => void) {
               body: JSON.stringify({
                 id: inst.id,
                 headApprovalStatus: "APPROVED",
+                approverId: chairId,
               }),
             }).then((res) => {
-              if (!res.ok) {
-                throw new Error(`ไม่สามารถอัปเดตข้อมูลของ ${inst.name}`);
-              }
+              if (!res.ok) throw new Error(`ไม่สามารถอัปเดตข้อมูลของ ${inst.name}`);
               return res.json();
             })
           )
         );
 
         const failures = results.filter((r) => r.status === "rejected");
-
         if (failures.length > 0) {
           const failedReasons = failures
             .map((f) => (f as PromiseRejectedResult).reason.message)
             .join("\n");
-
           throw new Error(
             `อัปเดตล้มเหลว ${failures.length} จาก ${course.instructors.length} คน:\n${failedReasons}`
           );
         }
 
         onSuccess();
-
         await Swal.fire({
           title: "รับรองสำเร็จ!",
           html: `
@@ -354,18 +379,12 @@ function useChairApproval(onSuccess: () => void) {
           showConfirmButton: false,
         });
       } catch (error) {
-        console.error("Approval error:", error);
-
         await Swal.fire({
           title: "เกิดข้อผิดพลาด",
-          text:
-            error instanceof Error
-              ? error.message
-              : "ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง",
+          text: error instanceof Error ? error.message : "ไม่สามารถบันทึกข้อมูลได้",
           icon: "error",
           confirmButtonText: "ตกลง",
         });
-
         onSuccess();
       } finally {
         setProcessingId(null);
@@ -402,15 +421,12 @@ function useChairApproval(onSuccess: () => void) {
         confirmButtonText: "ส่งกลับแก้ไข",
         cancelButtonText: "ยกเลิก",
         inputValidator: (value) => {
-          // ไม่บังคับให้ใส่เหตุผล แต่ถ้าใส่ต้องมีความยาวพอสมควร
-          if (value && value.length < 5) {
-            return "กรุณาระบุเหตุผลอย่างน้อย 5 ตัวอักษร";
-          }
+          if (value && value.length < 5) return "กรุณาระบุเหตุผลอย่างน้อย 5 ตัวอักษร";
           return null;
         },
       });
 
-      if (reason === undefined) return; // User cancelled
+      if (reason === undefined) return;
 
       setProcessingId(course.id);
 
@@ -425,52 +441,40 @@ function useChairApproval(onSuccess: () => void) {
                 headApprovalStatus: "REJECTED",
                 responsibleStatus: "REJECTED",
                 rejectionReason: reason || undefined,
+                approverId: chairId,
               }),
             }).then((res) => {
-              if (!res.ok) {
-                throw new Error(`ไม่สามารถส่งกลับข้อมูลของ ${inst.name}`);
-              }
+              if (!res.ok) throw new Error(`ไม่สามารถส่งกลับข้อมูลของ ${inst.name}`);
               return res.json();
             })
           )
         );
 
         const failures = results.filter((r) => r.status === "rejected");
-
         if (failures.length > 0) {
           const failedReasons = failures
             .map((f) => (f as PromiseRejectedResult).reason.message)
             .join("\n");
-
           throw new Error(
             `ส่งกลับล้มเหลว ${failures.length} จาก ${course.instructors.length} คน:\n${failedReasons}`
           );
         }
 
         onSuccess();
-
         await Swal.fire({
           title: "ส่งกลับสำเร็จ!",
-          html: `
-            <p>รายวิชา <strong>${course.code}</strong> ถูกส่งกลับให้ผู้รับผิดชอบแก้ไขแล้ว</p>
-          `,
+          html: `<p>รายวิชา <strong>${course.code}</strong> ถูกส่งกลับให้ผู้รับผิดชอบแก้ไขแล้ว</p>`,
           icon: "success",
           timer: 3000,
           showConfirmButton: false,
         });
       } catch (error) {
-        console.error("Rejection error:", error);
-
         await Swal.fire({
           title: "เกิดข้อผิดพลาด",
-          text:
-            error instanceof Error
-              ? error.message
-              : "ไม่สามารถส่งกลับข้อมูลได้ กรุณาลองใหม่อีกครั้ง",
+          text: error instanceof Error ? error.message : "ไม่สามารถส่งกลับข้อมูลได้",
           icon: "error",
           confirmButtonText: "ตกลง",
         });
-
         onSuccess();
       } finally {
         setProcessingId(null);
@@ -487,24 +491,20 @@ export default function ProgramChairPage() {
   const { data: session, status } = useSession();
   const currentChair = session?.user;
 
-  // State Management
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Custom Hooks
   const { courses, loading, error, refetch } = useProgramChairData(
     currentChair?.id,
     currentChair?.role
   );
-  const { approve, reject, processingId } = useChairApproval(refetch);
+  const { approve, reject, processingId } = useChairApproval(refetch, currentChair?.id);
 
-  // Effects
   useEffect(() => {
     if (status === "authenticated" && currentChair?.id) {
       refetch();
     }
   }, [status, currentChair?.id, refetch]);
 
-  // Memoized Values
   const filteredCourses = useMemo(() => {
     return courses.filter(
       (c) =>
@@ -513,23 +513,18 @@ export default function ProgramChairPage() {
     );
   }, [courses, searchTerm]);
 
-  const statusCounts = useMemo(() => {
-    return {
-      pending: filteredCourses.filter((c) => c.status === "pending_approval")
-        .length,
-      rejected: filteredCourses.filter((c) => c.status === "rejected").length,
-      waiting: filteredCourses.filter((c) => c.status === "waiting_owner")
-        .length,
-      approved: filteredCourses.filter((c) => c.status === "approved").length,
-    };
-  }, [filteredCourses]);
+  const statusCounts = useMemo(() => ({
+    pending: filteredCourses.filter((c) => c.status === "pending_approval").length,
+    rejected: filteredCourses.filter((c) => c.status === "rejected").length,
+    waiting: filteredCourses.filter((c) => c.status === "waiting_owner").length,
+    approved: filteredCourses.filter((c) => c.status === "approved").length,
+  }), [filteredCourses]);
 
-  // ===== RENDER =====
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-lime-50/20 to-emerald-50/20 p-6 font-sarabun">
       <Toaster position="top-center" richColors />
 
-      {/* Header Section */}
+      {/* Header */}
       <header className="mb-8">
         <div className="flex items-center gap-2 text-slate-400 mb-2 text-sm font-medium">
           <span>จัดการชั่วโมงสอน</span>
@@ -542,84 +537,38 @@ export default function ProgramChairPage() {
         {currentChair && !loading && (
           <p className="text-slate-600 mt-2 font-light">
             ยินดีต้อนรับ,{" "}
-            <span className="font-semibold text-lime-600">
-              {currentChair.name}
-            </span>
+            <span className="font-semibold text-lime-600">{currentChair.name}</span>
           </p>
         )}
 
-        {/* Status Summary Cards */}
+        {/* Status Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-orange-100 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500 font-medium">รอพิจารณา</p>
-                <p className="text-3xl font-bold text-orange-600">
-                  {statusCounts.pending}
-                </p>
+          {[
+            { label: "รอพิจารณา", value: statusCounts.pending, color: "orange", Icon: AlertOctagon },
+            { label: "ส่งกลับแล้ว", value: statusCounts.rejected, color: "red", Icon: AlertCircle },
+            { label: "กำลังรอ", value: statusCounts.waiting, color: "slate", Icon: Clock },
+            { label: "รับรองแล้ว", value: statusCounts.approved, color: "lime", Icon: CheckCircle },
+          ].map(({ label, value, color, Icon }, i) => (
+            <motion.div
+              key={label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className={`bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-${color}-100 shadow-sm`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-500 font-medium">{label}</p>
+                  <p className={`text-3xl font-bold text-${color}-600`}>{value}</p>
+                </div>
+                <Icon className={`text-${color}-400`} size={32} />
               </div>
-              <AlertOctagon className="text-orange-400" size={32} />
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
-            className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-red-100 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500 font-medium">ส่งกลับแล้ว</p>
-                <p className="text-3xl font-bold text-red-600">
-                  {statusCounts.rejected}
-                </p>
-              </div>
-              <AlertCircle className="text-red-400" size={32} />
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-slate-100 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500 font-medium">กำลังรอ</p>
-                <p className="text-3xl font-bold text-slate-600">
-                  {statusCounts.waiting}
-                </p>
-              </div>
-              <Clock className="text-slate-400" size={32} />
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-lime-100 shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-500 font-medium">รับรองแล้ว</p>
-                <p className="text-3xl font-bold text-lime-600">
-                  {statusCounts.approved}
-                </p>
-              </div>
-              <CheckCircle className="text-lime-400" size={32} />
-            </div>
-          </motion.div>
+            </motion.div>
+          ))}
         </div>
       </header>
 
-      {/* Filter Section */}
+      {/* Filter */}
       <div className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl border border-slate-200/60 shadow-lg mb-6 sticky top-4 z-20">
         <div className="flex flex-col md:flex-row gap-4 items-center w-full">
           <div className="relative w-full flex-1 max-w-2xl">
@@ -632,12 +581,8 @@ export default function ProgramChairPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <Search
-              className="absolute left-3.5 bottom-3 text-slate-400"
-              size={18}
-            />
+            <Search className="absolute left-3.5 bottom-3 text-slate-400" size={18} />
           </div>
-
           <button
             onClick={refetch}
             disabled={loading}
@@ -661,10 +606,7 @@ export default function ProgramChairPage() {
             <AlertOctagon className="w-16 h-16 mx-auto mb-4 text-red-400" />
             <h3 className="text-lg font-bold text-red-600">เกิดข้อผิดพลาด</h3>
             <p className="text-red-500 mt-2">{error}</p>
-            <button
-              onClick={refetch}
-              className="mt-4 px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors"
-            >
+            <button onClick={refetch} className="mt-4 px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors">
               ลองใหม่อีกครั้ง
             </button>
           </div>
@@ -680,44 +622,38 @@ export default function ProgramChairPage() {
                   transition={{ delay: index * 0.05 }}
                   className="bg-white rounded-2xl border border-slate-200 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden"
                 >
-                  {/* Table Layout */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gradient-to-r from-slate-50 to-slate-100/50 text-slate-600 font-semibold">
                         <tr>
                           <th className="py-4 px-6 text-left w-[20%]">รายวิชา</th>
-                          <th className="py-4 px-4 text-center w-[12%]">
-                            ภาคการศึกษา
-                          </th>
-                          <th className="py-4 px-6 text-left w-[18%]">
-                            อาจารย์ผู้สอน
-                          </th>
-                          <th className="py-4 px-4 text-center w-[10%]">สถานะ</th>
-                          <th className="py-4 px-3 text-center w-[10%]">
-                            บรรยาย<br />(ชม.)
-                          </th>
-                          <th className="py-4 px-3 text-center w-[10%]">
-                            ปฏิบัติการ<br />(ชม.)
-                          </th>
-                          <th className="py-4 px-3 text-center w-[10%]">
-                            คุมสอบนอกตาราง<br />(ชม.)
-                          </th>
-                          <th className="py-4 px-3 text-center w-[10%]">
-                            วิพากษ์ข้อสอบ<br />(หัวข้อ)
-                          </th>
+                          <th className="py-4 px-4 text-center w-[10%]">ภาคการศึกษา</th>
+                          <th className="py-4 px-6 text-left w-[18%]">อาจารย์ผู้สอน</th>
+                          <th className="py-4 px-4 text-center w-[8%]">สถานะ</th>
+                          <th className="py-4 px-3 text-center w-[9%]">บรรยาย<br />(ชม.)</th>
+                          <th className="py-4 px-3 text-center w-[9%]">ปฏิบัติการ<br />(ชม.)</th>
+                          <th className="py-4 px-3 text-center w-[9%]">คุมสอบนอกตาราง<br />(ชม.)</th>
+                          <th className="py-4 px-3 text-center w-[9%]">วิพากษ์ข้อสอบ<br />(หัวข้อ)</th>
+                          {/* ✅ คอลัมน์สุดท้าย: เอกสาร(นอกคณะ) / หมายเหตุ(ในคณะ) */}
+                          <th className="py-4 px-3 text-center w-[10%]">เอกสาร / หมายเหตุ</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {course.instructors.map((instructor, idx) => (
                           <tr
                             key={instructor.id}
-                            className="group hover:bg-lime-50/30 transition-colors"
+                            className={`group transition-colors ${
+                              instructor.isExternal
+                                ? "bg-orange-50/30 hover:bg-orange-50/60"
+                                : "hover:bg-lime-50/30"
+                            }`}
                           >
                             {idx === 0 ? (
                               <>
+                            {/* คอลัมน์รายวิชา */}
                                 <td
                                   rowSpan={course.instructors.length + 1}
-                                  className="py-6 px-6 align-top border-r border-slate-100 bg-white group-hover:bg-white"
+                                  className="py-6 px-6 align-top border-r border-slate-100 bg-white"
                                 >
                                   <div className="flex flex-col gap-2.5">
                                     <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -730,40 +666,36 @@ export default function ProgramChairPage() {
                                       </span>
                                     </div>
                                     <div className="flex flex-col">
-                                      <span className="text-slate-700 font-medium leading-snug">
-                                        {course.name}
-                                      </span>
-                                      <span className="text-slate-400 text-xs mt-1">
-                                        {course.nameEn}
-                                      </span>
+                                      <span className="text-slate-700 font-medium leading-snug">{course.name}</span>
+                                      <span className="text-slate-400 text-xs mt-1">{course.nameEn}</span>
                                     </div>
                                     <span className="inline-flex w-fit items-center px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600 mt-1">
                                       {course.programName}
                                     </span>
+
+                                    {/* ✅ badge นอกคณะ — แสดงเฉพาะวิชานอกคณะ */}
+                                    {course.instructors.some(i => i.isExternal) && (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-orange-100 text-orange-700 border border-orange-200 w-fit mt-1">
+                                        🏛️ รายวิชานอกคณะ
+                                      </span>
+                                    )}
                                   </div>
                                 </td>
 
+                                {/* คอลัมน์ภาคการศึกษา */}
                                 <td
                                   rowSpan={course.instructors.length + 1}
-                                  className="py-6 px-4 align-top border-r border-slate-100 bg-white group-hover:bg-white text-center"
+                                  className="py-6 px-4 align-top border-r border-slate-100 bg-white text-center"
                                 >
                                   {(() => {
-                                    const config =
-                                      SEMESTER_CONFIG[
-                                        course.semester as keyof typeof SEMESTER_CONFIG
-                                      ];
+                                    const config = SEMESTER_CONFIG[course.semester as keyof typeof SEMESTER_CONFIG];
                                     return (
-                                      <div
-                                        className={`inline-flex items-center justify-center px-3.5 py-1.5 rounded-full font-bold text-xs border whitespace-nowrap ${
-                                          course.semester === 1
-                                            ? "bg-amber-50 text-amber-700 border-amber-200"
-                                            : course.semester === 2
-                                            ? "bg-blue-50 text-blue-700 border-blue-200"
-                                            : course.semester === 3
-                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                            : "bg-gray-50 text-gray-700 border-gray-200"
-                                        }`}
-                                      >
+                                      <div className={`inline-flex items-center justify-center px-3.5 py-1.5 rounded-full font-bold text-xs border whitespace-nowrap ${
+                                        course.semester === 1 ? "bg-amber-50 text-amber-700 border-amber-200"
+                                        : course.semester === 2 ? "bg-blue-50 text-blue-700 border-blue-200"
+                                        : course.semester === 3 ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                        : "bg-gray-50 text-gray-700 border-gray-200"
+                                      }`}>
                                         {config?.label || `เทอม ${course.semester}`}
                                       </div>
                                     );
@@ -772,41 +704,69 @@ export default function ProgramChairPage() {
                               </>
                             ) : null}
 
-                            <td className="py-4 px-6 text-slate-700 font-medium">
-                              {instructor.name}
+                            {/* ชื่ออาจารย์ */}
+                            <td className="py-4 px-6 align-middle">
+                              <span className="text-slate-700 font-medium">
+                                {instructor.name}
+                              </span>
                             </td>
+
+                            {/* สถานะ */}
                             <td className="py-4 px-4 text-center">
                               {instructor.role === "ผู้รับผิดชอบรายวิชา" ? (
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 border border-purple-200 whitespace-nowrap">
                                   ผู้รับผิดชอบ
                                 </span>
                               ) : (
-                                <span className="text-xs text-slate-400 font-medium">
-                                  ผู้สอน
-                                </span>
+                                <span className="text-xs text-slate-400 font-medium">ผู้สอน</span>
                               )}
                             </td>
-                            <td className="py-4 px-3 text-center text-slate-700 font-semibold">
-                              {instructor.lecture}
-                            </td>
-                            <td className="py-4 px-3 text-center text-slate-700 font-semibold">
-                              {instructor.lab}
-                            </td>
-                            <td className="py-4 px-3 text-center text-slate-700 font-semibold">
-                              {instructor.exam}
-                            </td>
-                            <td className="py-4 px-3 text-center text-slate-700 font-semibold">
-                              {instructor.critique}
+
+                            {/* ชั่วโมง */}
+                            <td className="py-4 px-3 text-center text-slate-700 font-semibold">{instructor.lecture}</td>
+                            <td className="py-4 px-3 text-center text-slate-700 font-semibold">{instructor.lab}</td>
+                            <td className="py-4 px-3 text-center text-slate-700 font-semibold">{instructor.exam}</td>
+                            <td className="py-4 px-3 text-center text-slate-700 font-semibold">{instructor.critique}</td>
+
+                            {/* ✅ คอลัมน์สุดท้าย:
+                                - วิชานอกคณะ → ปุ่มดูเอกสาร
+                                - วิชาในคณะ → หมายเหตุจากผู้รับผิดชอบ (lecturerFeedback) */}
+                            <td className="py-4 px-3 text-center">
+                              {instructor.isExternal ? (
+                                instructor.evidenceLink ? (
+                                  <a
+                                    href={instructor.evidenceLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 hover:text-blue-700 transition-colors whitespace-nowrap"
+                                    title={instructor.evidenceLink}
+                                  >
+                                    <ExternalLink size={12} />
+                                    ดูเอกสาร
+                                  </a>
+                                ) : (
+                                  <span className="text-slate-300 text-xs">—</span>
+                                )
+                              ) : (
+                                instructor.lecturerFeedback ? (
+                                  <div
+                                    className="inline-flex items-start gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-yellow-50 text-yellow-800 border border-yellow-200 text-left max-w-[180px]"
+                                    title={instructor.lecturerFeedback}
+                                  >
+                                    <FileText size={11} className="mt-0.5 shrink-0 text-yellow-500" />
+                                    <span className="line-clamp-2">{instructor.lecturerFeedback}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-300 text-xs">—</span>
+                                )
+                              )}
                             </td>
                           </tr>
                         ))}
 
                         {/* Summary Row */}
                         <tr className="bg-gradient-to-r from-lime-50 to-emerald-50 border-t-2 border-lime-200">
-                          <td
-                            colSpan={2}
-                            className="py-3.5 px-6 text-right text-xs font-bold text-slate-500 uppercase tracking-wide"
-                          >
+                          <td colSpan={2} className="py-3.5 px-6 text-right text-xs font-bold text-slate-500 uppercase tracking-wide">
                             รวมทั้งหมด
                           </td>
                           <td className="py-3.5 px-3 text-center font-bold text-lime-600 text-lg">
@@ -821,6 +781,7 @@ export default function ProgramChairPage() {
                           <td className="py-3.5 px-3 text-center font-bold text-lime-600 text-lg">
                             {course.instructors.reduce((s, i) => s + i.critique, 0)}
                           </td>
+                          <td></td>
                         </tr>
                       </tbody>
                     </table>
@@ -839,9 +800,7 @@ export default function ProgramChairPage() {
                         >
                           <div className="flex items-center gap-2.5 px-4 py-2.5 bg-orange-50 text-orange-700 rounded-xl border border-orange-200">
                             <AlertOctagon size={18} className="text-orange-500" />
-                            <span className="text-sm font-semibold">
-                              รอการพิจารณาจากท่าน
-                            </span>
+                            <span className="text-sm font-semibold">รอการพิจารณาจากท่าน</span>
                           </div>
 
                           <motion.button
@@ -849,20 +808,14 @@ export default function ProgramChairPage() {
                             whileTap={{ scale: 0.97 }}
                             disabled={processingId === course.id}
                             onClick={() => approve(course)}
-                            className={`bg-gradient-to-r from-lime-600 to-emerald-600 hover:from-lime-700 hover:to-emerald-700 text-white px-7 py-3 rounded-xl shadow-md hover:shadow-lime-200/50 hover:shadow-xl transition-all flex items-center gap-2.5 font-semibold ${
-                              processingId === course.id
-                                ? "opacity-80 cursor-wait"
-                                : ""
-                            }`}
+                            className={`bg-gradient-to-r from-lime-600 to-emerald-600 hover:from-lime-700 hover:to-emerald-700 text-white px-7 py-3 rounded-xl shadow-md hover:shadow-lime-200/50 hover:shadow-xl transition-all flex items-center gap-2.5 font-semibold ${processingId === course.id ? "opacity-80 cursor-wait" : ""}`}
                           >
                             {processingId === course.id ? (
                               <Loader2 className="animate-spin h-5 w-5" />
                             ) : (
                               <FileCheck className="h-5 w-5" />
                             )}
-                            {processingId === course.id
-                              ? "กำลังบันทึก..."
-                              : "รับรองข้อมูล"}
+                            {processingId === course.id ? "กำลังบันทึก..." : "รับรองข้อมูล"}
                           </motion.button>
 
                           <motion.button
@@ -870,11 +823,7 @@ export default function ProgramChairPage() {
                             whileTap={{ scale: 0.97 }}
                             disabled={processingId === course.id}
                             onClick={() => reject(course)}
-                            className={`border-2 border-red-200 text-red-600 bg-white hover:bg-red-50 px-7 py-3 rounded-xl transition-all flex items-center gap-2.5 font-semibold ${
-                              processingId === course.id
-                                ? "opacity-50 cursor-not-allowed"
-                                : ""
-                            }`}
+                            className={`border-2 border-red-200 text-red-600 bg-white hover:bg-red-50 px-7 py-3 rounded-xl transition-all flex items-center gap-2.5 font-semibold ${processingId === course.id ? "opacity-50 cursor-not-allowed" : ""}`}
                           >
                             <X size={18} /> ส่งกลับแก้ไข
                           </motion.button>
@@ -882,44 +831,29 @@ export default function ProgramChairPage() {
                       )}
 
                       {course.status === "approved" && (
-                        <motion.div
-                          key="approved"
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
+                        <motion.div key="approved" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                           className="flex items-center gap-2.5 px-6 py-2.5 bg-gradient-to-r from-lime-50 to-emerald-50 text-lime-700 rounded-full border border-lime-200 shadow-sm"
                         >
                           <CheckCircle size={22} className="text-lime-600" />
-                          <span className="font-bold text-sm">
-                            รับรองข้อมูลเรียบร้อยแล้ว
-                          </span>
+                          <span className="font-bold text-sm">รับรองข้อมูลเรียบร้อยแล้ว</span>
                         </motion.div>
                       )}
 
                       {course.status === "rejected" && (
-                        <motion.div
-                          key="rejected"
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
+                        <motion.div key="rejected" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                           className="flex items-center gap-2.5 px-6 py-2.5 bg-gradient-to-r from-red-50 to-orange-50 text-red-700 rounded-full border border-red-200 shadow-sm"
                         >
                           <AlertOctagon size={22} className="text-red-600" />
-                          <span className="font-bold text-sm">
-                            ส่งกลับแก้ไขแล้ว
-                          </span>
+                          <span className="font-bold text-sm">ส่งกลับแก้ไขแล้ว</span>
                         </motion.div>
                       )}
 
                       {course.status === "waiting_owner" && (
-                        <motion.div
-                          key="waiting"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
+                        <motion.div key="waiting" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                           className="flex items-center gap-2.5 text-slate-500 px-5 py-2.5 bg-slate-100 rounded-full border border-slate-200"
                         >
                           <Clock size={19} />
-                          <span className="text-sm font-semibold">
-                            รอผู้รับผิดชอบรายวิชาดำเนินการ
-                          </span>
+                          <span className="text-sm font-semibold">รอผู้รับผิดชอบรายวิชาดำเนินการ</span>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -935,9 +869,7 @@ export default function ProgramChairPage() {
             className="py-24 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50"
           >
             <FileText className="w-20 h-20 mx-auto mb-5 text-slate-300" />
-            <h3 className="text-xl font-bold text-slate-600 mb-2">
-              ไม่พบรายวิชา
-            </h3>
+            <h3 className="text-xl font-bold text-slate-600 mb-2">ไม่พบรายวิชา</h3>
             <p className="text-slate-400 mb-4">
               {searchTerm
                 ? "ไม่พบรายวิชาที่ตรงกับเงื่อนไขการค้นหา"

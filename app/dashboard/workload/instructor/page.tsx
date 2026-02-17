@@ -28,6 +28,10 @@ import {
   RefreshCw,
   FileText,
   AlertOctagon,
+  Send,
+  ChevronDown,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import Swal from "sweetalert2";
@@ -54,12 +58,16 @@ type Assignment = {
   examCritiqueHours: number;
   lecturerStatus: LecturerStatus;
   lecturerFeedback?: string;
+  responsibleStatus?: string;
+  headApprovalStatus?: string;
+  academicApprovalStatus?: string;
 
   // ฟิลด์สำหรับวิชานอกคณะ
   courseType?: CourseType;
   externalFaculty?: string | null;
   externalCourseCode?: string | null;
   externalCourseName?: string | null;
+  externalCredit?: string | null;
   evidenceLink?: string | null;
 
   subject: {
@@ -79,6 +87,8 @@ type ExternalCourseForm = {
   code: string;
   nameTh: string;
   nameEn: string;
+  credit: string;
+  semester: number;
   lectureHours: number;
   labHours: number;
   examHours: number;
@@ -156,13 +166,96 @@ const Modal = ({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="overflow-y-auto custom-scrollbar flex-1 relative bg-white p-6">
+        {/* Body — scroll เฉพาะส่วนนี้ */}
+        <div className="overflow-y-auto custom-scrollbar flex-1 bg-white px-6 pt-6 pb-2">
           {children}
         </div>
       </div>
     </div>,
     document.body,
+  );
+};
+
+// ===== CUSTOM SELECT COMPONENT =====
+const CustomSelect = ({
+  value,
+  onChange,
+  options,
+  placeholder = "เลือก...",
+  className = "",
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  options: Array<{ value: number; label: string; color?: string }>;
+  placeholder?: string;
+  className?: string;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedOption = options.find((opt) => opt.value === value);
+
+  return (
+    <div className={`relative ${className}`}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-white border border-slate-200 rounded-lg hover:border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-100 transition-all"
+      >
+        <span
+          className={`font-medium ${selectedOption ? "text-slate-700" : "text-slate-400"}`}
+        >
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronDown
+          size={18}
+          className={`text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => setIsOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.15 }}
+              className="absolute z-20 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden"
+            >
+              {options.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.value);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full px-4 py-3 text-left hover:bg-purple-50 transition-colors flex items-center justify-between group ${
+                    value === option.value ? "bg-purple-50" : ""
+                  }`}
+                >
+                  <span
+                    className={`font-medium ${
+                      value === option.value
+                        ? "text-purple-700"
+                        : "text-slate-700 group-hover:text-purple-600"
+                    }`}
+                  >
+                    {option.label}
+                  </span>
+                  {value === option.value && (
+                    <Check size={16} className="text-purple-600" />
+                  )}
+                </button>
+              ))}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
   );
 };
 
@@ -198,6 +291,7 @@ function validateExternalCourseForm(form: ExternalCourseForm): string | null {
   if (!form.faculty.trim()) return "กรุณากรอกชื่อคณะ/หน่วยงาน";
   if (!form.code.trim()) return "กรุณากรอกรหัสวิชา";
   if (!form.nameTh.trim()) return "กรุณากรอกชื่อรายวิชา (ไทย)";
+  if (!form.credit.trim()) return "กรุณากรอกหน่วยกิต";
   if (form.lectureHours < 0 || form.labHours < 0 || form.examHours < 0 || form.examCritiqueHours < 0) {
     return "ชั่วโมงต้องไม่ติดลบ";
   }
@@ -235,6 +329,7 @@ function useInstructorAssignments(userId: string | undefined) {
     try {
       const resAssign = await fetch(
         `/api/assignments?lecturerId=${userId}&scope=year`,
+        { cache: 'no-store' }
       );
 
       if (!resAssign.ok) {
@@ -417,7 +512,69 @@ function useAssignmentActions(onSuccess: () => void) {
     [onSuccess],
   );
 
-  return { verify, dispute, processingId };
+  const submitToChair = useCallback(
+    async (assignmentId: number) => {
+      const result = await Swal.fire({
+        title: "ส่งข้อมูลให้ประธานหลักสูตร?",
+        html: `
+          <div style="text-align: left; padding: 1rem;">
+            <p style="color: #666; font-size: 0.95rem;">
+              ข้อมูลรายวิชานอกคณะจะถูกส่งให้ประธานหลักสูตรตรวจสอบและอนุมัติ
+            </p>
+            <p style="color: #dc2626; font-size: 0.9rem; margin-top: 0.5rem;">
+              <strong>⚠️ หมายเหตุ:</strong> กรุณาตรวจสอบข้อมูลให้ถูกต้องก่อนกดส่ง
+            </p>
+          </div>
+        `,
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonColor: "#7c3aed",
+        cancelButtonColor: "#64748b",
+        confirmButtonText: "ยืนยันการส่ง",
+        cancelButtonText: "ยกเลิก",
+        focusCancel: true,
+      });
+
+      if (!result.isConfirmed) return false;
+
+      try {
+        const res = await fetch("/api/assignments", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: assignmentId,
+            responsibleStatus: "APPROVED",
+            headApprovalStatus: "PENDING",
+          }),
+        });
+
+        if (!res.ok) throw new Error("ไม่สามารถส่งข้อมูลได้");
+
+        onSuccess();
+
+        await Swal.fire({
+          title: "ส่งข้อมูลสำเร็จ!",
+          text: "ข้อมูลถูกส่งให้ประธานหลักสูตรตรวจสอบแล้ว",
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+
+        return true;
+      } catch (error) {
+        await Swal.fire({
+          title: "เกิดข้อผิดพลาด",
+          text: error instanceof Error ? error.message : "ไม่สามารถส่งข้อมูลได้",
+          icon: "error",
+          confirmButtonText: "ตกลง",
+        });
+        return false;
+      }
+    },
+    [onSuccess],
+  );
+
+  return { verify, dispute, submitToChair, processingId };
 }
 
 /**
@@ -495,6 +652,7 @@ export default function InstructorWorkloadPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isDisputeOpen, setIsDisputeOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Assignment | null>(null);
   const [activeYear, setActiveYear] = useState<number | null>(null);
 
@@ -505,6 +663,8 @@ export default function InstructorWorkloadPage() {
       code: "",
       nameTh: "",
       nameEn: "",
+      credit: "",
+      semester: 1,
       lectureHours: 0,
       labHours: 0,
       examHours: 0,
@@ -516,7 +676,7 @@ export default function InstructorWorkloadPage() {
   const { assignments, loading, error, refetch } = useInstructorAssignments(
     currentUser?.id,
   );
-  const { verify, dispute, processingId } = useAssignmentActions(refetch);
+  const { verify, dispute, submitToChair, processingId } = useAssignmentActions(refetch);
   const { submitExternalCourse, isSubmitting } = useExternalCourse(
     currentUser?.id,
     () => {
@@ -526,6 +686,8 @@ export default function InstructorWorkloadPage() {
         code: "",
         nameTh: "",
         nameEn: "",
+        credit: "",
+        semester: 1,
         lectureHours: 0,
         labHours: 0,
         examHours: 0,
@@ -608,6 +770,13 @@ export default function InstructorWorkloadPage() {
   const handleAddExternalCourse = () => {
     submitExternalCourse(externalCourseForm);
   };
+
+  // Semester options for dropdown
+  const semesterOptions = [
+    { value: 1, label: "ภาคการศึกษาต้น", color: "amber" },
+    { value: 2, label: "ภาคการศึกษาปลาย", color: "blue" },
+    { value: 3, label: "ภาคฤดูร้อน", color: "emerald" },
+  ];
 
   // ===== RENDER =====
   if (status === "loading") {
@@ -765,7 +934,7 @@ export default function InstructorWorkloadPage() {
             <Table>
               <TableHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50">
                 <TableRow>
-                  <TableHead className="font-bold text-slate-700 w-[30%]">
+                  <TableHead className="font-bold text-slate-700 w-[28%]">
                     รหัสวิชา / ชื่อรายวิชา
                   </TableHead>
                   <TableHead className="text-center font-bold text-slate-700 w-[8%]">
@@ -774,22 +943,22 @@ export default function InstructorWorkloadPage() {
                   <TableHead className="text-center font-bold text-slate-700 w-[6%]">
                     หน่วยกิต
                   </TableHead>
-                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">
+                  <TableHead className="text-center font-bold text-slate-700 w-[7%]">
                     บทบาท
                   </TableHead>
-                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">
+                  <TableHead className="text-center font-bold text-slate-700 w-[7%]">
                     บรรยาย (ชม.)
                   </TableHead>
-                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">
+                  <TableHead className="text-center font-bold text-slate-700 w-[7%]">
                     ปฏิบัติการ (ชม.)
                   </TableHead>
-                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">
+                  <TableHead className="text-center font-bold text-slate-700 w-[7%]">
                     คุมสอบนอกตาราง (ชม.)
                   </TableHead>
-                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">
+                  <TableHead className="text-center font-bold text-slate-700 w-[7%]">
                     วิพากษ์ข้อสอบ (หัวข้อ)
                   </TableHead>
-                  <TableHead className="text-center font-bold text-slate-700 w-[16%]">
+                  <TableHead className="text-center font-bold text-slate-700 w-[23%]">
                     สถานะการยืนยัน
                   </TableHead>
                 </TableRow>
@@ -881,7 +1050,9 @@ export default function InstructorWorkloadPage() {
 
                           <TableCell className="text-center">
                             {isExternal ? (
-                              <span className="text-slate-400 text-xs">-</span>
+                              <span className="bg-purple-50 text-purple-600 px-2.5 py-1 rounded text-xs font-semibold border border-purple-100">
+                                {item.externalCredit || "-"}
+                              </span>
                             ) : (
                               <span className="bg-purple-50 text-purple-600 px-2.5 py-1 rounded text-xs font-semibold border border-purple-100">
                                 {item.subject?.credit || "-"}
@@ -909,57 +1080,133 @@ export default function InstructorWorkloadPage() {
                           </TableCell>
 
                           <TableCell className="text-center">
-                            {item.lecturerStatus === "APPROVED" ? (
-                              <div className="flex items-center justify-center gap-2 text-green-600 font-semibold text-sm bg-green-50 py-1.5 px-3 rounded-full w-fit mx-auto border border-green-200">
-                                <CheckCircle className="w-4 h-4" /> ยืนยันแล้ว
-                              </div>
-                            ) : item.lecturerStatus === "REJECTED" ? (
-                              <div className="flex flex-col items-center gap-2">
-                                <div className="flex items-center gap-2 text-red-600 font-semibold text-sm bg-red-50 px-3 py-1 rounded-full border border-red-200">
-                                  <AlertCircle className="w-4 h-4" />{" "}
-                                  แจ้งแก้ไขแล้ว
-                                </div>
-                                <Button
-                                  variant="link"
-                                  className="text-orange-500 underline decoration-dashed p-0 h-auto text-xs hover:text-orange-600"
-                                  onClick={() => {
-                                    setSelectedItem(item);
-                                    setIsDisputeOpen(true);
-                                  }}
-                                >
-                                  ดูรายละเอียด / แก้ไข
-                                </Button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-center gap-2">
-                                <Button
-                                  size="sm"
-                                  className="bg-green-600 hover:bg-green-700 h-9 text-xs shadow-sm rounded-lg font-semibold"
-                                  onClick={() => verify(item)}
-                                  disabled={processingId === item.id}
-                                >
-                                  {processingId === item.id ? (
-                                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                  ) : (
-                                    <Check className="w-3 h-3 mr-1" />
-                                  )}
-                                  ยืนยันถูกต้อง
-                                </Button>
+                            {isExternal
+                              ? (() => {
+                                  const isRejectedByChair = item.headApprovalStatus === "REJECTED";
+                                  const isAcademicApproved = item.academicApprovalStatus === "APPROVED";
+                                  const isHeadApproved = item.headApprovalStatus === "APPROVED";
+                                  // ✅ "รอประธาน" = headApprovalStatus เป็น PENDING (ส่งแล้ว ยังไม่ตอบ)
+                                  const isPendingHead = item.headApprovalStatus === "PENDING";
+                                  // ✅ "รอส่ง" = headApprovalStatus ยังเป็น null (ยังไม่เคยส่ง) หรือถูก reject แล้วส่งใหม่
+                                  const isSubmittedToChair = isPendingHead && !isRejectedByChair && !isHeadApproved && !isAcademicApproved;
 
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  className="h-9 text-xs bg-red-500 hover:bg-red-600 shadow-sm rounded-lg font-semibold"
-                                  onClick={() => {
-                                    setSelectedItem(item);
-                                    dispute(item);
-                                  }}
-                                  disabled={processingId === item.id}
-                                >
-                                  แจ้งแก้ไข
-                                </Button>
-                              </div>
-                            )}
+                                  // ✅ 1) รองวิชาการอนุมัติแล้ว
+                                  if (isAcademicApproved) return (
+                                    <div className="flex flex-col items-center gap-1">
+                                      <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-xs bg-emerald-50 py-1.5 px-3 rounded-full border border-emerald-300">
+                                        <CheckCircle className="w-3.5 h-3.5" /> อนุมัติสมบูรณ์
+                                      </div>
+                                      <span className="text-[10px] text-emerald-500">รองวิชาการอนุมัติแล้ว</span>
+                                    </div>
+                                  );
+
+                                  // ✅ 2) ประธานอนุมัติ รอรองวิชาการ
+                                  if (isHeadApproved) return (
+                                    <div className="flex flex-col items-center gap-1">
+                                      <div className="flex items-center gap-1.5 text-cyan-700 font-semibold text-xs bg-cyan-50 py-1.5 px-3 rounded-full border border-cyan-200">
+                                        <CheckCircle className="w-3.5 h-3.5" /> ประธานอนุมัติแล้ว
+                                      </div>
+                                      <span className="text-[10px] text-cyan-500">รอรองวิชาการอนุมัติ</span>
+                                    </div>
+                                  );
+
+                                  // 🔴 3) ประธานส่งกลับแก้ไข
+                                  if (isRejectedByChair) return (
+                                    <div className="flex flex-col items-center gap-2">
+                                      <div className="flex items-center gap-1.5 text-red-600 font-semibold text-xs bg-red-50 py-1.5 px-3 rounded-full border border-red-200 animate-pulse">
+                                        <AlertCircle className="w-3.5 h-3.5" /> ประธานส่งกลับแก้ไข
+                                      </div>
+                                      <div className="flex gap-1.5">
+                                        <Button size="sm"
+                                          className="h-7 text-xs bg-blue-600 hover:bg-blue-700 rounded-lg px-3"
+                                          onClick={() => { setSelectedItem(item); setIsEditOpen(true); }}
+                                        >
+                                          <Edit className="w-3 h-3 mr-1" /> แก้ไข
+                                        </Button>
+                                        <Button size="sm"
+                                          className="h-7 text-xs bg-purple-600 hover:bg-purple-700 rounded-lg px-3"
+                                          onClick={() => submitToChair(item.id)}
+                                          disabled={processingId === item.id}
+                                        >
+                                          {processingId === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3 mr-1" />}
+                                          ส่งใหม่
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  );
+
+                                  // 🔵 4) รอประธานตรวจสอบ (ส่งแล้ว ล็อก)
+                                  if (isSubmittedToChair) return (
+                                    <div className="flex flex-col items-center gap-1">
+                                      <div className="flex items-center gap-1.5 text-indigo-600 font-semibold text-xs bg-indigo-50 py-1.5 px-3 rounded-full border border-indigo-200">
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> รอประธานตรวจสอบ
+                                      </div>
+                                      <span className="text-[10px] text-slate-400">ไม่สามารถแก้ไขได้</span>
+                                    </div>
+                                  );
+
+                                  // 🟡 5) รอส่ง (draft — ยังไม่ส่งประธาน)
+                                  return (
+                                    <div className="flex flex-col items-center gap-2">
+                                      <div className="flex items-center gap-1.5 text-amber-600 font-semibold text-xs bg-amber-50 py-1 px-3 rounded-full border border-amber-200">
+                                        <FileText className="w-3.5 h-3.5" /> รอส่งข้อมูล
+                                      </div>
+                                      <div className="flex gap-1.5">
+                                        <Button size="sm"
+                                          className="h-7 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg px-3 shadow-none"
+                                          onClick={() => { setSelectedItem(item); setIsEditOpen(true); }}
+                                        >
+                                          <Edit className="w-3 h-3 mr-1" /> แก้ไข
+                                        </Button>
+                                        <Button size="sm"
+                                          className="h-7 text-xs bg-purple-600 hover:bg-purple-700 rounded-lg px-3"
+                                          onClick={() => submitToChair(item.id)}
+                                          disabled={processingId === item.id}
+                                        >
+                                          {processingId === item.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3 mr-1" />}
+                                          ส่งประธาน
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  );
+                                })()
+                              : // ── วิชาในคณะ (logic เดิม) ──
+                              item.lecturerStatus === "APPROVED" ? (
+                                <div className="flex items-center justify-center gap-2 text-green-600 font-semibold text-sm bg-green-50 py-1.5 px-3 rounded-full w-fit mx-auto border border-green-200">
+                                  <CheckCircle className="w-4 h-4" /> ยืนยันแล้ว
+                                </div>
+                              ) : item.lecturerStatus === "REJECTED" ? (
+                                <div className="flex flex-col items-center gap-2">
+                                  <div className="flex items-center gap-2 text-red-600 font-semibold text-sm bg-red-50 px-3 py-1 rounded-full border border-red-200">
+                                    <AlertCircle className="w-4 h-4" /> แจ้งแก้ไขแล้ว
+                                  </div>
+                                  <Button variant="link"
+                                    className="text-orange-500 underline decoration-dashed p-0 h-auto text-xs hover:text-orange-600"
+                                    onClick={() => { setSelectedItem(item); setIsDisputeOpen(true); }}
+                                  >
+                                    ดูรายละเอียด / แก้ไข
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-2">
+                                  <Button size="sm"
+                                    className="bg-green-600 hover:bg-green-700 h-9 text-xs shadow-sm rounded-lg font-semibold"
+                                    onClick={() => verify(item)}
+                                    disabled={processingId === item.id}
+                                  >
+                                    {processingId === item.id ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Check className="w-3 h-3 mr-1" />}
+                                    ยืนยันถูกต้อง
+                                  </Button>
+                                  <Button variant="destructive" size="sm"
+                                    className="h-9 text-xs bg-red-500 hover:bg-red-600 shadow-sm rounded-lg font-semibold"
+                                    onClick={() => { setSelectedItem(item); dispute(item); }}
+                                    disabled={processingId === item.id}
+                                  >
+                                    แจ้งแก้ไข
+                                  </Button>
+                                </div>
+                              )
+                            }
                           </TableCell>
                         </TableRow>
                       );
@@ -1105,6 +1352,41 @@ export default function InstructorWorkloadPage() {
                 />
               </div>
 
+              {/* เพิ่มช่องหน่วยกิตและภาคการศึกษา */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">
+                    หน่วยกิต <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    placeholder="เช่น 3(3-0-6)"
+                    value={externalCourseForm.credit}
+                    onChange={(e) =>
+                      setExternalCourseForm({
+                        ...externalCourseForm,
+                        credit: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">
+                    ภาคการศึกษา <span className="text-red-500">*</span>
+                  </Label>
+                  <CustomSelect
+                    value={externalCourseForm.semester}
+                    onChange={(value) =>
+                      setExternalCourseForm({
+                        ...externalCourseForm,
+                        semester: value,
+                      })
+                    }
+                    options={semesterOptions}
+                    placeholder="เลือกภาคการศึกษา"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700 text-center block">
@@ -1113,6 +1395,7 @@ export default function InstructorWorkloadPage() {
                   <Input
                     type="number"
                     min="0"
+                    step="0.5"
                     className="text-center"
                     onKeyDown={(e) =>
                       ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()
@@ -1133,6 +1416,7 @@ export default function InstructorWorkloadPage() {
                   <Input
                     type="number"
                     min="0"
+                    step="0.5"
                     className="text-center"
                     onKeyDown={(e) =>
                       ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()
@@ -1153,6 +1437,7 @@ export default function InstructorWorkloadPage() {
                   <Input
                     type="number"
                     min="0"
+                    step="0.5"
                     className="text-center"
                     onKeyDown={(e) =>
                       ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()
@@ -1173,6 +1458,7 @@ export default function InstructorWorkloadPage() {
                   <Input
                     type="number"
                     min="0"
+                    step="1"
                     className="text-center"
                     onKeyDown={(e) =>
                       ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()
@@ -1188,7 +1474,7 @@ export default function InstructorWorkloadPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 pb-2">
                 <Label className="text-sm font-medium text-slate-700 flex items-center gap-2">
                   <LinkIcon size={16} /> ลิงก์เอกสารอ้างอิง/คำสั่งแต่งตั้ง
                   (ถ้ามี)
@@ -1207,7 +1493,7 @@ export default function InstructorWorkloadPage() {
             </div>
           </div>
           {/* Footer */}
-          <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 sticky bottom-0 bg-white z-20 mt-6 -mx-6 -mb-6 rounded-b-2xl">
+          <div className="px-5 py-4 border-t bg-white flex justify-end gap-3 shrink-0">
             <Button
               variant="outline"
               onClick={() => setIsAddOpen(false)}
@@ -1230,7 +1516,199 @@ export default function InstructorWorkloadPage() {
             </Button>
           </div>
         </Modal>
+        {/* EDIT EXTERNAL COURSE MODAL */}
+        {selectedItem && isExternalCourse(selectedItem) && (
+          <EditExternalCourseModal
+            isOpen={isEditOpen}
+            onClose={() => { setIsEditOpen(false); setSelectedItem(null); }}
+            assignment={selectedItem}
+            onSuccess={() => { setIsEditOpen(false); setSelectedItem(null); refetch(); }}
+          />
+        )}
       </main>
     </div>
+  );
+}
+
+// ===== EDIT EXTERNAL COURSE MODAL =====
+function EditExternalCourseModal({
+  isOpen,
+  onClose,
+  assignment,
+  onSuccess,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  assignment: Assignment;
+  onSuccess: () => void;
+}) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    faculty: assignment.externalFaculty || "",
+    code: assignment.externalCourseCode || "",
+    nameTh: assignment.externalCourseName || "",
+    nameEn: (assignment as any).externalCourseNameEn || "",   // ✅ เพิ่ม
+    credit: assignment.externalCredit || "",
+    semester: assignment.semester || 1,
+    lectureHours: assignment.lectureHours,
+    labHours: assignment.labHours,
+    examHours: assignment.examHours || 0,
+    examCritiqueHours: assignment.examCritiqueHours || 0,
+    evidenceLink: assignment.evidenceLink || "",
+  });
+
+  const semesterOptions = [
+    { value: 1, label: "ภาคการศึกษาต้น" },
+    { value: 2, label: "ภาคการศึกษาปลาย" },
+    { value: 3, label: "ภาคฤดูร้อน" },
+  ];
+
+  const handleDelete = async () => {
+    const result = await Swal.fire({
+      title: "ลบรายวิชานี้?",
+      html: `<p>รายวิชา <strong>${assignment.externalCourseCode} — ${assignment.externalCourseName}</strong> จะถูกลบออกจากระบบ</p>`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#64748b",
+      confirmButtonText: "ลบเลย",
+      cancelButtonText: "ยกเลิก",
+      focusCancel: true,
+      customClass: { container: "!z-[99999]" },  // ✅ สูงกว่า modal
+    });
+    if (!result.isConfirmed) return;
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/assignments?id=${assignment.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("ลบไม่สำเร็จ");
+      onSuccess();
+      await Swal.fire({ title: "ลบสำเร็จ!", icon: "success", timer: 1500, showConfirmButton: false, customClass: { container: "!z-[99999]" } });
+    } catch (error) {
+      await Swal.fire({
+        title: "เกิดข้อผิดพลาด",
+        text: error instanceof Error ? error.message : "ลบไม่สำเร็จ",
+        icon: "error",
+        confirmButtonText: "ตกลง",
+        customClass: { container: "!z-[99999]" },
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!form.faculty.trim()) { toast.error("กรุณากรอกคณะ/หน่วยงาน"); return; }
+    if (!form.code.trim()) { toast.error("กรุณากรอกรหัสวิชา"); return; }
+    if (!form.nameTh.trim()) { toast.error("กรุณากรอกชื่อรายวิชา"); return; }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/assignments/external", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: assignment.id, ...form }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "บันทึกไม่สำเร็จ");
+      }
+
+      onSuccess();
+      await Swal.fire({ title: "บันทึกสำเร็จ!", icon: "success", timer: 1500, showConfirmButton: false });
+    } catch (error) {
+      await Swal.fire({
+        title: "เกิดข้อผิดพลาด",
+        text: error instanceof Error ? error.message : "บันทึกไม่สำเร็จ",
+        icon: "error",
+        confirmButtonText: "ตกลง",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="แก้ไขรายวิชานอกคณะ" icon={Edit} colorClass="text-blue-700" maxWidth="max-w-2xl" zIndex={10000}>
+      <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-700">คณะ/หน่วยงานที่สอน <span className="text-red-500">*</span></Label>
+            <Input value={form.faculty} onChange={(e) => setForm({ ...form, faculty: e.target.value })} placeholder="เช่น คณะศิลปศาสตร์" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-700">รหัสวิชา <span className="text-red-500">*</span></Label>
+            <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="เช่น 001101" />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-slate-700">ชื่อรายวิชา (ภาษาไทย) <span className="text-red-500">*</span></Label>
+          <Input value={form.nameTh} onChange={(e) => setForm({ ...form, nameTh: e.target.value })} />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-slate-700">ชื่อรายวิชา (ภาษาอังกฤษ)</Label>
+          <Input value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} placeholder="เช่น Introduction to Computer Science" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-700">หน่วยกิต <span className="text-red-500">*</span></Label>
+            <Input value={form.credit} onChange={(e) => setForm({ ...form, credit: e.target.value })} placeholder="เช่น 3(3-0-6)" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-700">ภาคการศึกษา <span className="text-red-500">*</span></Label>
+            <CustomSelect value={form.semester} onChange={(v) => setForm({ ...form, semester: v })} options={semesterOptions} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
+          {[
+            { key: "lectureHours", label: "ชั่วโมงบรรยาย", step: "0.5" },
+            { key: "labHours", label: "ชั่วโมงปฏิบัติ", step: "0.5" },
+            { key: "examHours", label: "ชั่วโมงคุมสอบนอกตาราง", step: "0.5" },
+            { key: "examCritiqueHours", label: "วิพากษ์ข้อสอบ (หัวข้อ)", step: "1" },
+          ].map(({ key, label, step }) => (
+            <div key={key} className="space-y-2">
+              <Label className="text-sm font-medium text-slate-700 text-center block">{label}</Label>
+              <Input
+                type="number" min="0" step={step} className="text-center"
+                onKeyDown={(e) => ["-", "e", "E", "+"].includes(e.key) && e.preventDefault()}
+                value={(form as any)[key]}
+                onChange={(e) => setForm({ ...form, [key]: Number(e.target.value) })}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-2 pb-2">
+          <Label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+            <LinkIcon size={15} /> ลิงก์เอกสารอ้างอิง (ถ้ามี)
+          </Label>
+          <Input value={form.evidenceLink} onChange={(e) => setForm({ ...form, evidenceLink: e.target.value })} placeholder="https://..." />
+        </div>
+      </div>
+
+      {/* Footer — อยู่นอก scroll area โดยส่งเป็น sibling ผ่าน fragment */}
+      <div className="px-6 py-4 border-t flex justify-between gap-3 bg-white shrink-0">
+        <Button
+          variant="outline"
+          className="border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600"
+          onClick={handleDelete}
+          disabled={isSubmitting}
+        >
+          <Trash2 className="w-4 h-4 mr-1" /> ลบรายวิชานี้
+        </Button>
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={onClose} disabled={isSubmitting} className="bg-white">ยกเลิก</Button>
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold" onClick={handleSave} disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+            บันทึกการแก้ไข
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }

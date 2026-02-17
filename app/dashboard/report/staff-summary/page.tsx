@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import Link from 'next/link';
 import { 
   Search, 
   ChevronDown, 
@@ -209,12 +210,13 @@ export default function StaffSummaryListPage() {
                                     </td>
 
                                     <td className="px-6 py-4 text-right align-middle">
-                                        <a 
+                                        <Link 
                                             href={`/dashboard/report/staff-summary/${staff.id}`} 
+                                            prefetch={false}
                                             className="inline-flex items-center justify-center px-4 py-1.5 text-xs font-medium text-purple-700 bg-white border border-purple-200 rounded-lg hover:bg-purple-50 hover:border-purple-300 hover:shadow-sm transition-all whitespace-nowrap"
                                         >
                                             ดูรายละเอียด
-                                        </a>
+                                        </Link>
                                     </td>
                                 </tr>
                             ))
