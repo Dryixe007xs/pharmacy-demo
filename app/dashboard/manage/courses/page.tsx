@@ -78,6 +78,15 @@ const getFullName = (user: any) => {
   return user.name || user.email || "-";
 };
 
+// Degree level ที่มีจริงใน DB (ตรงกับ schema)
+const DEGREE_LEVELS = ["ป.ตรี", "ป.โท", "ป.เอก"];
+
+const degreeLabelMap: Record<string, string> = {
+  "ป.ตรี": "ปริญญาตรี",
+  "ป.โท": "ปริญญาโท",
+  "ป.เอก": "ปริญญาเอก",
+};
+
 // ==========================================
 // 3. UI COMPONENTS
 // ==========================================
@@ -133,7 +142,7 @@ const FilterSelect = ({
   );
 };
 
-// --- 3.2 SearchableUserSelect (✅ แก้ไขแล้ว) ---
+// --- 3.2 SearchableUserSelect ---
 const SearchableUserSelect = ({
   users, onSelect, placeholder = "ค้นหา...", initialValue = ""
 }: { users: UserData[]; onSelect: (user: UserData) => void; placeholder?: string; initialValue?: string; }) => {
@@ -150,11 +159,7 @@ const SearchableUserSelect = ({
   const updateCoords = () => {
     if (wrapperRef.current) {
       const rect = wrapperRef.current.getBoundingClientRect();
-      setCoords({
-        top: rect.bottom + 4, 
-        left: rect.left, 
-        width: rect.width
-      });
+      setCoords({ top: rect.bottom + 4, left: rect.left, width: rect.width });
     }
   };
 
@@ -195,12 +200,13 @@ const SearchableUserSelect = ({
       {isOpen && typeof document !== 'undefined' && createPortal(
         <div 
             id="user-select-dropdown" 
-            className="fixed z-[99999] bg-white border border-slate-100 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top custom-scrollbar" 
+            className="fixed bg-white border border-slate-100 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top custom-scrollbar" 
             style={{ 
                 top: `${coords.top}px`,
                 left: `${coords.left}px`,
                 width: `${coords.width}px`,
-                maxHeight: '300px' 
+                maxHeight: '300px',
+                zIndex: 99999
             }}
         >
           <div className="p-2 sticky top-0 bg-white/95 backdrop-blur border-b z-10">
@@ -237,8 +243,8 @@ const SearchableUserSelect = ({
   );
 };
 
-// --- 3.3 Modal ---
-const Modal = ({ isOpen, onClose, title, icon: Icon, colorClass = "text-slate-800", children, maxWidth = "max-w-xl", zIndex = 50 }: any) => {
+// --- 3.3 Modal (แก้ z-index ให้อยู่เหนือ navbar) ---
+const Modal = ({ isOpen, onClose, title, icon: Icon, colorClass = "text-slate-800", children, maxWidth = "max-w-xl", zIndex = 1050 }: any) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -246,8 +252,19 @@ const Modal = ({ isOpen, onClose, title, icon: Icon, colorClass = "text-slate-80
   useEffect(() => { setMounted(true); }, []);
   
   useEffect(() => {
-    if (isOpen) { setIsVisible(true); setIsAnimatingOut(false); document.body.style.overflow = 'hidden'; }
-    else if (isVisible) { setIsAnimatingOut(true); const timer = setTimeout(() => { setIsVisible(false); setIsAnimatingOut(false); document.body.style.overflow = 'unset'; }, 200); return () => clearTimeout(timer); }
+    if (isOpen) { 
+      setIsVisible(true); 
+      setIsAnimatingOut(false); 
+      document.body.style.overflow = 'hidden'; 
+    } else if (isVisible) { 
+      setIsAnimatingOut(true); 
+      const timer = setTimeout(() => { 
+        setIsVisible(false); 
+        setIsAnimatingOut(false); 
+        document.body.style.overflow = 'unset'; 
+      }, 200); 
+      return () => clearTimeout(timer); 
+    }
   }, [isOpen, isVisible]);
   
   if (!mounted || !isVisible) return null;
@@ -255,14 +272,25 @@ const Modal = ({ isOpen, onClose, title, icon: Icon, colorClass = "text-slate-80
   return createPortal(
     <div 
         className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md transition-opacity duration-200" 
-        style={{ zIndex }}
+        style={{ zIndex }}  // ✅ z-index สูงพอที่จะอยู่เหนือ navbar
     >
       <div className="absolute inset-0" onClick={onClose}></div>
-      <div className={`relative bg-white rounded-2xl shadow-2xl w-full flex flex-col ring-1 ring-black/5 overflow-hidden transition-all duration-200 ${maxWidth} ${isAnimatingOut ? 'scale-95 opacity-0' : 'scale-100 opacity-100 animate-in zoom-in-95 slide-in-from-bottom-8'}`} style={{ maxHeight: '90vh' }}>
-        <div className="px-6 py-4 border-b flex justify-between items-center bg-white shrink-0 z-20"><h3 className={`text-lg font-bold flex items-center gap-2 ${colorClass}`}>{Icon && <Icon size={22} />} {title}</h3><button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600"><X size={20} /></button></div>
+      <div 
+        className={`relative bg-white rounded-2xl shadow-2xl w-full flex flex-col ring-1 ring-black/5 overflow-hidden transition-all duration-200 ${maxWidth} ${isAnimatingOut ? 'scale-95 opacity-0' : 'scale-100 opacity-100 animate-in zoom-in-95 slide-in-from-bottom-8'}`} 
+        style={{ maxHeight: '90vh' }}
+      >
+        <div className="px-6 py-4 border-b flex justify-between items-center bg-white shrink-0 z-20">
+          <h3 className={`text-lg font-bold flex items-center gap-2 ${colorClass}`}>
+            {Icon && <Icon size={22} />} {title}
+          </h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600">
+            <X size={20} />
+          </button>
+        </div>
         <div className="overflow-y-auto custom-scrollbar flex-1 relative bg-white">{children}</div>
       </div>
-    </div>, document.body
+    </div>, 
+    document.body
   );
 };
 
@@ -272,7 +300,6 @@ const Modal = ({ isOpen, onClose, title, icon: Icon, colorClass = "text-slate-80
 export default function CourseDataPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
-  const [curriculums, setCurriculums] = useState<Curriculum[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -290,13 +317,18 @@ export default function CourseDataPage() {
   // Forms
   const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState<CourseFormData>({ code: "", name_th: "", name_en: "", credit: "", programId: "" });
-  const [programFormData, setProgramFormData] = useState({ name_th: "", year: "", degree_level: "ปริญญาตรี", curriculumId: "" });
+
+  // ✅ ตัด curriculumId ออก เหลือแค่ field ที่มีใน schema จริง
+  const [programFormData, setProgramFormData] = useState({ 
+    name_th: "", 
+    year: "", 
+    degree_level: "ป.ตรี"  // ✅ ใช้ค่าจริงจาก DB
+  });
 
   // Selections
   const [selectedResponsible, setSelectedResponsible] = useState<UserData | null>(null);
   const [selectedProgramChair, setSelectedProgramChair] = useState<UserData | null>(null);
 
-  // ✅ เปลี่ยนจาก Curriculum เป็น Program
   const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [tempChair, setTempChair] = useState<UserData | null>(null);
 
@@ -310,13 +342,11 @@ export default function CourseDataPage() {
         const pCourses = fetch("/api/courses", { cache: 'no-store' }).then(r => r.ok ? r.json() : []).catch(() => []);
         const pStaff = fetch("/api/staff", { cache: 'no-store' }).then(r => r.ok ? r.json() : []).catch(() => []);
         const pPrograms = fetch("/api/programs", { cache: 'no-store' }).then(r => r.ok ? r.json() : []).catch(() => []);
-        const pCurriculums = fetch("/api/curriculums", { cache: 'no-store' }).then(r => r.ok ? r.json() : []).catch(() => []);
 
-        const [dataCourses, dataStaff, dataPrograms, dataCurriculums] = await Promise.all([pCourses, pStaff, pPrograms, pCurriculums]);
+        const [dataCourses, dataStaff, dataPrograms] = await Promise.all([pCourses, pStaff, pPrograms]);
 
         setCourses(Array.isArray(dataCourses) ? dataCourses : []);
         setPrograms(Array.isArray(dataPrograms) ? dataPrograms : []);
-        setCurriculums(Array.isArray(dataCurriculums) ? dataCurriculums : []);
         
         if (Array.isArray(dataStaff)) {
             setUsers(dataStaff.map((s:any) => ({
@@ -325,7 +355,6 @@ export default function CourseDataPage() {
                 name: getFullName(s)
             })));
         }
-
     } catch (err) {
       toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
     } finally {
@@ -333,20 +362,42 @@ export default function CourseDataPage() {
     }
   };
 
+  // ✅ reset form ทุกครั้งที่เปิด modal เพิ่มหลักสูตร
+  const openAddProgramModal = () => {
+    setProgramFormData({ name_th: "", year: "", degree_level: "ป.ตรี" });
+    setSelectedProgramChair(null);
+    setIsAddProgramModalOpen(true);
+  };
+
   const handleAddProgram = async () => {
-    if (!programFormData.name_th || !programFormData.year) { toast.error("กรุณากรอกข้อมูลให้ครบ"); return; }
+    if (!programFormData.name_th || !programFormData.year) { 
+      toast.error("กรุณากรอกชื่อหลักสูตรและปี พ.ศ."); 
+      return; 
+    }
     try {
       const res = await fetch("/api/programs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...programFormData, programChairId: selectedProgramChair ? selectedProgramChair.id : null })
+        body: JSON.stringify({ 
+          name_th: programFormData.name_th,
+          degree_level: programFormData.degree_level,
+          year: parseInt(programFormData.year),  // ✅ แปลงเป็น number
+          programChairId: selectedProgramChair ? selectedProgramChair.id : null
+        })
       });
       if (res.ok) {
         toast.success("เพิ่มหลักสูตรเรียบร้อย");
         setIsAddProgramModalOpen(false);
+        // ✅ reset form หลังบันทึก
+        setProgramFormData({ name_th: "", year: "", degree_level: "ป.ตรี" });
+        setSelectedProgramChair(null);
         fetch("/api/programs", { cache: 'no-store' }).then(r=>r.json()).then(setPrograms);
-      } else { toast.error("เพิ่มหลักสูตรไม่สำเร็จ"); }
-    } catch (error) { toast.error("เกิดข้อผิดพลาด"); }
+      } else { 
+        toast.error("เพิ่มหลักสูตรไม่สำเร็จ"); 
+      }
+    } catch (error) { 
+      toast.error("เกิดข้อผิดพลาด"); 
+    }
   };
 
   const handleDeleteProgram = async (programId: number) => {
@@ -358,7 +409,6 @@ export default function CourseDataPage() {
     } catch (e) { toast.error("ลบไม่สำเร็จ"); }
   };
 
-  // ✅ แก้ไขฟังก์ชันนี้ให้บันทึกที่ Program แทน Curriculum
   const handleSaveProgramChair = async () => {
     if (!editingProgram) return;
     try {
@@ -373,14 +423,12 @@ export default function CourseDataPage() {
       if (res.ok) {
         toast.success("บันทึกเรียบร้อย");
         setIsEditChairModalOpen(false);
-        // Refresh Program data
         const resProgram = await fetch("/api/programs", { cache: 'no-store' });
         if (resProgram.ok) setPrograms(await resProgram.json());
       } else { toast.error("บันทึกไม่สำเร็จ"); }
     } catch (error) { toast.error("เกิดข้อผิดพลาด"); }
   };
 
-  // ✅ แก้ไขฟังก์ชันนี้ให้เปิด Modal สำหรับแก้ไข Program
   const openEditProgramChairModal = (prog: Program) => {
     setEditingProgram(prog);
     setTempChair(prog.programChair ? { ...prog.programChair, name: getFullName(prog.programChair) } : null);
@@ -435,9 +483,7 @@ export default function CourseDataPage() {
     let matchesLevel = true;
     if (selectedLevel) {
       const degree = c.program?.degree_level || "";
-      if (selectedLevel === "bachelor") matchesLevel = degree.includes("ตรี") || degree.toLowerCase().includes("bachelor");
-      else if (selectedLevel === "master") matchesLevel = degree.includes("โท") || degree.toLowerCase().includes("master");
-      else if (selectedLevel === "doctor") matchesLevel = degree.includes("เอก") || degree.toLowerCase().includes("doctor");
+      matchesLevel = degree === selectedLevel;
     }
     const searchLower = searchTerm.toLowerCase();
     const responsibleName = c.responsibleUser ? getFullName(c.responsibleUser).toLowerCase() : "";
@@ -445,22 +491,32 @@ export default function CourseDataPage() {
   });
 
   const programOptions = [{ label: "ทุกหลักสูตร", value: "" }, ...programs.map(p => ({ label: `${p.name_th} (${p.year})`, value: p.id.toString() }))];
-  const degreeOptions = [{ label: "ทุกระดับ", value: "" }, { label: "ปริญญาตรี", value: "bachelor" }, { label: "ปริญญาโท", value: "master" }, { label: "ปริญญาเอก", value: "doctor" }];
-
-  // ✅ ไม่ต้องแยกกลุ่ม curriculum แล้ว เพราะเราจะแสดง Programs ทั้งหมด
-  // แต่ยังคงแยกเพื่อแสดงใน Modal (ถ้าต้องการ)
-  const academicCurriculums = curriculums.filter(c => !c.name.includes("สายสนับสนุน") && !c.name.includes("ฝ่ายสนับสนุน") && !c.name.includes("สนับสนุน"));
-  const supportCurriculums = curriculums.filter(c => c.name.includes("สายสนับสนุน") || c.name.includes("ฝ่ายสนับสนุน") || c.name.includes("สนับสนุน"));
+  
+  // ✅ degree filter ใช้ค่าจริงจาก DB
+  const degreeOptions = [
+    { label: "ทุกระดับ", value: "" }, 
+    ...DEGREE_LEVELS.map(d => ({ label: degreeLabelMap[d] || d, value: d }))
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50/50 p-6 font-sarabun">
       <Toaster position="top-center" richColors />
-      <div className="mb-6"><div className="flex items-center gap-2 text-slate-400 mb-1 text-sm font-medium"><span>จัดการข้อมูล</span><ChevronRight size={14} /><span className="text-purple-600">ข้อมูลรายวิชา</span></div><h1 className="text-3xl font-bold text-slate-800 tracking-tight">จัดการข้อมูลรายวิชา</h1></div>
+      <div className="mb-6">
+        <div className="flex items-center gap-2 text-slate-400 mb-1 text-sm font-medium">
+          <span>จัดการข้อมูล</span><ChevronRight size={14} /><span className="text-purple-600">ข้อมูลรายวิชา</span>
+        </div>
+        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">จัดการข้อมูลรายวิชา</h1>
+      </div>
       
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200/60 mb-8">
         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Search className="w-5 h-5 text-purple-600" /> ค้นหาและกรองข้อมูล</h2>
         <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
-          <div className="w-full md:w-80"><div className="relative group"><input type="text" placeholder="พิมพ์รหัสวิชา, ชื่อวิชา..." className="w-full pl-10 pr-4 h-11 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /><Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} /></div></div>
+          <div className="w-full md:w-80">
+            <div className="relative group">
+              <input type="text" placeholder="พิมพ์รหัสวิชา, ชื่อวิชา..." className="w-full pl-10 pr-4 h-11 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
+            </div>
+          </div>
           <div className="w-full md:w-80"><FilterSelect options={programOptions} value={selectedProgram} onChange={setSelectedProgram} placeholder="ทุกหลักสูตร" icon={FolderPlus} /></div>
           <div className="w-full md:w-48"><FilterSelect options={degreeOptions} value={selectedLevel} onChange={setSelectedLevel} placeholder="ทุกระดับ" icon={Filter} /></div>
         </div>
@@ -468,9 +524,13 @@ export default function CourseDataPage() {
 
       <div className="space-y-4 mb-8">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2"><BookOpen size={24} className="text-slate-700" /> รายวิชาทั้งหมด <span className="text-sm font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{filteredCourses.length} รายการ</span></h2>
+          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+            <BookOpen size={24} className="text-slate-700" /> รายวิชาทั้งหมด 
+            <span className="text-sm font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{filteredCourses.length} รายการ</span>
+          </h2>
           <div className="flex flex-wrap gap-3">
-            <button onClick={() => setIsAddProgramModalOpen(true)} className="flex items-center gap-2 px-4 py-2.5 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 bg-white shadow-sm text-sm"><FolderPlus size={18} /> <span>เพิ่มหลักสูตร</span></button>
+            {/* ✅ เปลี่ยน onClick ไปเรียก openAddProgramModal แทน */}
+            <button onClick={openAddProgramModal} className="flex items-center gap-2 px-4 py-2.5 border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 bg-white shadow-sm text-sm"><FolderPlus size={18} /> <span>เพิ่มหลักสูตร</span></button>
             <button onClick={() => setIsCurriculumModalOpen(true)} className="flex items-center gap-2 px-4 py-2.5 border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50 bg-white shadow-sm text-sm"><Briefcase size={18} /> <span>จัดการประธานหลักสูตร</span></button>
             <button onClick={openAddModal} className="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 shadow-sm text-sm"><Plus size={18} /> <span>เพิ่มรายวิชา</span></button>
           </div>
@@ -495,39 +555,149 @@ export default function CourseDataPage() {
                 filteredCourses.map((c, index) => (
                   <tr key={`${c.id}-${index}`} className="hover:bg-slate-50/80 transition-colors text-sm group">
                     <td className="py-4 px-6 align-top font-medium text-slate-700">{c.code}</td>
-                    <td className="py-4 px-6 align-top"><div className="font-semibold text-slate-800">{c.name_th}</div><div className="text-xs text-slate-500 font-light">{c.name_en}</div>{c.program_full_name?.includes("ตกแผน") && <div className="mt-1"><span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600 border border-red-100">ตกแผน</span></div>}</td>
-                    <td className="py-4 px-6 align-top text-slate-600">{c.program?.degree_level || "ปริญญาตรี"}</td>
+                    <td className="py-4 px-6 align-top">
+                      <div className="font-semibold text-slate-800">{c.name_th}</div>
+                      <div className="text-xs text-slate-500 font-light">{c.name_en}</div>
+                      {c.program_full_name?.includes("ตกแผน") && <div className="mt-1"><span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-600 border border-red-100">ตกแผน</span></div>}
+                    </td>
+                    <td className="py-4 px-6 align-top">
+                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-600 border border-blue-100">
+                        {c.program?.degree_level || "ป.ตรี"}
+                      </span>
+                    </td>
                     <td className="py-4 px-6 align-top text-slate-600"><div>{c.program?.name_th}</div><div className="text-xs text-slate-400">({c.program?.year})</div></td>
                     <td className="py-4 px-6 align-top"><div className="font-medium text-slate-800">{getFullName(c.responsibleUser)}</div><div className="text-xs text-slate-400">{c.responsibleUser?.email || "-"}</div></td>
-                    <td className="py-4 px-6 align-top text-center"><div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-2 group-hover:translate-y-0"><button onClick={() => openEditModal(c)} className="w-8 h-8 flex items-center justify-center border border-green-200 rounded-lg text-green-600 hover:bg-green-50 shadow-sm"><Edit size={16} /></button><button onClick={() => handleDeleteCourse(c.id)} className="w-8 h-8 flex items-center justify-center border border-red-200 rounded-lg text-red-500 hover:bg-red-50 shadow-sm"><Trash2 size={16} /></button></div></td>
+                    <td className="py-4 px-6 align-top text-center">
+                      <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-2 group-hover:translate-y-0">
+                        <button onClick={() => openEditModal(c)} className="w-8 h-8 flex items-center justify-center border border-green-200 rounded-lg text-green-600 hover:bg-green-50 shadow-sm"><Edit size={16} /></button>
+                        <button onClick={() => handleDeleteCourse(c.id)} className="w-8 h-8 flex items-center justify-center border border-red-200 rounded-lg text-red-500 hover:bg-red-50 shadow-sm"><Trash2 size={16} /></button>
+                      </div>
+                    </td>
                   </tr>
                 ))
-              ) : (<tr><td colSpan={6} className="p-16 text-center text-slate-400 flex flex-col items-center justify-center gap-2"><Search size={32} className="opacity-20" />ไม่พบข้อมูลที่ค้นหา</td></tr>)}
+              ) : (
+                <tr><td colSpan={6} className="p-16 text-center text-slate-400"><div className="flex flex-col items-center gap-2"><Search size={32} className="opacity-20" /><span>ไม่พบข้อมูลที่ค้นหา</span></div></td></tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={isEditMode ? "แก้ไขข้อมูลรายวิชา" : "เพิ่มรายวิชาใหม่"} icon={isEditMode ? Edit : Plus} colorClass={isEditMode ? "text-purple-700" : "text-green-700"} zIndex={999}>
+      {/* Modal: เพิ่ม/แก้ไข รายวิชา */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={isEditMode ? "แก้ไขข้อมูลรายวิชา" : "เพิ่มรายวิชาใหม่"} icon={isEditMode ? Edit : Plus} colorClass={isEditMode ? "text-purple-700" : "text-green-700"} zIndex={1050}>
         <div className="p-6 space-y-6">
-          <div className="grid grid-cols-3 gap-6"><div className="col-span-2 space-y-2"><label className="text-sm font-semibold text-slate-700">รหัสวิชา</label><input type="text" className="w-full border border-slate-200 rounded-lg p-2.5 text-sm" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} /></div><div className="space-y-2"><label className="text-sm font-semibold text-slate-700">หน่วยกิต</label><input type="text" className="w-full border border-slate-200 rounded-lg p-2.5 text-sm" value={formData.credit} onChange={e => setFormData({ ...formData, credit: e.target.value })} /></div></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="space-y-2"><label className="text-sm font-semibold text-slate-700">ชื่อวิชา (ไทย)</label><input type="text" className="w-full border border-slate-200 rounded-lg p-2.5 text-sm" value={formData.name_th} onChange={e => setFormData({ ...formData, name_th: e.target.value })} /></div><div className="space-y-2"><label className="text-sm font-semibold text-slate-700">ชื่อวิชา (อังกฤษ)</label><input type="text" className="w-full border border-slate-200 rounded-lg p-2.5 text-sm" value={formData.name_en} onChange={e => setFormData({ ...formData, name_en: e.target.value })} /></div></div>
-          <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">หลักสูตร</label><select className="w-full border border-slate-200 rounded-lg p-2.5 text-sm bg-white" value={formData.programId} onChange={e => setFormData({ ...formData, programId: e.target.value })}><option value="">-- เลือกหลักสูตร --</option>{programs.map((p, index) => <option key={`${p.id}-${index}`} value={p.id}>{p.name_th} ({p.year})</option>)}</select></div>
-          <div className="space-y-2 pb-6"><label className="text-sm font-semibold text-slate-800 flex items-center gap-2"><User size={18} className="text-purple-600" /> ผู้รับผิดชอบ</label><div className="w-full">{selectedResponsible ? (<div className="flex items-center justify-between bg-purple-50/50 p-2.5 rounded-lg border border-purple-100"><div className="flex flex-col"><span className="font-semibold text-slate-700 text-sm">{selectedResponsible.name}</span><span className="text-xs text-slate-400">{selectedResponsible.email}</span></div><button onClick={() => setSelectedResponsible(null)} className="text-slate-400 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50"><Trash2 size={16} /></button></div>) : (<SearchableUserSelect users={users} placeholder="เลือกผู้รับผิดชอบ..." onSelect={setSelectedResponsible} />)}</div></div>
+          <div className="grid grid-cols-3 gap-6">
+            <div className="col-span-2 space-y-2"><label className="text-sm font-semibold text-slate-700">รหัสวิชา</label><input type="text" className="w-full border border-slate-200 rounded-lg p-2.5 text-sm" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} /></div>
+            <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">หน่วยกิต</label><input type="text" className="w-full border border-slate-200 rounded-lg p-2.5 text-sm" value={formData.credit} onChange={e => setFormData({ ...formData, credit: e.target.value })} /></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">ชื่อวิชา (ไทย)</label><input type="text" className="w-full border border-slate-200 rounded-lg p-2.5 text-sm" value={formData.name_th} onChange={e => setFormData({ ...formData, name_th: e.target.value })} /></div>
+            <div className="space-y-2"><label className="text-sm font-semibold text-slate-700">ชื่อวิชา (อังกฤษ)</label><input type="text" className="w-full border border-slate-200 rounded-lg p-2.5 text-sm" value={formData.name_en} onChange={e => setFormData({ ...formData, name_en: e.target.value })} /></div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700">หลักสูตร</label>
+            <select className="w-full border border-slate-200 rounded-lg p-2.5 text-sm bg-white" value={formData.programId} onChange={e => setFormData({ ...formData, programId: e.target.value })}>
+              <option value="">-- เลือกหลักสูตร --</option>
+              {programs.map((p, index) => <option key={`${p.id}-${index}`} value={p.id}>{p.name_th} ({p.year}) - {p.degree_level}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2 pb-6">
+            <label className="text-sm font-semibold text-slate-800 flex items-center gap-2"><User size={18} className="text-purple-600" /> ผู้รับผิดชอบ</label>
+            <div className="w-full">
+              {selectedResponsible ? (
+                <div className="flex items-center justify-between bg-purple-50/50 p-2.5 rounded-lg border border-purple-100">
+                  <div className="flex flex-col"><span className="font-semibold text-slate-700 text-sm">{selectedResponsible.name}</span><span className="text-xs text-slate-400">{selectedResponsible.email}</span></div>
+                  <button onClick={() => setSelectedResponsible(null)} className="text-slate-400 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50"><Trash2 size={16} /></button>
+                </div>
+              ) : (
+                <SearchableUserSelect users={users} placeholder="เลือกผู้รับผิดชอบ..." onSelect={setSelectedResponsible} />
+              )}
+            </div>
+          </div>
         </div>
-        <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 sticky bottom-0 bg-white z-20"><button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm">ยกเลิก</button><button onClick={handleSaveCourse} className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm shadow-md">บันทึกข้อมูล</button></div>
+        <div className="p-5 border-t flex justify-end gap-3 sticky bottom-0 bg-white z-20">
+          <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm">ยกเลิก</button>
+          <button onClick={handleSaveCourse} className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm shadow-md">บันทึกข้อมูล</button>
+        </div>
       </Modal>
 
-      <Modal isOpen={isAddProgramModalOpen} onClose={() => setIsAddProgramModalOpen(false)} title="เพิ่มหลักสูตรใหม่" icon={FolderPlus} colorClass="text-blue-700" maxWidth="max-w-md" zIndex={50}>
-        <div className="p-6 space-y-6 pb-6"><div className="space-y-2"><label className="text-sm font-semibold text-slate-700">ชื่อหลักสูตร</label><input type="text" className="w-full border border-slate-200 rounded-lg p-2.5 text-sm" value={programFormData.name_th} onChange={e => setProgramFormData({ ...programFormData, name_th: e.target.value })} /></div><div className="grid grid-cols-2 gap-6"><div className="space-y-2"><label className="text-sm font-semibold text-slate-700">ปี พ.ศ.</label><input type="number" className="w-full border border-slate-200 rounded-lg p-2.5 text-sm" value={programFormData.year} onChange={e => setProgramFormData({ ...programFormData, year: e.target.value })} /></div><div className="space-y-2"><label className="text-sm font-semibold text-slate-700">ระดับ</label><select className="w-full border border-slate-200 rounded-lg p-2.5 text-sm bg-white" value={programFormData.degree_level} onChange={e => setProgramFormData({ ...programFormData, degree_level: e.target.value })}><option value="ปริญญาตรี">ปริญญาตรี</option><option value="ปริญญาโท">ปริญญาโท</option><option value="ปริญญาเอก">ปริญญาเอก</option></select></div></div><div className="space-y-2"><label className="text-sm font-semibold text-slate-700">สังกัดแม่ข่าย</label><select className="w-full border border-slate-200 rounded-lg p-2.5 text-sm bg-white" value={programFormData.curriculumId} onChange={e => setProgramFormData({ ...programFormData, curriculumId: e.target.value })}><option value="">-- ไม่ระบุ --</option>{curriculums.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div></div>
-        <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 sticky bottom-0 bg-white z-20"><button onClick={() => setIsAddProgramModalOpen(false)} className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm">ยกเลิก</button><button onClick={handleAddProgram} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm shadow-md">บันทึก</button></div>
+      {/* ✅ Modal: เพิ่มหลักสูตร (ตัด curriculumId ออก, ใช้ degree จาก DB จริง) */}
+      <Modal isOpen={isAddProgramModalOpen} onClose={() => setIsAddProgramModalOpen(false)} title="เพิ่มหลักสูตรใหม่" icon={FolderPlus} colorClass="text-blue-700" maxWidth="max-w-md" zIndex={1050}>
+        <div className="p-6 space-y-5">
+          
+          {/* ชื่อหลักสูตร */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700">ชื่อหลักสูตร <span className="text-red-500">*</span></label>
+            <input 
+              type="text" 
+              className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" 
+              placeholder="เช่น หลักสูตรวิทยาศาสตรบัณฑิต"
+              value={programFormData.name_th} 
+              onChange={e => setProgramFormData({ ...programFormData, name_th: e.target.value })} 
+            />
+          </div>
+
+          {/* ปี พ.ศ. + ระดับการศึกษา */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">ปี พ.ศ. <span className="text-red-500">*</span></label>
+              <input 
+                type="number" 
+                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" 
+                placeholder="เช่น 2567"
+                value={programFormData.year} 
+                onChange={e => setProgramFormData({ ...programFormData, year: e.target.value })} 
+              />
+            </div>
+            <div className="space-y-2">
+              {/* ✅ ใช้ค่า degree_level จาก DB จริง (ป.ตรี, ป.โท, ป.เอก) */}
+              <label className="text-sm font-semibold text-slate-700">ระดับการศึกษา</label>
+              <select 
+                className="w-full border border-slate-200 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all" 
+                value={programFormData.degree_level} 
+                onChange={e => setProgramFormData({ ...programFormData, degree_level: e.target.value })}
+              >
+                {DEGREE_LEVELS.map(d => (
+                  <option key={d} value={d}>{degreeLabelMap[d]} ({d})</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* ประธานหลักสูตร (optional) */}
+          <div className="space-y-2 pb-2">
+            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <User size={16} className="text-blue-500" /> ประธานหลักสูตร <span className="text-slate-400 font-normal">(ถ้ามี)</span>
+            </label>
+            {selectedProgramChair ? (
+              <div className="flex items-center justify-between bg-blue-50/50 p-2.5 rounded-lg border border-blue-100">
+                <div className="flex flex-col">
+                  <span className="font-semibold text-slate-700 text-sm">{selectedProgramChair.name}</span>
+                  <span className="text-xs text-slate-400">{selectedProgramChair.email || "-"}</span>
+                </div>
+                <button onClick={() => setSelectedProgramChair(null)} className="text-slate-400 hover:text-red-500 p-1.5 rounded-md hover:bg-red-50">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ) : (
+              <SearchableUserSelect users={users} placeholder="ค้นหาชื่ออาจารย์..." onSelect={setSelectedProgramChair} />
+            )}
+          </div>
+        </div>
+
+        <div className="p-5 border-t flex justify-end gap-3 sticky bottom-0 bg-white z-20">
+          <button onClick={() => setIsAddProgramModalOpen(false)} className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm hover:bg-slate-50 transition-colors">ยกเลิก</button>
+          <button onClick={handleAddProgram} className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm shadow-md hover:bg-blue-700 transition-colors">บันทึกหลักสูตร</button>
+        </div>
       </Modal>
 
-      {/* ✅ Modal: จัดการประธานหลักสูตร (แสดง Programs แทน Curriculums) */}
-      <Modal isOpen={isCurriculumModalOpen} onClose={() => setIsCurriculumModalOpen(false)} title="จัดการประธานหลักสูตร" icon={Briefcase} colorClass="text-purple-800" maxWidth="max-w-5xl" zIndex={60}>
+      {/* Modal: จัดการประธานหลักสูตร */}
+      <Modal isOpen={isCurriculumModalOpen} onClose={() => setIsCurriculumModalOpen(false)} title="จัดการประธานหลักสูตร" icon={Briefcase} colorClass="text-purple-800" maxWidth="max-w-5xl" zIndex={1050}>
         <div className="p-6 space-y-8 bg-slate-50/30">
             <div>
-                <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2 uppercase tracking-wide"><span className="w-1 h-4 bg-blue-500 rounded-full"></span> หลักสูตรทั้งหมด</h3>
+                <h3 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2 uppercase tracking-wide">
+                  <span className="w-1 h-4 bg-blue-500 rounded-full"></span> หลักสูตรทั้งหมด
+                </h3>
                 <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                     <table className="w-full text-left text-sm">
                         <thead className="bg-slate-50 border-b border-slate-200">
@@ -581,11 +751,13 @@ export default function CourseDataPage() {
                 </div>
             </div>
         </div>
-        <div className="p-5 bg-white border-t sticky bottom-0 z-20 flex justify-end"><button onClick={() => setIsCurriculumModalOpen(false)} className="px-5 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-600 text-sm hover:bg-slate-50 font-medium shadow-sm transition-all">ปิดหน้าต่าง</button></div>
+        <div className="p-5 bg-white border-t sticky bottom-0 z-20 flex justify-end">
+          <button onClick={() => setIsCurriculumModalOpen(false)} className="px-5 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-600 text-sm hover:bg-slate-50 font-medium shadow-sm transition-all">ปิดหน้าต่าง</button>
+        </div>
       </Modal>
 
-      {/* ✅ Modal: แก้ไขประธานหลักสูตร (Program) */}
-      <Modal isOpen={isEditChairModalOpen} onClose={() => setIsEditChairModalOpen(false)} title="เลือกประธานหลักสูตร" maxWidth="max-w-md" zIndex={70}>
+      {/* Modal: แก้ไขประธานหลักสูตร */}
+      <Modal isOpen={isEditChairModalOpen} onClose={() => setIsEditChairModalOpen(false)} title="เลือกประธานหลักสูตร" maxWidth="max-w-md" zIndex={1100}>
         <div className="p-6 space-y-4">
           <div className="p-3 bg-purple-50 rounded-lg border border-purple-100 text-sm text-purple-700">
             กำลังแก้ไข: <span className="font-bold">{editingProgram?.name_th} ({editingProgram?.year})</span>
