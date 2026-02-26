@@ -440,20 +440,6 @@ function PersonalReportContent() {
               คือรายวิชาที่สอนให้กับคณะอื่น
             </li>
           </ul>
-
-          <div className="mt-5 pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:justify-between items-center gap-2 text-[10px] text-slate-400">
-            <span>ระบบฐานข้อมูลภาระงานสอน คณะเภสัชศาสตร์ มหาวิทยาลัยพะเยา</span>
-            <span>
-              พิมพ์เมื่อ:{" "}
-              {new Date().toLocaleDateString("th-TH", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
-          </div>
         </div>
       </div>
     </div>

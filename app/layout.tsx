@@ -14,8 +14,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pharmacy Workload", // 👈 (แอบแก้ชื่อ Title ให้เข้ากับโปรเจกต์ครับ)
+  title: "ระบบจัดการภาระงานสอน", // 👈 (แอบแก้ชื่อ Title ให้เข้ากับโปรเจกต์ครับ)
   description: "School of Pharmaceutical Sciences, University of Phayao",
+  icons: {
+    icon: "/favicon.ico",         // หรือ "/logo.png"
+    shortcut: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({

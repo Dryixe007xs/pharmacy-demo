@@ -9,7 +9,6 @@ export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     
-    // 1. ตรวจสอบสิทธิ์
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -24,86 +23,99 @@ export async function GET(req: Request) {
     const isProgramChair = userRole === "PROGRAM_CHAIR";
 
     let programs: any[] = [];
-    let userProgramIds: number[] = []; // ✅ เปลี่ยนจากเก็บ ID เดียว เป็น Array เก็บหลาย ID
+    let userProgramIds: number[] = [];
     let whereClause: any = {};
 
-    // 2. Logic สำหรับ Program Chair (รองรับหลายหลักสูตร)
+    // Program Chair
     if (isProgramChair) {
-      // ✅✅✅ แก้ไขจุดสำคัญ: เปลี่ยนจาก findFirst เป็น findMany เพื่อหาทุกหลักสูตรที่เป็นประธาน
       const programsChaired = await prisma.program.findMany({
         where: { programChairId: session.user.id },
         select: { id: true, name_th: true, year: true }
       });
-      
-      // Fallback: ถ้าหาแบบ String ไม่เจอ ลองหาแบบ Int
+
       if (programsChaired.length === 0 && !isNaN(Number(session.user.id))) {
-         const programsChairedInt = await prisma.program.findMany({ 
-            // @ts-ignore
-            where: { programChairId: Number(session.user.id) }, 
-            select: { id: true, name_th: true, year: true } 
-          });
-          programsChaired.push(...programsChairedInt);
+        const programsChairedInt = await prisma.program.findMany({
+          // @ts-ignore
+          where: { programChairId: Number(session.user.id) },
+          select: { id: true, name_th: true, year: true }
+        });
+        programsChaired.push(...programsChairedInt);
       }
 
       if (programsChaired.length > 0) {
-        // ✅ เก็บ ID ทั้งหมดลง Array (เช่น [42, 43])
         userProgramIds = programsChaired.map(p => p.id);
         programs = programsChaired;
       }
     }
 
-    // 3. กำหนดปีการศึกษา
+    // กำหนดปีการศึกษา
     let targetYear = yearParam ? parseInt(yearParam) : undefined;
     if (!targetYear) {
-        const activeYear = await prisma.academicYear.findFirst({ 
-          where: { isActive: true }, select: { id: true }
-        });
-        targetYear = activeYear?.id || (new Date().getFullYear() + 543);
+      const activeYear = await prisma.academicYear.findFirst({
+        where: { isActive: true }, select: { id: true }
+      });
+      targetYear = activeYear?.id || (new Date().getFullYear() + 543);
     }
+
     whereClause.academicYear = targetYear;
 
-    // 4. สร้างเงื่อนไข Where Clause (รองรับ Array)
+    // ✅ แสดงเฉพาะรายวิชาที่ผ่านการอนุมัติครบทั้งสองขั้น
+    whereClause.headApprovalStatus = "APPROVED";
+    whereClause.academicApprovalStatus = "APPROVED";
+
+    // Where Clause
     if (isProgramChair) {
-       if (userProgramIds.length > 0) {
-          // ✅✅✅ ใช้ IN เพื่อดึงข้อมูลจากทุกหลักสูตรที่เป็นประธาน (ทั้ง 42 และ 43)
-          whereClause.subject = { 
-            programId: { in: userProgramIds } 
-          };
-       } else {
-          // เป็นประธานแต่หาหลักสูตรไม่เจอสักอัน
-          return NextResponse.json({ assignments: [], programs: [] });
-       }
-    } 
-    else if (canViewAll) {
-       // Logic Admin (คงเดิม)
-       if (curriculum && curriculum !== 'all') {
-          const isNumeric = !isNaN(Number(curriculum));
-          if (isNumeric) whereClause.subject = { programId: parseInt(curriculum) };
-          else whereClause.subject = { program: { name_th: curriculum } };
-       } else if (programId) {
-          whereClause.subject = { programId: parseInt(programId) };
-       }
-       
-       // ดึง Programs ทั้งหมดให้ Admin
-       if (!programs.length) {
-         const allPrograms = await prisma.program.findMany({
-            select: { id: true, name_th: true, year: true },
-            orderBy: [{ name_th: 'asc' }]
-         });
-         const uniquePrograms = new Map();
-         allPrograms.forEach(p => uniquePrograms.set(p.name_th, p));
-         programs = Array.from(uniquePrograms.values());
-       }
+      if (userProgramIds.length > 0) {
+        whereClause.subject = { programId: { in: userProgramIds } };
+      } else {
+        return NextResponse.json({ assignments: [], programs: [] });
+      }
+    } else if (canViewAll) {
+      if (curriculum && curriculum !== 'all') {
+        const isNumeric = !isNaN(Number(curriculum));
+        if (isNumeric) whereClause.subject = { programId: parseInt(curriculum) };
+        else whereClause.subject = { program: { name_th: curriculum } };
+      } else if (programId) {
+        whereClause.subject = { programId: parseInt(programId) };
+      }
+
+      if (!programs.length) {
+        const allPrograms = await prisma.program.findMany({
+          select: { id: true, name_th: true, year: true },
+          orderBy: [{ name_th: 'asc' }]
+        });
+        const uniquePrograms = new Map();
+        allPrograms.forEach(p => uniquePrograms.set(p.name_th, p));
+        programs = Array.from(uniquePrograms.values());
+      }
     }
 
-    // 5. Query ข้อมูล
+    // Query
     const assignments = await prisma.teachingAssignment.findMany({
       where: whereClause,
-      include: {
-        lecturer: { select: { id: true, firstName: true, lastName: true, title: true } },
+      select: {
+        id: true,
+        semester: true,
+        lectureHours: true,
+        labHours: true,
+        examHours: true,
+        examCritiqueHours: true,
+        courseType: true,
+        externalFaculty: true,
+        externalCourseCode: true,
+        externalCourseName: true,
+        externalCourseNameEn: true,
+        externalCredit: true,
+        lecturer: {
+          select: { id: true, firstName: true, lastName: true, title: true }
+        },
         subject: {
           select: {
-            code: true, name_th: true, credit: true, responsibleUserId: true,
+            code: true,
+            name_th: true,
+            name_en: true, // ✅ ชื่อภาษาอังกฤษ
+            credit: true,
+            responsibleUserId: true,
             program: { select: { id: true, name_th: true, year: true } },
           }
         }
@@ -111,26 +123,21 @@ export async function GET(req: Request) {
       orderBy: [{ semester: 'asc' }, { subject: { code: 'asc' } }]
     });
 
-    // 6. Vice Dean Info
+    // Vice Dean Info
     const viceDeanRaw = await prisma.user.findFirst({
-      where: { 
-        OR: [{ role: 'VICE_DEAN' }, { adminTitle: { contains: 'รองคณบดี' } }] 
+      where: {
+        OR: [{ role: 'VICE_DEAN' }, { adminTitle: { contains: 'รองคณบดี' } }]
       },
       select: { firstName: true, lastName: true, title: true, adminTitle: true }
     });
     const viceDean = viceDeanRaw ? {
-        firstName: viceDeanRaw.firstName,
-        lastName: viceDeanRaw.lastName,
-        academicPosition: viceDeanRaw.title,
-        adminTitle: viceDeanRaw.adminTitle || "รองคณบดีฝ่ายวิชาการ"
+      firstName: viceDeanRaw.firstName,
+      lastName: viceDeanRaw.lastName,
+      academicPosition: viceDeanRaw.title,
+      adminTitle: viceDeanRaw.adminTitle || "รองคณบดีฝ่ายวิชาการ"
     } : null;
 
-    return NextResponse.json({
-        assignments,
-        programs,
-        viceDean,
-        programChair: null
-    });
+    return NextResponse.json({ assignments, programs, viceDean, programChair: null });
 
   } catch (error) {
     console.error("Yearly Report Error:", error);

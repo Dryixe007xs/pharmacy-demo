@@ -10,63 +10,66 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. หา Active Year เพื่อดึงเฉพาะงานของปีการศึกษาปัจจุบัน
     const activeYear = await prisma.academicYear.findFirst({
-        where: { isActive: true }
+      where: { isActive: true },
     });
 
-    // 2. ดึงข้อมูลโปรไฟล์อาจารย์
     const lecturerRaw = await prisma.user.findUnique({
-        where: { id: lecturerId },
-        include: {
-            curriculumRef: true, 
-        }
+      where: { id: lecturerId },
+      include: { curriculumRef: true },
     });
 
     if (!lecturerRaw) {
-        return NextResponse.json({ error: "Lecturer not found" }, { status: 404 });
+      return NextResponse.json({ error: "Lecturer not found" }, { status: 404 });
     }
 
     const lecturer = {
-        firstName: lecturerRaw.firstName,
-        lastName: lecturerRaw.lastName,
-        email: lecturerRaw.email,
-        academicPosition: lecturerRaw.title,
-        curriculum: lecturerRaw.curriculumRef?.name || "-",
-        department: "คณะเภสัชศาสตร์"
+      firstName: lecturerRaw.firstName,
+      lastName: lecturerRaw.lastName,
+      email: lecturerRaw.email,
+      academicPosition: lecturerRaw.title,
+      curriculum: lecturerRaw.curriculumRef?.name || "-",
+      department: "คณะเภสัชศาสตร์",
     };
 
-    // 3. กำหนดเงื่อนไขการดึงภาระงานสอน
     let whereClause: any = {
-      lecturerId: lecturerId,
-      academicApprovalStatus: 'APPROVED', // ต้องผ่านรองวิชาการแล้วเท่านั้น
+      lecturerId,
+      academicApprovalStatus: "APPROVED",
     };
 
-    // ถ้ามีปีที่เปิดใช้งานอยู่ ให้ดึงเฉพาะของปีนั้น
     if (activeYear) {
-        whereClause.academicYear = activeYear.id;
+      whereClause.academicYear = activeYear.id;
     }
 
-    // 4. ดึงข้อมูล
     const assignments = await prisma.teachingAssignment.findMany({
       where: whereClause,
       include: {
         subject: {
-            select: {
-                code: true,
-                name_th: true,
-                responsibleUserId: true,
-                credit: true, 
-            }
-        }, 
+          select: {
+            code: true,
+            name_th: true,
+            responsibleUserId: true,
+            credit: true,
+          },
+        },
       },
-      orderBy: {
-        semester: 'asc'
-      }
+      orderBy: { semester: "asc" },
     });
 
-    return NextResponse.json({ lecturer, assignments });
+    // ดึง VICE_DEAN จาก User table
+    const viceDeanRaw = await prisma.user.findFirst({
+      where: { role: 'VICE_DEAN' },
+      select: { title: true, firstName: true, lastName: true, adminTitle: true },
+    });
 
+    const viceDean = viceDeanRaw
+      ? {
+          name: `${viceDeanRaw.title || ''} ${viceDeanRaw.firstName} ${viceDeanRaw.lastName}`.trim(),
+          position: viceDeanRaw.adminTitle || 'รองคณบดีฝ่ายวิชาการ',
+        }
+      : { name: '-', position: 'รองคณบดีฝ่ายวิชาการ' };
+
+    return NextResponse.json({ lecturer, assignments, viceDean });
   } catch (error) {
     console.error("Error fetching personal report:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

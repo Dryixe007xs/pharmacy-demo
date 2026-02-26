@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-// 1. เปลี่ยน import เป็น ClipboardList
-import { ClipboardList, ArrowRight, Sparkles } from "lucide-react";
+import { BookOpenCheck, ArrowRight, Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function WelcomePage() {
@@ -16,7 +15,18 @@ export default function WelcomePage() {
     if (status === "authenticated") {
       router.push("/dashboard");
     }
+    // ถ้า status กลับมาเป็น unauthenticated ให้ reset loading
+    if (status === "unauthenticated") {
+      setIsLoading(false);
+    }
   }, [status, router]);
+
+  // Safety timeout: ถ้าค้าง loading นานเกิน 10 วิ ให้ reset
+  useEffect(() => {
+    if (!isLoading) return;
+    const timer = setTimeout(() => setIsLoading(false), 10000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   const handleLogin = () => {
     setIsLoading(true);
@@ -36,8 +46,8 @@ export default function WelcomePage() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 relative overflow-hidden font-sarabun selection:bg-purple-200 selection:text-purple-900">
-      
-      {/* --- 1. Animated Background --- */}
+
+      {/* Animated Background */}
       <div className="absolute inset-0 w-full h-full overflow-hidden z-0 pointer-events-none">
         <motion.div
           animate={{ x: [0, 50, 0], y: [0, 30, 0], scale: [1, 1.1, 1] }}
@@ -54,15 +64,15 @@ export default function WelcomePage() {
           transition={{ duration: 20, repeat: Infinity, ease: "easeInOut", delay: 4 }}
           className="absolute bottom-[-20%] left-[20%] w-[600px] h-[600px] bg-blue-200/40 rounded-full mix-blend-multiply filter blur-[80px]"
         />
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay" />
       </div>
 
-      {/* --- 2. Main Card --- */}
+      {/* Main Card */}
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="relative z-10 w-full max-w-[420px] bg-white/70 backdrop-blur-xl border border-white/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl overflow-hidden p-8 mx-4"
+        className="relative z-10 w-full max-w-[420px] bg-white/70 backdrop-blur-xl border border-white/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-3xl overflow-hidden p-8 mx-4"
       >
         {/* Logo Section */}
         <div className="flex flex-col items-center justify-center mb-8">
@@ -70,13 +80,12 @@ export default function WelcomePage() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.1 }}
-            className="w-20 h-20 bg-gradient-to-tr from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 mb-6 relative group"
+            className="w-20 h-20 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 mb-6 relative group"
           >
-            <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity rounded-2xl"></div>
-            
-            {/* --- ใช้ไอคอน ClipboardList (แฟ้มงาน) --- */}
-            <ClipboardList className="w-10 h-10 text-white drop-shadow-md" />
-            {/* -------------------------------------- */}
+            <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity rounded-2xl" />
+
+            {/* BookOpenCheck — สมุดพร้อมเช็คถูก สื่อถึงการจัดการภาระงานสอน */}
+            <BookOpenCheck className="w-10 h-10 text-white drop-shadow-md" />
 
             <motion.div
               animate={{ rotate: [0, 15, -15, 0] }}
@@ -132,14 +141,14 @@ export default function WelcomePage() {
             <motion.button
               whileHover={{
                 scale: 1.02,
-                boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                boxShadow: "0 10px 25px -5px rgba(0,0,0,0.12)",
               }}
               whileTap={{ scale: 0.98 }}
               onClick={handleLogin}
               disabled={isLoading}
-              className="w-full bg-[#2F2F2F] hover:bg-black text-white p-1 rounded-xl shadow-lg transition-all duration-300 relative overflow-hidden group"
+              className="w-full bg-[#2F2F2F] hover:bg-black text-white p-1 rounded-xl shadow-lg transition-all duration-300 relative overflow-hidden group disabled:opacity-80"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
 
               <div className="flex items-center justify-center gap-3 py-3.5 px-4 bg-[#2F2F2F] group-hover:bg-black rounded-[10px] h-full w-full">
                 {isLoading ? (
@@ -149,12 +158,7 @@ export default function WelcomePage() {
                   </div>
                 ) : (
                   <>
-                    {/* Microsoft Icon (SVG แบบ Inline) */}
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 21 21"
-                      className="w-5 h-5"
-                    >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21" className="w-5 h-5 shrink-0">
                       <rect x="1" y="1" width="9" height="9" fill="#f25022" />
                       <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
                       <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
@@ -168,21 +172,6 @@ export default function WelcomePage() {
             </motion.button>
           </motion.div>
         </div>
-
-        {/* Footer */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="mt-8 pt-6 border-t border-slate-100 text-center"
-        >
-          <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">
-            School of Pharmaceutical Sciences
-          </p>
-          <p className="text-[10px] text-slate-300 mt-1">
-            © {new Date().getFullYear()} University of Phayao
-          </p>
-        </motion.div>
       </motion.div>
     </div>
   );

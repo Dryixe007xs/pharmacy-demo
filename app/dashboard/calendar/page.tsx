@@ -233,7 +233,6 @@ export default function AcademicYearConfigPage() {
     fetchData();
   }, []);
 
-  // ✅ ตัด selectedYear ออกจาก dependency — ไม่ให้ trigger ซ้ำ
   useEffect(() => {
     if (Object.keys(db).length === 0) return;
     if (selectedYear) return;
@@ -244,6 +243,15 @@ export default function AcademicYearConfigPage() {
   const currentYearData = db[selectedYear];
   const currentTermNumber = getTermNumber(activeTab);
   const currentTermData = currentYearData?.terms[currentTermNumber];
+
+  // กรอง timeline ตามเทอม: เทอม 1 แสดงเฉพาะ step 1–2
+  const visibleTimeline = useMemo(() => {
+    if (!currentTermData?.timeline) return [];
+    if (currentTermNumber === 1) {
+      return currentTermData.timeline.filter((step) => step.id <= 2);
+    }
+    return currentTermData.timeline;
+  }, [currentTermData?.timeline, currentTermNumber]);
 
   const displayCourses = useMemo(() => {
     if (!currentTermData?.courses) return [];
@@ -345,22 +353,35 @@ export default function AcademicYearConfigPage() {
 
     const timeline = currentTermData.timeline;
     const data = {
-      step1Start: timeline[0].startDate
+      step1Start: timeline[0]?.startDate
         ? new Date(timeline[0].startDate)
         : undefined,
-      step1End: timeline[0].endDate ? new Date(timeline[0].endDate) : undefined,
-      step2Start: timeline[1].startDate
+      step1End: timeline[0]?.endDate
+        ? new Date(timeline[0].endDate)
+        : undefined,
+      step2Start: timeline[1]?.startDate
         ? new Date(timeline[1].startDate)
         : undefined,
-      step2End: timeline[1].endDate ? new Date(timeline[1].endDate) : undefined,
-      step3Start: timeline[2].startDate
-        ? new Date(timeline[2].startDate)
+      step2End: timeline[1]?.endDate
+        ? new Date(timeline[1].endDate)
         : undefined,
-      step3End: timeline[2].endDate ? new Date(timeline[2].endDate) : undefined,
-      step4Start: timeline[3].startDate
-        ? new Date(timeline[3].startDate)
-        : undefined,
-      step4End: timeline[3].endDate ? new Date(timeline[3].endDate) : undefined,
+      // เทอม 1 ไม่มี step 3–4 ส่ง undefined
+      step3Start:
+        currentTermNumber !== 1 && timeline[2]?.startDate
+          ? new Date(timeline[2].startDate)
+          : undefined,
+      step3End:
+        currentTermNumber !== 1 && timeline[2]?.endDate
+          ? new Date(timeline[2].endDate)
+          : undefined,
+      step4Start:
+        currentTermNumber !== 1 && timeline[3]?.startDate
+          ? new Date(timeline[3].startDate)
+          : undefined,
+      step4End:
+        currentTermNumber !== 1 && timeline[3]?.endDate
+          ? new Date(timeline[3].endDate)
+          : undefined,
     };
 
     try {
@@ -382,7 +403,7 @@ export default function AcademicYearConfigPage() {
           : "เกิดข้อผิดพลาดในการบันทึก",
       );
     }
-  }, [currentTermData]);
+  }, [currentTermData, currentTermNumber]);
 
   const handleToggleCourseLocal = useCallback(
     (courseId: string, currentStatus: boolean) => {
@@ -394,7 +415,6 @@ export default function AcademicYearConfigPage() {
     [],
   );
 
-  // ✅ ใช้ Promise.all แทน sequential loop
   const handleSaveCourseChanges = useCallback(async () => {
     if (!currentTermData?.configId) return;
 
@@ -422,7 +442,6 @@ export default function AcademicYearConfigPage() {
     setIsSavingCourses(true);
 
     try {
-      // ✅ บันทึกพร้อมกันทุกรายวิชา ไม่รอทีละตัว
       const results = await Promise.all(
         Object.entries(pendingCourseChanges).map(([courseId, newStatus]) =>
           toggleCourseOffering(
@@ -447,7 +466,6 @@ export default function AcademicYearConfigPage() {
           timer: 2000,
         });
 
-        // อัพเดท state โดยไม่ต้อง reload หน้า
         setDb((prev) => {
           const newDb = { ...prev };
           const yearData = newDb[selectedYear];
@@ -792,9 +810,16 @@ export default function AcademicYearConfigPage() {
             <div className="lg:col-span-4 space-y-6">
               <Card>
                 <CardHeader className="pb-4 border-b flex flex-row justify-between items-center">
-                  <CardTitle className="text-base flex gap-2">
-                    <Clock className="text-blue-500" /> ไทม์ไลน์
-                  </CardTitle>
+                  <div>
+                    <CardTitle className="text-base flex gap-2">
+                      <Clock className="text-blue-500" /> ไทม์ไลน์
+                    </CardTitle>
+                    {currentTermNumber === 1 && (
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        เทอม 1 ใช้เฉพาะขั้นตอนที่ 1–2
+                      </p>
+                    )}
+                  </div>
                   {!isEditingTimeline ? (
                     <Button
                       onClick={() => setIsEditingTimeline(true)}
@@ -826,7 +851,7 @@ export default function AcademicYearConfigPage() {
                   )}
                 </CardHeader>
                 <CardContent className="pt-4 space-y-5">
-                  {currentTermData?.timeline.map((step) => (
+                  {visibleTimeline.map((step) => (
                     <div
                       key={step.id}
                       className="relative pl-4 border-l-2 border-slate-100 last:border-0 pb-1"

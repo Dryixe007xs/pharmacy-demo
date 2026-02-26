@@ -45,6 +45,9 @@ export default function YearlyReportPage() {
   const [selectedCurriculum, setSelectedCurriculum] = useState("all");
   const [curriculumOptions, setCurriculumOptions] = useState<{ value: string; label: string }[]>([]);
 
+  // ชื่อที่แสดงสำหรับ programChair
+  const [programChairCurriculumName, setProgramChairCurriculumName] = useState<string>("");
+
   const [printUrl, setPrintUrl] = useState<string | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
 
@@ -54,7 +57,21 @@ export default function YearlyReportPage() {
   const isProgramChair = userRole === "PROGRAM_CHAIR";
   const canViewAll = isAdmin || isViceDean;
 
-  // ✅ แยก fetch meta (ปีการศึกษา) ออกมา — รันแค่ครั้งเดียวตอนโหลด
+  // สร้างชื่อประธานหลักสูตรจาก session
+  const getChairName = () => {
+    const user = session?.user as any;
+    if (!user) return "ท่านประธาน";
+
+    // ลองหาชื่อจาก field ต่าง ๆ ตามที่ next-auth session อาจมี
+    if (user.name) return user.name;
+    const firstName = user.firstName || user.first_name || "";
+    const lastName = user.lastName || user.last_name || "";
+    const fullName = `${firstName} ${lastName}`.trim();
+    if (fullName) return fullName;
+
+    return "ท่านประธาน";
+  };
+
   useEffect(() => {
     if (!session) return;
 
@@ -62,7 +79,7 @@ export default function YearlyReportPage() {
       try {
         const res = await fetch(`/api/report/yearly?meta=true`);
         if (!res.ok) return;
-        const { availableYears: fetchedYears, programs } = await res.json();
+        const { availableYears: fetchedYears, programs, programChairCurriculum } = await res.json();
 
         if (fetchedYears && fetchedYears.length > 0) {
           const yearStrings = fetchedYears.map(String);
@@ -81,15 +98,20 @@ export default function YearlyReportPage() {
             label: p.name_th,
           })));
         }
+
+        // สร้างข้อความ "หลักสูตรที่ [ชื่อประธาน] รับผิดชอบ"
+        if (isProgramChair && programChairCurriculum) {
+          const chairName = getChairName();
+          setProgramChairCurriculumName(`หลักสูตรที่ ${chairName} รับผิดชอบ`);
+        }
       } catch (error) {
         console.error("Failed to fetch meta:", error);
       }
     };
 
     fetchMeta();
-  }, [session?.user?.role]); // ✅ dependency แค่ role ไม่ต้องทั้ง session
+  }, [session?.user?.role]);
 
-  // ✅ fetch data หลัก — รันเมื่อเลือกปี/หลักสูตร
   useEffect(() => {
     if (!session || !selectedYear) return;
 
@@ -114,8 +136,6 @@ export default function YearlyReportPage() {
             if (!termCourses) return;
 
             const isExternal = assign.courseType === "EXTERNAL";
-
-            // ✅ แยก key สำหรับ external เพราะอาจมี code ซ้ำกัน
             const subjectKey = isExternal
               ? `EXT-${assign.externalCourseCode || assign.id}`
               : assign.subject?.code;
@@ -173,16 +193,23 @@ export default function YearlyReportPage() {
     };
 
     fetchData();
-  }, [selectedYear, selectedCurriculum, session?.user?.role]); // ✅ dependency สะอาดขึ้น
+  }, [selectedYear, selectedCurriculum, session?.user?.role]);
 
   const handlePrint = () => {
     if (isPrinting) return;
     setIsPrinting(true);
     toast.info("กำลังเตรียมเอกสาร...");
 
+    const curriculumLabel = isProgramChair
+      ? programChairCurriculumName || `หลักสูตรที่ ${getChairName()} รับผิดชอบ`
+      : selectedCurriculum === "all"
+        ? "รวมทุกหลักสูตร"
+        : curriculumOptions.find(c => c.value === selectedCurriculum)?.label || "ไม่ระบุหลักสูตร";
+
     const params = new URLSearchParams({
       year: selectedYear,
       curriculum: isProgramChair ? "" : selectedCurriculum,
+      curriculumLabel,
       t: String(Date.now()),
     });
 
@@ -206,6 +233,16 @@ export default function YearlyReportPage() {
       </div>
     );
   }
+
+  // label สำหรับแสดงในหน้า UI
+  const displayLabel = isProgramChair
+    ? programChairCurriculumName || `หลักสูตรที่ ${getChairName()} รับผิดชอบ`
+    : selectedCurriculum === "all"
+      ? "รวมทุกหลักสูตร"
+      : curriculumOptions.find(c => c.value === selectedCurriculum)?.label || "ไม่ระบุหลักสูตร";
+
+  // placeholder ในกล่อง UI (กรณี programChair)
+  const chairDisplayText = programChairCurriculumName || `หลักสูตรที่ ${getChairName()} รับผิดชอบ`;
 
   return (
     <div className="min-h-screen bg-slate-50/30 p-8 font-sarabun text-slate-800">
@@ -260,7 +297,7 @@ export default function YearlyReportPage() {
             </label>
             {isProgramChair ? (
               <div className="h-10 px-3 flex items-center bg-slate-100 border border-slate-200 rounded-md text-sm text-slate-600 cursor-not-allowed">
-                หลักสูตรที่คุณรับผิดชอบ
+                {chairDisplayText}
               </div>
             ) : (
               <Select value={selectedCurriculum} onValueChange={setSelectedCurriculum}>
@@ -285,13 +322,7 @@ export default function YearlyReportPage() {
           <h2 className="text-2xl font-bold text-slate-800">
             รายงานสรุปรายวิชาประจำปีการศึกษา {selectedYear}
           </h2>
-          <h3 className="text-lg font-medium text-purple-700 mt-1">
-            {isProgramChair
-              ? "หลักสูตรที่คุณรับผิดชอบ"
-              : selectedCurriculum === "all"
-                ? "รวมทุกหลักสูตร"
-                : curriculumOptions.find(c => c.value === selectedCurriculum)?.label || "ไม่ระบุหลักสูตร"}
-          </h3>
+          <h3 className="text-lg font-medium text-purple-700 mt-1">{displayLabel}</h3>
           <p className="font-light text-slate-500 text-sm mt-2">คณะเภสัชศาสตร์ มหาวิทยาลัยพะเยา</p>
         </div>
 
@@ -330,7 +361,6 @@ export default function YearlyReportPage() {
                   <React.Fragment key={tIndex}>
                     {term.courses.length > 0 && (
                       <>
-                        {/* Term Header */}
                         <tr className="bg-slate-50">
                           <td colSpan={6} className="p-0 border-t-[3px] border-slate-200">
                             <div className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-indigo-50/80 to-transparent border-l-[6px] border-indigo-500 shadow-[inset_0_-1px_0_rgba(226,232,240,1)]">
@@ -354,7 +384,6 @@ export default function YearlyReportPage() {
                                 key={iIndex}
                                 className={`hover:bg-slate-50 transition-colors ${course.isExternal ? "bg-orange-50/20" : ""}`}
                               >
-                                {/* ✅ แสดง course info แค่แถวแรก (rowSpan) */}
                                 {iIndex === 0 && (
                                   <td
                                     rowSpan={course.instructors.length}
@@ -364,7 +393,6 @@ export default function YearlyReportPage() {
                                       <span className="font-bold text-slate-800 text-base">
                                         {course.code}
                                       </span>
-                                      {/* ✅ badge นอกคณะ เหมือนหน้าบุคคล */}
                                       {course.isExternal && (
                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-600 border border-orange-200">
                                           🏛️ นอกคณะ
@@ -387,7 +415,6 @@ export default function YearlyReportPage() {
                                   }`}>
                                     {inst.role}
                                   </span>
-                                  {/* ✅ แสดงคณะที่สอนถ้าเป็น external */}
                                   {inst.isExternal && inst.externalFaculty && (
                                     <div className="text-[10px] text-orange-500 mt-0.5">
                                       📍 {inst.externalFaculty}
@@ -418,7 +445,7 @@ export default function YearlyReportPage() {
           <div className="flex items-center gap-2">
             <Info size={14} className="text-purple-500" />
             <span>
-              หมายเหตุ: ข้อมูลนี้แสดงผลสำหรับหน้าจอ หากต้องการเอกสารฉบับจริงพร้อมลายเซ็น กรุณากดปุ่มพิมพ์รายงาน
+              หมายเหตุ: ข้อมูลนี้แสดงผลสำหรับหน้าจอ หากต้องการเอกสารฉบับจริง กรุณากดปุ่มพิมพ์รายงาน
             </span>
           </div>
         </div>

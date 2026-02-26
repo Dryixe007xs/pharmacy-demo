@@ -74,7 +74,6 @@ export async function GET(request: Request) {
       orderBy: { id: "asc" },
     });
 
-    // ✅ normalize ฟิลด์ให้ครบทุกตัว ป้องกัน undefined
     const result = assignments.map((a) => ({
       ...a,
       examCritiqueHours: a.examCritiqueHours ?? 0,
@@ -85,7 +84,6 @@ export async function GET(request: Request) {
       externalCourseNameEn: (a as any).externalCourseNameEn ?? null,
       externalCredit: a.externalCredit ?? null,
       evidenceLink: a.evidenceLink ?? null,
-      // ✅ null = ยังไม่ถึงขั้นตอนนี้ (แตกต่างจาก PENDING)
       headApprovalStatus: a.headApprovalStatus ?? null,
       academicApprovalStatus: a.academicApprovalStatus ?? null,
     }));
@@ -100,11 +98,24 @@ export async function GET(request: Request) {
   }
 }
 
-// POST: Add lecturer to course (วิชาในคณะ)
+// POST: Add lecturer to course
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { subjectId, lecturerId, lecturerStatus, semester } = body;
+    const {
+      subjectId,
+      lecturerId,
+      lecturerStatus,
+      semester,
+      // ✅ รับค่า external fields
+      courseType,
+      externalFaculty,
+      externalCourseCode,
+      externalCourseName,
+      externalCourseNameEn,
+      externalCredit,
+      evidenceLink,
+    } = body;
 
     const activeYear = await prisma.academicYear.findFirst({
       where: { isActive: true },
@@ -119,6 +130,7 @@ export async function POST(request: Request) {
     }
 
     const targetSemester = semester ? Number(semester) : 1;
+    const isExternal = courseType === "EXTERNAL";
 
     const existing = await prisma.teachingAssignment.findFirst({
       where: {
@@ -126,6 +138,11 @@ export async function POST(request: Request) {
         lecturerId: lecturerId,
         academicYear: activeYear.id,
         semester: targetSemester,
+        // ✅ External อาจมีหลาย record ต่อ subjectId+lecturerId ได้ (ต่างวิชา)
+        // ถ้าเป็น external ให้ check externalCourseCode ด้วย
+        ...(isExternal && externalCourseCode
+          ? { externalCourseCode }
+          : {}),
       },
     });
 
@@ -141,6 +158,29 @@ export async function POST(request: Request) {
         ? ApprovalStatus.DRAFT
         : lecturerStatus;
 
+    // ✅ หา headApproverId ตาม courseType
+    // - INTERNAL → programChairId จาก subject.program
+    // - EXTERNAL → curriculum.chairId จาก lecturer.curriculumRef
+    let resolvedHeadApproverId: string | null = null;
+
+    if (isExternal) {
+      // External: ประธานหลักสูตรของอาจารย์คนนั้น (ผ่าน Curriculum)
+      const lecturer = await prisma.user.findUnique({
+        where: { id: lecturerId },
+        include: {
+          curriculumRef: { select: { chairId: true } },
+        },
+      });
+      resolvedHeadApproverId = lecturer?.curriculumRef?.chairId ?? null;
+    } else {
+      // Internal: programChair ของ subject
+      const subject = await prisma.subject.findUnique({
+        where: { id: Number(subjectId) },
+        include: { program: { select: { programChairId: true } } },
+      });
+      resolvedHeadApproverId = subject?.program?.programChairId ?? null;
+    }
+
     const newAssignment = await prisma.teachingAssignment.create({
       data: {
         subjectId: Number(subjectId),
@@ -152,9 +192,22 @@ export async function POST(request: Request) {
         examHours: 0,
         examCritiqueHours: 0,
         lecturerStatus: initialStatus,
-        responsibleStatus: ApprovalStatus.PENDING,
-        headApprovalStatus: ApprovalStatus.PENDING,
-        academicApprovalStatus: ApprovalStatus.PENDING,
+        // ✅ External ข้ามขั้นตอน responsible → set APPROVED ทันที
+        responsibleStatus: isExternal
+          ? ApprovalStatus.APPROVED
+          : ApprovalStatus.PENDING,
+        headApprovalStatus: null,
+        academicApprovalStatus: null,
+        headApproverId: resolvedHeadApproverId,
+        academicApproverId: null,
+        // ✅ External fields
+        courseType: isExternal ? "EXTERNAL" : "INTERNAL",
+        externalFaculty: externalFaculty ?? null,
+        externalCourseCode: externalCourseCode ?? null,
+        externalCourseName: externalCourseName ?? null,
+        externalCourseNameEn: externalCourseNameEn ?? null,
+        externalCredit: externalCredit ?? null,
+        evidenceLink: evidenceLink ?? null,
       },
       include: { lecturer: true },
     });
@@ -184,57 +237,92 @@ export async function PUT(request: Request) {
       responsibleStatus,
       headApprovalStatus,
       academicApprovalStatus,
-      approverId, // 👈 เพิ่ม: รับ userId ของคนที่ approve
+      approverId,
     } = body;
 
     const dataToUpdate: any = {};
     let hoursUpdated = false;
 
-    if (lectureHours !== undefined) {
-      dataToUpdate.lectureHours = Number(lectureHours);
-      hoursUpdated = true;
-    }
-    if (labHours !== undefined) {
-      dataToUpdate.labHours = Number(labHours);
-      hoursUpdated = true;
-    }
-    if (examHours !== undefined) {
-      dataToUpdate.examHours = Number(examHours);
-      hoursUpdated = true;
-    }
-    if (examCritiqueHours !== undefined) {
-      dataToUpdate.examCritiqueHours = Number(examCritiqueHours);
-      hoursUpdated = true;
-    }
+    if (lectureHours !== undefined) { dataToUpdate.lectureHours = Number(lectureHours); hoursUpdated = true; }
+    if (labHours !== undefined) { dataToUpdate.labHours = Number(labHours); hoursUpdated = true; }
+    if (examHours !== undefined) { dataToUpdate.examHours = Number(examHours); hoursUpdated = true; }
+    if (examCritiqueHours !== undefined) { dataToUpdate.examCritiqueHours = Number(examCritiqueHours); hoursUpdated = true; }
 
-    // ถ้าอัพเดทชั่วโมง → reset status กลับเป็น PENDING
+    // ถ้าอัพเดทชั่วโมง → reset status
+    // ✅ แต่ถ้าเป็น external ต้อง reset responsibleStatus กลับเป็น APPROVED (ไม่ใช่ PENDING)
     if (hoursUpdated) {
-      if (responsibleStatus === undefined)
-        dataToUpdate.responsibleStatus = ApprovalStatus.PENDING;
-      if (headApprovalStatus === undefined)
-        dataToUpdate.headApprovalStatus = ApprovalStatus.PENDING;
-      if (academicApprovalStatus === undefined)
-        dataToUpdate.academicApprovalStatus = ApprovalStatus.PENDING;
+      if (responsibleStatus === undefined) {
+        // ดึง record ปัจจุบันมาเช็ค courseType ก่อน reset
+        const current = await prisma.teachingAssignment.findUnique({
+          where: { id: Number(id) },
+          select: { courseType: true },
+        });
+        dataToUpdate.responsibleStatus =
+          current?.courseType === "EXTERNAL"
+            ? ApprovalStatus.APPROVED
+            : ApprovalStatus.PENDING;
+      }
+      if (headApprovalStatus === undefined) dataToUpdate.headApprovalStatus = null;
+      if (academicApprovalStatus === undefined) dataToUpdate.academicApprovalStatus = null;
     }
 
     if (lecturerStatus !== undefined)
-      dataToUpdate.lecturerStatus =
-        lecturerStatus === null ? ApprovalStatus.DRAFT : lecturerStatus;
+      dataToUpdate.lecturerStatus = lecturerStatus === null ? ApprovalStatus.DRAFT : lecturerStatus;
     if (lecturerFeedback !== undefined)
       dataToUpdate.lecturerFeedback = lecturerFeedback;
     if (responsibleStatus !== undefined)
       dataToUpdate.responsibleStatus = responsibleStatus;
 
-    // 👇 แก้ตรงนี้: set timestamp และ approver ด้วยทุกครั้ง
+    // ✅ headApprovalStatus
     if (headApprovalStatus !== undefined) {
       dataToUpdate.headApprovalStatus = headApprovalStatus;
       dataToUpdate.headApprovedAt = new Date();
-      dataToUpdate.headApproverId = approverId ?? null;
+
+      if (approverId) {
+        // ประธานกดอนุมัติเอง → ส่ง approverId มาตรงๆ
+        dataToUpdate.headApproverId = approverId;
+      } else if (headApprovalStatus === "PENDING") {
+        // ผู้สอนกด "ส่งประธาน" → หา chairId อัตโนมัติ
+        const assignment = await prisma.teachingAssignment.findUnique({
+          where: { id: Number(id) },
+          include: {
+            lecturer: {
+              include: {
+                curriculumRef: { select: { chairId: true } },
+              },
+            },
+            subject: {
+              include: { program: { select: { programChairId: true } } },
+            },
+          },
+        });
+
+        if (assignment?.courseType === "EXTERNAL") {
+          // External → ใช้ curriculum chair ของอาจารย์
+          const chairId = assignment?.lecturer?.curriculumRef?.chairId;
+          if (chairId) dataToUpdate.headApproverId = chairId;
+        } else {
+          // Internal → ใช้ program chair
+          const chairId = assignment?.subject?.program?.programChairId;
+          if (chairId) dataToUpdate.headApproverId = chairId;
+        }
+      }
     }
+
+    // ✅ academicApprovalStatus
     if (academicApprovalStatus !== undefined) {
       dataToUpdate.academicApprovalStatus = academicApprovalStatus;
       dataToUpdate.academicApprovedAt = new Date();
-      dataToUpdate.academicApproverId = approverId ?? null;
+
+      if (approverId) {
+        dataToUpdate.academicApproverId = approverId;
+      } else {
+        const viceDean = await prisma.user.findFirst({
+          where: { role: "VICE_DEAN" },
+          select: { id: true },
+        });
+        if (viceDean) dataToUpdate.academicApproverId = viceDean.id;
+      }
     }
 
     const updated = await prisma.teachingAssignment.update({
@@ -244,6 +332,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json(updated);
   } catch (error) {
+    console.error("PUT error:", error);
     return NextResponse.json(
       { error: "Failed to update assignment" },
       { status: 500 }

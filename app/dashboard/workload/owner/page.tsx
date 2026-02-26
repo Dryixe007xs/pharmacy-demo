@@ -11,7 +11,6 @@ import {
 import { Toaster, toast } from 'sonner';
 import Swal from 'sweetalert2';
 
-// ... (Types และ Constants - คงเดิมทั้งหมด) ...
 type LecturerStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DRAFT' | null;
 type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUBMITTED';
 
@@ -345,9 +344,7 @@ function useCourseLogic(currentUser: any) {
         confirmButtonText: "ยืนยัน",
         cancelButtonText: "ยกเลิก",
         reverseButtons: true,
-        customClass: {
-          container: 'swal-high-z-index'
-        }
+        customClass: { container: 'swal-high-z-index' }
       });
 
       if (!result.isConfirmed) return false;
@@ -377,9 +374,7 @@ function useCourseLogic(currentUser: any) {
           confirmButtonColor: "#10b981",
           timer: 2000,
           timerProgressBar: true,
-          customClass: {
-            container: 'swal-high-z-index'
-          }
+          customClass: { container: 'swal-high-z-index' }
         });
         
         return true;
@@ -389,9 +384,7 @@ function useCourseLogic(currentUser: any) {
           text: "ทำรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
           icon: "error",
           confirmButtonColor: "#ef4444",
-          customClass: {
-            container: 'swal-high-z-index'
-          }
+          customClass: { container: 'swal-high-z-index' }
         });
         return false;
       }
@@ -465,9 +458,7 @@ function useCourseLogic(currentUser: any) {
         confirmButtonText: "ใช่, ลบเลย!",
         cancelButtonText: "ยกเลิก",
         reverseButtons: true,
-        customClass: {
-          container: 'swal-high-z-index'
-        }
+        customClass: { container: 'swal-high-z-index' }
       });
 
       if (!result.isConfirmed) return;
@@ -488,9 +479,7 @@ function useCourseLogic(currentUser: any) {
           confirmButtonColor: "#10b981",
           timer: 2000,
           timerProgressBar: true,
-          customClass: {
-            container: 'swal-high-z-index'
-          }
+          customClass: { container: 'swal-high-z-index' }
         });
       } catch (err) {
         await Swal.fire({
@@ -498,9 +487,7 @@ function useCourseLogic(currentUser: any) {
           text: "ไม่สามารถลบข้อมูลได้ กรุณาลองใหม่อีกครั้ง",
           icon: "error",
           confirmButtonColor: "#ef4444",
-          customClass: {
-            container: 'swal-high-z-index'
-          }
+          customClass: { container: 'swal-high-z-index' }
         });
       }
     },
@@ -628,7 +615,6 @@ const CourseTableSection = ({ title, courses, loading, onOpenModal }: CourseTabl
   );
 };
 
-// ✅ แยก Component ที่ใช้ useSearchParams
 function CourseOwnerPageContent() {
   const { data: session, status } = useSession();
   const currentUser = session?.user;
@@ -814,7 +800,6 @@ function CourseOwnerPageContent() {
   );
 }
 
-// ✅ Component หลัก - Wrap ด้วย Suspense
 export default function CourseOwnerPage() {
   return (
     <Suspense fallback={
@@ -827,8 +812,6 @@ export default function CourseOwnerPage() {
     </Suspense>
   );
 }
-
-// ... (Components ที่เหลือ: CourseModal, AssignmentRow, SuccessOverlay - คงเดิมทั้งหมด)
 
 function CourseModal({ course, assignments, currentUser, staffs, onClose, actions }: any) {
   const [isAddingLecturer, setIsAddingLecturer] = useState(false);
@@ -847,6 +830,7 @@ function CourseModal({ course, assignments, currentUser, staffs, onClose, action
   const isAcademicApproved = assignments.length > 0 && assignments.every((a: Assignment) => a.academicApprovalStatus === 'APPROVED');
   const isLocked = isSubmitted && !isRejectedByChair;
 
+  // ✅ เหลือแค่ Swal confirm + SuccessOverlay (ลบ Swal success ออกแล้ว)
   const handleSubmit = async () => {
     const result = await Swal.fire({
       title: "ยืนยันการส่งข้อมูล?",
@@ -863,35 +847,16 @@ function CourseModal({ course, assignments, currentUser, staffs, onClose, action
       confirmButtonText: "ยืนยันการส่ง",
       cancelButtonText: "ยกเลิก",
       reverseButtons: true,
-      customClass: {
-        container: 'swal-high-z-index'
-      }
+      customClass: { container: 'swal-high-z-index' }
     });
 
     if (!result.isConfirmed) return;
-    
+
     setSubmitStatus('submitting');
     const success = await actions.submitToChair();
-    
+
     if (success) {
       setSubmitStatus('success');
-      await Swal.fire({
-        title: "ส่งข้อมูลสำเร็จ!",
-        html: `
-          <div class="text-center">
-            <p class="mb-2">ข้อมูลภาระงานสอนถูกส่งให้ประธานหลักสูตรแล้ว</p>
-            <p class="text-sm text-gray-600">รอการพิจารณาจากประธานหลักสูตร</p>
-          </div>
-        `,
-        icon: "success",
-        confirmButtonColor: "#10b981",
-        timer: 3000,
-        timerProgressBar: true,
-        customClass: {
-          container: 'swal-high-z-index'
-        }
-      });
-      
       setTimeout(() => {
         onClose();
         setTimeout(() => setSubmitStatus('idle'), 300);
