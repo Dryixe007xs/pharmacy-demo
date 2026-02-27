@@ -34,17 +34,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogAction,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
   Layers,
   Clock,
   PlusCircle,
@@ -58,6 +47,7 @@ import {
   ShieldCheck,
   Trash2,
   Save,
+  Filter,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import Swal from "sweetalert2";
@@ -126,14 +116,11 @@ export default function AcademicYearConfigPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newYearInput, setNewYearInput] = useState(getCurrentBuddhistYear());
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedProgram, setSelectedProgram] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [isEditingTimeline, setIsEditingTimeline] = useState(false);
-
-  const [confirmActiveOpen, setConfirmActiveOpen] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [isCopyPrevious, setIsCopyPrevious] = useState(true);
-  const [deleteAlertOpen, setDeleteAlertOpen] = useState(false);
-
   const [isEditingCourses, setIsEditingCourses] = useState(false);
   const [pendingCourseChanges, setPendingCourseChanges] = useState<
     Record<string, boolean>
@@ -193,21 +180,23 @@ export default function AcademicYearConfigPage() {
             },
           ];
 
-          const courses: Course[] = allSubjects.map((sub) => {
-            const offering = config.courseOfferings.find(
-              (o) => o.subjectId === sub.id,
-            );
-            return {
-              id: sub.id.toString(),
-              code: sub.code,
-              name: sub.name_th,
-              isOpen: offering ? offering.isOpen : false,
-              responsibleName: sub.responsibleUser
-                ? `${sub.responsibleUser.firstName} ${sub.responsibleUser.lastName}`
-                : "-",
-              programName: sub.program ? `${sub.program.name_th}` : "วิชาแกน",
-            };
-          });
+          const courses: Course[] = allSubjects
+            .filter((sub) => sub.code !== "EXTERNAL-PLACEHOLDER")
+            .map((sub) => {
+              const offering = config.courseOfferings.find(
+                (o) => o.subjectId === sub.id,
+              );
+              return {
+                id: sub.id.toString(),
+                code: sub.code,
+                name: sub.name_th,
+                isOpen: offering ? offering.isOpen : false,
+                responsibleName: sub.responsibleUser
+                  ? `${sub.responsibleUser.firstName} ${sub.responsibleUser.lastName}`
+                  : "-",
+                programName: sub.program ? sub.program.name_th : "วิชาแกน",
+              };
+            });
 
           newDb[yearStr].terms[config.semester as 1 | 2 | 3] = {
             configId: config.id,
@@ -244,7 +233,6 @@ export default function AcademicYearConfigPage() {
   const currentTermNumber = getTermNumber(activeTab);
   const currentTermData = currentYearData?.terms[currentTermNumber];
 
-  // กรอง timeline ตามเทอม: เทอม 1 แสดงเฉพาะ step 1–2
   const visibleTimeline = useMemo(() => {
     if (!currentTermData?.timeline) return [];
     if (currentTermNumber === 1) {
@@ -263,58 +251,149 @@ export default function AcademicYearConfigPage() {
     }));
   }, [currentTermData?.courses, pendingCourseChanges]);
 
+  const programOptions = useMemo(() => {
+    if (!currentTermData?.courses) return [];
+    const names = new Set(currentTermData.courses.map((c) => c.programName));
+    return Array.from(names).sort();
+  }, [currentTermData?.courses]);
+
   const filteredCourses = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    return displayCourses.filter(
-      (c) =>
+    return displayCourses.filter((c) => {
+      const matchSearch =
         c.name.toLowerCase().includes(term) ||
-        c.code.toLowerCase().includes(term),
-    );
-  }, [displayCourses, searchTerm]);
+        c.code.toLowerCase().includes(term);
+      const matchProgram =
+        selectedProgram === "all" || c.programName === selectedProgram;
+      return matchSearch && matchProgram;
+    });
+  }, [displayCourses, searchTerm, selectedProgram]);
 
+  // ─── เปิดใช้งานปีการศึกษา ────────────────────────────────────────────────
   const handleSetActiveYear = useCallback(async () => {
+    const result = await Swal.fire({
+      title: `เปิดใช้งานปี ${selectedYear}?`,
+      html: `ระบบจะตั้งค่าให้ปี <b>${selectedYear}</b> เป็นปีการศึกษาหลัก<br>และปิดการใช้งานปีอื่นๆ ทั้งหมด`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#16a34a",
+      cancelButtonColor: "#64748b",
+      confirmButtonText: "ยืนยัน เปิดใช้งาน",
+      cancelButtonText: "ยกเลิก",
+      reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) return;
+
     setIsActivating(true);
     try {
       const res: ApiResponse = await setActiveYear(parseInt(selectedYear));
       if (res.success) {
-        toast.success(`เปิดใช้งานปีการศึกษา ${selectedYear} เรียบร้อย`, {
-          description: "กำลังรีโหลดระบบ...",
+        await Swal.fire({
+          title: "เปิดใช้งานสำเร็จ!",
+          text: `ปีการศึกษา ${selectedYear} เป็นปีหลักของระบบแล้ว`,
+          icon: "success",
+          confirmButtonColor: "#9333ea",
+          timer: 2000,
+          timerProgressBar: true,
         });
-        setTimeout(() => window.location.reload(), 1000);
+        window.location.reload();
       } else {
         setIsActivating(false);
-        toast.error(res.message || "ไม่สามารถเปิดใช้งานได้");
+        await Swal.fire({
+          title: "เกิดข้อผิดพลาด",
+          text: res.message || "ไม่สามารถเปิดใช้งานได้ กรุณาลองใหม่",
+          icon: "error",
+          confirmButtonColor: "#9333ea",
+        });
       }
     } catch (e) {
       console.error("Failed to set active year:", e);
       setIsActivating(false);
-      toast.error(
-        e instanceof Error
-          ? `เกิดข้อผิดพลาด: ${e.message}`
-          : "เกิดข้อผิดพลาดในการเปิดใช้งาน",
-      );
+      await Swal.fire({
+        title: "เกิดข้อผิดพลาด",
+        text:
+          e instanceof Error ? e.message : "เกิดข้อผิดพลาดในการเปิดใช้งาน",
+        icon: "error",
+        confirmButtonColor: "#9333ea",
+      });
     }
   }, [selectedYear]);
 
+  // ─── ลบปีการศึกษา ────────────────────────────────────────────────────────
   const handleDeleteYear = useCallback(async () => {
     if (!selectedYear) return;
+
+    // บล็อกถ้าปีนั้น active อยู่
+    if (db[selectedYear]?.isActiveYear) {
+      await Swal.fire({
+        title: "ไม่สามารถลบได้",
+        html: `ปีการศึกษา <b>${selectedYear}</b> กำลังเปิดใช้งานอยู่<br>กรุณาเปลี่ยนปี Active ก่อนทำการลบ`,
+        icon: "warning",
+        confirmButtonColor: "#9333ea",
+        confirmButtonText: "รับทราบ",
+      });
+      return;
+    }
+
+    // ให้พิมพ์ปีเพื่อยืนยัน
+    const { value: inputYear } = await Swal.fire({
+      title: "ยืนยันการลบปีการศึกษา",
+      html: `
+        <p class="text-sm text-gray-500 mb-3">การกระทำนี้<b>ไม่สามารถย้อนกลับได้</b><br>ข้อมูลกำหนดการและการเปิดรายวิชาทั้งหมดของปี <b>${selectedYear}</b> จะถูกลบออก</p>
+        <p class="text-sm font-semibold mb-2">พิมพ์ <b>${selectedYear}</b> เพื่อยืนยัน</p>
+      `,
+      input: "text",
+      inputPlaceholder: `พิมพ์ ${selectedYear} เพื่อยืนยัน`,
+      inputAttributes: { autocomplete: "off" },
+      icon: "error",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#64748b",
+      confirmButtonText: "ลบข้อมูล",
+      cancelButtonText: "ยกเลิก",
+      reverseButtons: true,
+      preConfirm: (val) => {
+        if (val !== selectedYear) {
+          Swal.showValidationMessage(`กรุณาพิมพ์ "${selectedYear}" ให้ถูกต้อง`);
+          return false;
+        }
+        return true;
+      },
+    });
+
+    if (!inputYear) return;
+
     try {
       const res: ApiResponse = await deleteAcademicYear(parseInt(selectedYear));
       if (res.success) {
-        toast.success(res.message || "ลบปีการศึกษาเรียบร้อย");
-        setTimeout(() => window.location.reload(), 800);
+        await Swal.fire({
+          title: "ลบเรียบร้อย",
+          text: `ปีการศึกษา ${selectedYear} ถูกลบออกจากระบบแล้ว`,
+          icon: "success",
+          confirmButtonColor: "#9333ea",
+          timer: 2000,
+          timerProgressBar: true,
+        });
+        window.location.reload();
       } else {
-        toast.error(res.message || "ไม่สามารถลบได้");
+        await Swal.fire({
+          title: "เกิดข้อผิดพลาด",
+          text: res.message || "ไม่สามารถลบได้ กรุณาลองใหม่อีกครั้ง",
+          icon: "error",
+          confirmButtonColor: "#9333ea",
+        });
       }
     } catch (error) {
       console.error("Failed to delete academic year:", error);
-      toast.error(
-        error instanceof Error
-          ? `เกิดข้อผิดพลาด: ${error.message}`
-          : "เกิดข้อผิดพลาดในการลบข้อมูล",
-      );
+      await Swal.fire({
+        title: "เกิดข้อผิดพลาด",
+        text: error instanceof Error ? error.message : "ไม่สามารถลบได้",
+        icon: "error",
+        confirmButtonColor: "#9333ea",
+      });
     }
-  }, [selectedYear]);
+  }, [selectedYear, db]);
 
   const handleTimelineChange = useCallback(
     (stepId: number, field: "startDate" | "endDate", value: string) => {
@@ -322,19 +401,13 @@ export default function AcademicYearConfigPage() {
         const newDb = { ...prev };
         const yearData = newDb[selectedYear];
         if (!yearData) return prev;
-
         const termData = yearData.terms[currentTermNumber];
         if (!termData) return prev;
-
         const newTimeline = [...termData.timeline];
         const stepIndex = newTimeline.findIndex((t) => t.id === stepId);
         if (stepIndex !== -1) {
-          newTimeline[stepIndex] = {
-            ...newTimeline[stepIndex],
-            [field]: value,
-          };
+          newTimeline[stepIndex] = { ...newTimeline[stepIndex], [field]: value };
         }
-
         newDb[selectedYear] = {
           ...yearData,
           terms: {
@@ -350,45 +423,19 @@ export default function AcademicYearConfigPage() {
 
   const handleSaveTimeline = useCallback(async () => {
     if (!currentTermData?.configId) return;
-
     const timeline = currentTermData.timeline;
     const data = {
-      step1Start: timeline[0]?.startDate
-        ? new Date(timeline[0].startDate)
-        : undefined,
-      step1End: timeline[0]?.endDate
-        ? new Date(timeline[0].endDate)
-        : undefined,
-      step2Start: timeline[1]?.startDate
-        ? new Date(timeline[1].startDate)
-        : undefined,
-      step2End: timeline[1]?.endDate
-        ? new Date(timeline[1].endDate)
-        : undefined,
-      // เทอม 1 ไม่มี step 3–4 ส่ง undefined
-      step3Start:
-        currentTermNumber !== 1 && timeline[2]?.startDate
-          ? new Date(timeline[2].startDate)
-          : undefined,
-      step3End:
-        currentTermNumber !== 1 && timeline[2]?.endDate
-          ? new Date(timeline[2].endDate)
-          : undefined,
-      step4Start:
-        currentTermNumber !== 1 && timeline[3]?.startDate
-          ? new Date(timeline[3].startDate)
-          : undefined,
-      step4End:
-        currentTermNumber !== 1 && timeline[3]?.endDate
-          ? new Date(timeline[3].endDate)
-          : undefined,
+      step1Start: timeline[0]?.startDate ? new Date(timeline[0].startDate) : undefined,
+      step1End: timeline[0]?.endDate ? new Date(timeline[0].endDate) : undefined,
+      step2Start: timeline[1]?.startDate ? new Date(timeline[1].startDate) : undefined,
+      step2End: timeline[1]?.endDate ? new Date(timeline[1].endDate) : undefined,
+      step3Start: currentTermNumber !== 1 && timeline[2]?.startDate ? new Date(timeline[2].startDate) : undefined,
+      step3End: currentTermNumber !== 1 && timeline[2]?.endDate ? new Date(timeline[2].endDate) : undefined,
+      step4Start: currentTermNumber !== 1 && timeline[3]?.startDate ? new Date(timeline[3].startDate) : undefined,
+      step4End: currentTermNumber !== 1 && timeline[3]?.endDate ? new Date(timeline[3].endDate) : undefined,
     };
-
     try {
-      const res: ApiResponse = await updateTimeline(
-        currentTermData.configId,
-        data,
-      );
+      const res: ApiResponse = await updateTimeline(currentTermData.configId, data);
       if (res.success) {
         setIsEditingTimeline(false);
         toast.success("บันทึกกำหนดการเรียบร้อย");
@@ -397,34 +444,25 @@ export default function AcademicYearConfigPage() {
       }
     } catch (error) {
       console.error("Failed to update timeline:", error);
-      toast.error(
-        error instanceof Error
-          ? `เกิดข้อผิดพลาด: ${error.message}`
-          : "เกิดข้อผิดพลาดในการบันทึก",
-      );
+      toast.error(error instanceof Error ? `เกิดข้อผิดพลาด: ${error.message}` : "เกิดข้อผิดพลาดในการบันทึก");
     }
   }, [currentTermData, currentTermNumber]);
 
   const handleToggleCourseLocal = useCallback(
     (courseId: string, currentStatus: boolean) => {
-      setPendingCourseChanges((prev) => ({
-        ...prev,
-        [courseId]: !currentStatus,
-      }));
+      setPendingCourseChanges((prev) => ({ ...prev, [courseId]: !currentStatus }));
     },
     [],
   );
 
   const handleSaveCourseChanges = useCallback(async () => {
     if (!currentTermData?.configId) return;
-
     const changesCount = Object.keys(pendingCourseChanges).length;
     if (changesCount === 0) {
       toast.info("ไม่มีการเปลี่ยนแปลง");
       setIsEditingCourses(false);
       return;
     }
-
     const result = await Swal.fire({
       title: "ยืนยันการบันทึก?",
       html: `คุณต้องการบันทึกการเปลี่ยนแปลง <b>${changesCount}</b> รายวิชาใช่หรือไม่?`,
@@ -436,27 +474,18 @@ export default function AcademicYearConfigPage() {
       cancelButtonText: "ยกเลิก",
       reverseButtons: true,
     });
-
     if (!result.isConfirmed) return;
-
     setIsSavingCourses(true);
-
     try {
       const results = await Promise.all(
         Object.entries(pendingCourseChanges).map(([courseId, newStatus]) =>
-          toggleCourseOffering(
-            currentTermData.configId!,
-            parseInt(courseId),
-            newStatus,
-          )
+          toggleCourseOffering(currentTermData.configId!, parseInt(courseId), newStatus)
             .then((res) => ({ courseId, success: res.success }))
             .catch(() => ({ courseId, success: false })),
         ),
       );
-
       const successCount = results.filter((r) => r.success).length;
       const errorCount = results.filter((r) => !r.success).length;
-
       if (errorCount === 0) {
         await Swal.fire({
           title: "สำเร็จ!",
@@ -465,31 +494,21 @@ export default function AcademicYearConfigPage() {
           confirmButtonColor: "#9333ea",
           timer: 2000,
         });
-
         setDb((prev) => {
           const newDb = { ...prev };
           const yearData = newDb[selectedYear];
           if (!yearData) return prev;
-
           const termData = yearData.terms[currentTermNumber];
           if (!termData) return prev;
-
           const newCourses = termData.courses.map((c) =>
-            pendingCourseChanges.hasOwnProperty(c.id)
-              ? { ...c, isOpen: pendingCourseChanges[c.id] }
-              : c,
+            pendingCourseChanges.hasOwnProperty(c.id) ? { ...c, isOpen: pendingCourseChanges[c.id] } : c,
           );
-
           newDb[selectedYear] = {
             ...yearData,
-            terms: {
-              ...yearData.terms,
-              [currentTermNumber]: { ...termData, courses: newCourses },
-            },
+            terms: { ...yearData.terms, [currentTermNumber]: { ...termData, courses: newCourses } },
           };
           return newDb;
         });
-
         setPendingCourseChanges({});
         setIsEditingCourses(false);
       } else {
@@ -536,27 +555,80 @@ export default function AcademicYearConfigPage() {
     }
   }, [pendingCourseChanges]);
 
+  // ─── สร้างปีการศึกษา ─────────────────────────────────────────────────────
   const handleCreateYear = useCallback(async () => {
+    // ตรวจสอบว่าปีนั้นมีอยู่แล้วหรือยัง
+    if (db[String(newYearInput)]) {
+      // ปิด Dialog ก่อน แล้วค่อยแสดง Swal เพื่อไม่ให้ถูก overlay บัง
+      setIsCreateModalOpen(false);
+      await new Promise((r) => setTimeout(r, 200));
+      await Swal.fire({
+        title: "ปีการศึกษานี้มีอยู่แล้ว",
+        text: `ปี ${newYearInput} ถูกสร้างไว้ในระบบแล้ว`,
+        icon: "warning",
+        confirmButtonColor: "#9333ea",
+        confirmButtonText: "รับทราบ",
+      });
+      setIsCreateModalOpen(true);
+      return;
+    }
+
+    // ปิด Dialog ก่อนแสดง Swal ยืนยัน
+    setIsCreateModalOpen(false);
+    await new Promise((r) => setTimeout(r, 200));
+
+    const result = await Swal.fire({
+      title: `สร้างปีการศึกษา ${newYearInput}?`,
+      html: isCopyPrevious
+        ? `จะสร้างปี <b>${newYearInput}</b> และคัดลอกรายวิชาที่เปิดสอนจากปี <b>${newYearInput - 1}</b>`
+        : `จะสร้างปี <b>${newYearInput}</b> โดยไม่คัดลอกรายวิชาจากปีก่อน`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#9333ea",
+      cancelButtonColor: "#64748b",
+      confirmButtonText: "ยืนยัน สร้างปีการศึกษา",
+      cancelButtonText: "ยกเลิก",
+      reverseButtons: true,
+    });
+
+    // กด ยกเลิก → เปิด Dialog กลับมา
+    if (!result.isConfirmed) {
+      setIsCreateModalOpen(true);
+      return;
+    }
+
     try {
-      const res: ApiResponse = await createAcademicYear(
-        newYearInput,
-        isCopyPrevious,
-      );
+      const res: ApiResponse = await createAcademicYear(newYearInput, isCopyPrevious);
       if (res.success) {
-        toast.success("สร้างปีการศึกษาเรียบร้อย");
-        setTimeout(() => window.location.reload(), 800);
+        await Swal.fire({
+          title: "สร้างสำเร็จ!",
+          text: `ปีการศึกษา ${newYearInput} ถูกสร้างเรียบร้อยแล้ว`,
+          icon: "success",
+          confirmButtonColor: "#9333ea",
+          timer: 2000,
+          timerProgressBar: true,
+        });
+        window.location.reload();
       } else {
-        toast.error(res.message || "ไม่สามารถสร้างได้");
+        await Swal.fire({
+          title: "เกิดข้อผิดพลาด",
+          text: res.message || "ไม่สามารถสร้างได้ กรุณาลองใหม่",
+          icon: "error",
+          confirmButtonColor: "#9333ea",
+        });
+        setIsCreateModalOpen(true);
       }
     } catch (error) {
       console.error("Failed to create academic year:", error);
-      toast.error(
-        error instanceof Error
-          ? `เกิดข้อผิดพลาด: ${error.message}`
-          : "เกิดข้อผิดพลาดในการสร้างปีการศึกษา",
-      );
+      await Swal.fire({
+        title: "เกิดข้อผิดพลาด",
+        text: error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการสร้างปีการศึกษา",
+        icon: "error",
+        confirmButtonColor: "#9333ea",
+      });
+      setIsCreateModalOpen(true);
     }
-  }, [newYearInput, isCopyPrevious]);
+  }, [newYearInput, isCopyPrevious, db]);
 
   const activeYearID = Object.keys(db).find((y) => db[y].isActiveYear);
   const hasData = Object.keys(db).length > 0;
@@ -592,52 +664,23 @@ export default function AcademicYearConfigPage() {
             </AlertDescription>
           </div>
         </div>
-        {currentYearData && !currentYearData.isActiveYear && (
-          <>
-            <Button
-              onClick={() => setConfirmActiveOpen(true)}
-              className="bg-green-600 hover:bg-green-700 text-white border-none shadow-lg"
-              aria-label={`เปิดใช้งานปีการศึกษา ${selectedYear}`}
-            >
-              เปิดใช้งานปี {selectedYear}
-            </Button>
 
-            <AlertDialog
-              open={confirmActiveOpen}
-              onOpenChange={setConfirmActiveOpen}
-            >
-              <AlertDialogContent className="z-[9999]">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    ยืนยันเปิดใช้งานปี {selectedYear}?
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    ระบบจะตั้งค่าให้ปี {selectedYear} เป็นปีหลัก
-                    และปิดการใช้งานปีอื่นๆ ทั้งหมด
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={isActivating}>
-                    ยกเลิก
-                  </AlertDialogCancel>
-                  <Button
-                    disabled={isActivating}
-                    onClick={handleSetActiveYear}
-                    className="bg-green-600 hover:bg-green-700 min-w-[100px]"
-                  >
-                    {isActivating ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
-                        กำลังเริ่ม...
-                      </>
-                    ) : (
-                      "ยืนยัน"
-                    )}
-                  </Button>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </>
+        {/* ✅ ปุ่มเปิดใช้งาน — Swal ยืนยัน แค่กด confirm ได้เลย */}
+        {currentYearData && !currentYearData.isActiveYear && (
+          <Button
+            onClick={handleSetActiveYear}
+            disabled={isActivating}
+            className="bg-green-600 hover:bg-green-700 text-white border-none shadow-lg min-w-[160px]"
+            aria-label={`เปิดใช้งานปีการศึกษา ${selectedYear}`}
+          >
+            {isActivating ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> กำลังเริ่ม...
+              </>
+            ) : (
+              `เปิดใช้งานปี ${selectedYear}`
+            )}
+          </Button>
         )}
       </Alert>
 
@@ -647,14 +690,16 @@ export default function AcademicYearConfigPage() {
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <Layers className="text-purple-600" /> จัดการปีการศึกษา
           </h1>
-          <p className="text-slate-500 text-sm mt-1">
-            ตั้งค่ากำหนดการและรายวิชา
-          </p>
+          <p className="text-slate-500 text-sm mt-1">ตั้งค่ากำหนดการและรายวิชา</p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Select ปี */}
           <Select
             value={selectedYear}
-            onValueChange={setSelectedYear}
+            onValueChange={(val) => {
+              setSelectedYear(val);
+              setSelectedProgram("all");
+            }}
             disabled={!hasData}
           >
             <SelectTrigger className="w-auto min-w-[200px] px-4 font-bold text-lg">
@@ -672,28 +717,21 @@ export default function AcademicYearConfigPage() {
             </SelectContent>
           </Select>
 
+          {/* ✅ Dialog สร้างปี — กด "สร้าง" แล้ว Swal ยืนยัน */}
           <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
             <DialogTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="เพิ่มปีการศึกษาใหม่"
-              >
+              <Button variant="outline" size="icon" aria-label="เพิ่มปีการศึกษาใหม่">
                 <PlusCircle size={20} className="text-purple-600" />
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px] z-[9999]">
               <DialogHeader>
                 <DialogTitle>เพิ่มปีการศึกษา</DialogTitle>
-                <DialogDescription>
-                  สร้างปีการศึกษาใหม่สำหรับระบบ
-                </DialogDescription>
+                <DialogDescription>สร้างปีการศึกษาใหม่สำหรับระบบ</DialogDescription>
               </DialogHeader>
               <div className="py-4 space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-bold">
-                    ปีพุทธศักราช (พ.ศ.)
-                  </label>
+                  <label className="text-sm font-bold">ปีพุทธศักราช (พ.ศ.)</label>
                   <Input
                     type="number"
                     value={newYearInput}
@@ -709,24 +747,17 @@ export default function AcademicYearConfigPage() {
                     onCheckedChange={(c) => setIsCopyPrevious(c as boolean)}
                   />
                   <div className="grid gap-1.5 leading-none">
-                    <Label
-                      htmlFor="copy-data"
-                      className="text-sm font-medium leading-none cursor-pointer"
-                    >
+                    <Label htmlFor="copy-data" className="text-sm font-medium leading-none cursor-pointer">
                       คัดลอกรายวิชาที่เปิดสอนจากปี {newYearInput - 1}
                     </Label>
                     <p className="text-[11px] text-slate-500">
-                      ระบบจะเปิดรายวิชาตามปีที่แล้วให้อัตโนมัติ
-                      (ไม่ต้องติ๊กใหม่)
+                      ระบบจะเปิดรายวิชาตามปีที่แล้วให้อัตโนมัติ (ไม่ต้องติ๊กใหม่)
                     </p>
                   </div>
                 </div>
               </div>
               <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsCreateModalOpen(false)}
-                >
+                <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
                   ยกเลิก
                 </Button>
                 <Button onClick={handleCreateYear} className="bg-purple-600">
@@ -736,43 +767,17 @@ export default function AcademicYearConfigPage() {
             </DialogContent>
           </Dialog>
 
+          {/* ✅ ปุ่มลบ — Swal ทั้งหมด ไม่มี AlertDialog */}
           {hasData && (
-            <AlertDialog
-              open={deleteAlertOpen}
-              onOpenChange={setDeleteAlertOpen}
+            <Button
+              variant="outline"
+              size="icon"
+              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+              aria-label="ลบปีการศึกษา"
+              onClick={handleDeleteYear}
             >
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                  aria-label="ลบปีการศึกษา"
-                >
-                  <Trash2 size={20} />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent className="z-[9999]">
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="text-red-600">
-                    ยืนยันการลบปีการศึกษา {selectedYear}?
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    การกระทำนี้ไม่สามารถย้อนกลับได้
-                    ข้อมูลกำหนดการและการเปิดรายวิชาทั้งหมดของปี {selectedYear}{" "}
-                    จะถูกลบออกจากระบบ
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDeleteYear}
-                    className="bg-red-600 hover:bg-red-700"
-                  >
-                    ลบข้อมูล
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+              <Trash2 size={20} />
+            </Button>
           )}
         </div>
       </div>
@@ -780,14 +785,15 @@ export default function AcademicYearConfigPage() {
       {!hasData ? (
         <div className="text-center py-20 bg-white rounded-xl border-dashed border">
           <p className="text-slate-500">ไม่พบข้อมูลปีการศึกษา</p>
-          <p className="text-sm text-slate-400 mt-2">
-            กรุณาเพิ่มปีการศึกษาใหม่
-          </p>
+          <p className="text-sm text-slate-400 mt-2">กรุณาเพิ่มปีการศึกษาใหม่</p>
         </div>
       ) : (
         <Tabs
           value={activeTab}
-          onValueChange={setActiveTab}
+          onValueChange={(val) => {
+            setActiveTab(val);
+            setSelectedProgram("all");
+          }}
           className="space-y-6"
         >
           <TabsList className="bg-white p-1.5 rounded-xl border shadow-sm">
@@ -802,10 +808,7 @@ export default function AcademicYearConfigPage() {
             ))}
           </TabsList>
 
-          <TabsContent
-            value={activeTab}
-            className="grid grid-cols-1 lg:grid-cols-12 gap-6"
-          >
+          <TabsContent value={activeTab} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* TIMELINE */}
             <div className="lg:col-span-4 space-y-6">
               <Card>
@@ -821,30 +824,15 @@ export default function AcademicYearConfigPage() {
                     )}
                   </div>
                   {!isEditingTimeline ? (
-                    <Button
-                      onClick={() => setIsEditingTimeline(true)}
-                      variant="ghost"
-                      size="sm"
-                      aria-label="แก้ไขไทม์ไลน์"
-                    >
+                    <Button onClick={() => setIsEditingTimeline(true)} variant="ghost" size="sm" aria-label="แก้ไขไทม์ไลน์">
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
                   ) : (
                     <div className="flex gap-2">
-                      <Button
-                        onClick={() => setIsEditingTimeline(false)}
-                        variant="ghost"
-                        size="sm"
-                        aria-label="ยกเลิก"
-                      >
+                      <Button onClick={() => setIsEditingTimeline(false)} variant="ghost" size="sm" aria-label="ยกเลิก">
                         <X />
                       </Button>
-                      <Button
-                        onClick={handleSaveTimeline}
-                        size="sm"
-                        className="bg-purple-600"
-                        aria-label="บันทึก"
-                      >
+                      <Button onClick={handleSaveTimeline} size="sm" className="bg-purple-600" aria-label="บันทึก">
                         <Check />
                       </Button>
                     </div>
@@ -852,49 +840,30 @@ export default function AcademicYearConfigPage() {
                 </CardHeader>
                 <CardContent className="pt-4 space-y-5">
                   {visibleTimeline.map((step) => (
-                    <div
-                      key={step.id}
-                      className="relative pl-4 border-l-2 border-slate-100 last:border-0 pb-1"
-                    >
+                    <div key={step.id} className="relative pl-4 border-l-2 border-slate-100 last:border-0 pb-1">
                       <div className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-blue-400"></div>
                       <div className="mb-1">
                         <span className="text-sm font-bold">{step.label}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <div>
-                          <label className="text-[10px] text-slate-400">
-                            เริ่ม
-                          </label>
+                          <label className="text-[10px] text-slate-400">เริ่ม</label>
                           <Input
                             type="date"
                             className="h-8 text-xs"
                             value={step.startDate || ""}
-                            onChange={(e) =>
-                              handleTimelineChange(
-                                step.id,
-                                "startDate",
-                                e.target.value,
-                              )
-                            }
+                            onChange={(e) => handleTimelineChange(step.id, "startDate", e.target.value)}
                             disabled={!isEditingTimeline}
                             aria-label={`วันที่เริ่ม ${step.label}`}
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] text-slate-400">
-                            สิ้นสุด
-                          </label>
+                          <label className="text-[10px] text-slate-400">สิ้นสุด</label>
                           <Input
                             type="date"
                             className="h-8 text-xs"
                             value={step.endDate || ""}
-                            onChange={(e) =>
-                              handleTimelineChange(
-                                step.id,
-                                "endDate",
-                                e.target.value,
-                              )
-                            }
+                            onChange={(e) => handleTimelineChange(step.id, "endDate", e.target.value)}
                             disabled={!isEditingTimeline}
                             aria-label={`วันที่สิ้นสุด ${step.label}`}
                           />
@@ -910,7 +879,7 @@ export default function AcademicYearConfigPage() {
             <div className="lg:col-span-8">
               <Card className="shadow-sm border-t-4 border-t-purple-500 h-[650px] flex flex-col">
                 <CardHeader className="bg-slate-50/50 pb-4 border-b">
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-start gap-3">
                     <div>
                       <CardTitle className="text-base flex items-center gap-2">
                         <BookOpen className="w-4 h-4 text-purple-600" /> รายวิชา
@@ -924,12 +893,13 @@ export default function AcademicYearConfigPage() {
                         )}
                       </CardDescription>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="relative w-64">
+
+                    <div className="flex flex-wrap items-center gap-2 justify-end">
+                      <div className="relative w-48">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
                         <input
                           type="text"
-                          placeholder="ค้นหารหัสวิชาหรือชื่อวิชา..."
+                          placeholder="ค้นหารหัส / ชื่อวิชา..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                           className="w-full pl-8 pr-3 py-1.5 text-xs border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500/20"
@@ -937,43 +907,40 @@ export default function AcademicYearConfigPage() {
                         />
                       </div>
 
+                      <Select value={selectedProgram} onValueChange={setSelectedProgram}>
+                        <SelectTrigger className="w-48 text-xs h-8 gap-1">
+                          <Filter className="w-3 h-3 text-slate-400 shrink-0" />
+                          <SelectValue placeholder="ทุกหลักสูตร" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">ทุกหลักสูตร</SelectItem>
+                          {programOptions.map((name) => (
+                            <SelectItem key={name} value={name}>
+                              {name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
                       {!isEditingCourses ? (
-                        <Button
-                          onClick={() => setIsEditingCourses(true)}
-                          variant="outline"
-                          size="sm"
-                          className="gap-2"
-                        >
+                        <Button onClick={() => setIsEditingCourses(true)} variant="outline" size="sm" className="gap-2">
                           <Pencil className="w-3.5 h-3.5" /> แก้ไข
                         </Button>
                       ) : (
                         <div className="flex gap-2">
-                          <Button
-                            onClick={handleCancelCourseEdit}
-                            variant="outline"
-                            size="sm"
-                            disabled={isSavingCourses}
-                          >
+                          <Button onClick={handleCancelCourseEdit} variant="outline" size="sm" disabled={isSavingCourses}>
                             <X className="w-4 h-4 mr-1" /> ยกเลิก
                           </Button>
                           <Button
                             onClick={handleSaveCourseChanges}
                             size="sm"
                             className="bg-purple-600 hover:bg-purple-700 gap-2"
-                            disabled={
-                              isSavingCourses || pendingChangesCount === 0
-                            }
+                            disabled={isSavingCourses || pendingChangesCount === 0}
                           >
                             {isSavingCourses ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" />{" "}
-                                กำลังบันทึก...
-                              </>
+                              <><Loader2 className="w-4 h-4 animate-spin" /> กำลังบันทึก...</>
                             ) : (
-                              <>
-                                <Save className="w-4 h-4" /> บันทึก (
-                                {pendingChangesCount})
-                              </>
+                              <><Save className="w-4 h-4" /> บันทึก ({pendingChangesCount})</>
                             )}
                           </Button>
                         </div>
@@ -981,29 +948,21 @@ export default function AcademicYearConfigPage() {
                     </div>
                   </div>
                 </CardHeader>
+
                 <CardContent className="p-0 flex-1 overflow-hidden relative">
                   <div className="absolute inset-0 overflow-y-auto">
                     <table className="w-full text-sm text-left">
                       <thead className="bg-white text-slate-500 text-xs uppercase sticky top-0 z-10 shadow-sm">
                         <tr>
-                          <th className="px-4 py-3 w-[80px] text-center bg-slate-50">
-                            สถานะ
-                          </th>
-                          <th className="px-4 py-3 bg-slate-50 w-[15%]">
-                            รหัส
-                          </th>
-                          <th className="px-4 py-3 bg-slate-50 w-[45%]">
-                            ชื่อวิชา / หลักสูตร
-                          </th>
-                          <th className="px-4 py-3 bg-slate-50 w-[30%]">
-                            ผู้รับผิดชอบ
-                          </th>
+                          <th className="px-4 py-3 w-[80px] text-center bg-slate-50">สถานะ</th>
+                          <th className="px-4 py-3 bg-slate-50 w-[15%]">รหัส</th>
+                          <th className="px-4 py-3 bg-slate-50 w-[45%]">ชื่อวิชา / หลักสูตร</th>
+                          <th className="px-4 py-3 bg-slate-50 w-[30%]">ผู้รับผิดชอบ</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {filteredCourses.map((course) => {
-                          const hasPendingChange =
-                            pendingCourseChanges.hasOwnProperty(course.id);
+                          const hasPendingChange = pendingCourseChanges.hasOwnProperty(course.id);
                           return (
                             <tr
                               key={course.id}
@@ -1012,35 +971,19 @@ export default function AcademicYearConfigPage() {
                               <td className="px-4 py-3 text-center">
                                 <Switch
                                   checked={course.isOpen}
-                                  onCheckedChange={() =>
-                                    handleToggleCourseLocal(
-                                      course.id,
-                                      course.isOpen,
-                                    )
-                                  }
-                                  disabled={
-                                    !isEditingCourses || isSavingCourses
-                                  }
+                                  onCheckedChange={() => handleToggleCourseLocal(course.id, course.isOpen)}
+                                  disabled={!isEditingCourses || isSavingCourses}
                                   className={`data-[state=checked]:bg-purple-600 scale-90 ${hasPendingChange ? "ring-2 ring-orange-400" : ""}`}
                                   aria-label={`${course.isOpen ? "ปิด" : "เปิด"}การสอน ${course.name}`}
                                 />
                                 {hasPendingChange && (
-                                  <div className="text-[9px] text-orange-600 font-semibold mt-1">
-                                    รอบันทึก
-                                  </div>
+                                  <div className="text-[9px] text-orange-600 font-semibold mt-1">รอบันทึก</div>
                                 )}
                               </td>
-                              <td className="px-4 py-3 font-semibold text-slate-700 align-top pt-4">
-                                {course.code}
-                              </td>
+                              <td className="px-4 py-3 font-semibold text-slate-700 align-top pt-4">{course.code}</td>
                               <td className="px-4 py-3 align-top pt-3">
-                                <div className="text-slate-800 font-medium">
-                                  {course.name}
-                                </div>
-                                <Badge
-                                  variant="outline"
-                                  className="mt-1 text-[10px] text-slate-500 bg-slate-50 border-slate-200 font-normal"
-                                >
+                                <div className="text-slate-800 font-medium">{course.name}</div>
+                                <Badge variant="outline" className="mt-1 text-[10px] text-slate-500 bg-slate-50 border-slate-200 font-normal">
                                   {course.programName}
                                 </Badge>
                               </td>
@@ -1055,12 +998,9 @@ export default function AcademicYearConfigPage() {
                         })}
                         {filteredCourses.length === 0 && (
                           <tr>
-                            <td
-                              colSpan={4}
-                              className="text-center py-12 text-slate-400"
-                            >
-                              {searchTerm
-                                ? "ไม่พบรายวิชาที่ค้นหา"
+                            <td colSpan={4} className="text-center py-12 text-slate-400">
+                              {searchTerm || selectedProgram !== "all"
+                                ? "ไม่พบรายวิชาที่ตรงกับเงื่อนไข"
                                 : "ไม่พบรายวิชาในเทอมนี้"}
                             </td>
                           </tr>
@@ -1069,9 +1009,10 @@ export default function AcademicYearConfigPage() {
                     </table>
                   </div>
                 </CardContent>
+
                 <CardFooter className="bg-slate-50 py-2 border-t text-[10px] text-slate-500 flex justify-between">
                   <span>เปิดสอน: {openCoursesCount} วิชา</span>
-                  <span>ทั้งหมด: {totalCoursesCount} วิชา</span>
+                  <span>แสดง: {filteredCourses.length} / ทั้งหมด: {totalCoursesCount} วิชา</span>
                 </CardFooter>
               </Card>
             </div>

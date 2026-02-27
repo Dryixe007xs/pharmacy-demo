@@ -45,7 +45,6 @@ export default function YearlyReportPage() {
   const [selectedCurriculum, setSelectedCurriculum] = useState("all");
   const [curriculumOptions, setCurriculumOptions] = useState<{ value: string; label: string }[]>([]);
 
-  // ชื่อที่แสดงสำหรับ programChair
   const [programChairCurriculumName, setProgramChairCurriculumName] = useState<string>("");
 
   const [printUrl, setPrintUrl] = useState<string | null>(null);
@@ -57,21 +56,18 @@ export default function YearlyReportPage() {
   const isProgramChair = userRole === "PROGRAM_CHAIR";
   const canViewAll = isAdmin || isViceDean;
 
-  // สร้างชื่อประธานหลักสูตรจาก session
   const getChairName = () => {
     const user = session?.user as any;
     if (!user) return "ท่านประธาน";
-
-    // ลองหาชื่อจาก field ต่าง ๆ ตามที่ next-auth session อาจมี
     if (user.name) return user.name;
     const firstName = user.firstName || user.first_name || "";
     const lastName = user.lastName || user.last_name || "";
     const fullName = `${firstName} ${lastName}`.trim();
-    if (fullName) return fullName;
-
-    return "ท่านประธาน";
+    return fullName || "ท่านประธาน";
   };
 
+  // ─── fetchMeta: โหลดรายการปี + หลักสูตร ──────────────────────────────────
+  // ใช้ session?.user เป็น dependency เพื่อให้ re-run เมื่อชื่อโหลดครบ
   useEffect(() => {
     if (!session) return;
 
@@ -79,13 +75,23 @@ export default function YearlyReportPage() {
       try {
         const res = await fetch(`/api/report/yearly?meta=true`);
         if (!res.ok) return;
-        const { availableYears: fetchedYears, programs, programChairCurriculum } = await res.json();
+
+        const {
+          availableYears: fetchedYears,
+          activeYear,
+          programs,
+          programChairCurriculum,
+        } = await res.json();
 
         if (fetchedYears && fetchedYears.length > 0) {
-          const yearStrings = fetchedYears.map(String);
+          const yearStrings: string[] = fetchedYears.map(String);
           setAvailableYears(yearStrings);
-          setSelectedYear(yearStrings[0]);
+
+          // ✅ ใช้ activeYear เป็น default ถ้ามี ไม่งั้นใช้ปีแรก
+          const defaultYear = activeYear ? String(activeYear) : yearStrings[0];
+          setSelectedYear(defaultYear);
         } else {
+          // Fallback กรณี DB ไม่มีข้อมูล
           const currentYear = new Date().getFullYear() + 543;
           const fallback = [String(currentYear), String(currentYear + 1)];
           setAvailableYears(fallback);
@@ -93,13 +99,14 @@ export default function YearlyReportPage() {
         }
 
         if (canViewAll && programs && programs.length > 0) {
-          setCurriculumOptions(programs.map((p: any) => ({
-            value: String(p.id),
-            label: p.name_th,
-          })));
+          setCurriculumOptions(
+            programs.map((p: any) => ({
+              value: String(p.id),
+              label: p.name_th,
+            }))
+          );
         }
 
-        // สร้างข้อความ "หลักสูตรที่ [ชื่อประธาน] รับผิดชอบ"
         if (isProgramChair && programChairCurriculum) {
           const chairName = getChairName();
           setProgramChairCurriculumName(`หลักสูตรที่ ${chairName} รับผิดชอบ`);
@@ -110,8 +117,11 @@ export default function YearlyReportPage() {
     };
 
     fetchMeta();
-  }, [session?.user?.role]);
+    // ✅ แก้ dependency จาก session?.user?.role เป็น session?.user
+    // เพื่อให้ re-run เมื่อข้อมูลชื่อโหลดครบ
+  }, [session?.user]);
 
+  // ─── fetchData: โหลดข้อมูลตารางเมื่อปีหรือหลักสูตรเปลี่ยน ───────────────
   useEffect(() => {
     if (!session || !selectedYear) return;
 
@@ -127,7 +137,7 @@ export default function YearlyReportPage() {
         const { assignments } = await res.json();
 
         const termsMap = new Map<number, Map<string, CourseData>>();
-        [1, 2, 3].forEach(termId => termsMap.set(termId, new Map()));
+        [1, 2, 3].forEach((termId) => termsMap.set(termId, new Map()));
 
         if (assignments) {
           assignments.forEach((assign: any) => {
@@ -155,7 +165,8 @@ export default function YearlyReportPage() {
             const course = termCourses.get(subjectKey)!;
             const title = assign.lecturer?.title || "";
             const fullName = `${title} ${assign.lecturer?.firstName} ${assign.lecturer?.lastName}`.trim();
-            const isResponsible = !isExternal &&
+            const isResponsible =
+              !isExternal &&
               String(assign.lecturer?.id) === String(assign.subject?.responsibleUserId);
 
             course.instructors.push({
@@ -178,7 +189,7 @@ export default function YearlyReportPage() {
           { termId: 3, termTitle: "ภาคฤดูร้อน", courses: [] },
         ];
 
-        results.forEach(g => {
+        results.forEach((g) => {
           const m = termsMap.get(g.termId);
           if (m) g.courses = Array.from(m.values()).sort((a, b) => a.code.localeCompare(b.code));
         });
@@ -203,8 +214,8 @@ export default function YearlyReportPage() {
     const curriculumLabel = isProgramChair
       ? programChairCurriculumName || `หลักสูตรที่ ${getChairName()} รับผิดชอบ`
       : selectedCurriculum === "all"
-        ? "รวมทุกหลักสูตร"
-        : curriculumOptions.find(c => c.value === selectedCurriculum)?.label || "ไม่ระบุหลักสูตร";
+      ? "รวมทุกหลักสูตร"
+      : curriculumOptions.find((c) => c.value === selectedCurriculum)?.label || "ไม่ระบุหลักสูตร";
 
     const params = new URLSearchParams({
       year: selectedYear,
@@ -217,11 +228,12 @@ export default function YearlyReportPage() {
     setTimeout(() => setIsPrinting(false), 3000);
   };
 
-  if (!session) return (
-    <div className="h-screen flex items-center justify-center">
-      <Loader2 className="animate-spin w-8 h-8 text-purple-600" />
-    </div>
-  );
+  if (!session)
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin w-8 h-8 text-purple-600" />
+      </div>
+    );
 
   if (!canViewAll && !isProgramChair) {
     return (
@@ -234,15 +246,14 @@ export default function YearlyReportPage() {
     );
   }
 
-  // label สำหรับแสดงในหน้า UI
   const displayLabel = isProgramChair
     ? programChairCurriculumName || `หลักสูตรที่ ${getChairName()} รับผิดชอบ`
     : selectedCurriculum === "all"
-      ? "รวมทุกหลักสูตร"
-      : curriculumOptions.find(c => c.value === selectedCurriculum)?.label || "ไม่ระบุหลักสูตร";
+    ? "รวมทุกหลักสูตร"
+    : curriculumOptions.find((c) => c.value === selectedCurriculum)?.label || "ไม่ระบุหลักสูตร";
 
-  // placeholder ในกล่อง UI (กรณี programChair)
-  const chairDisplayText = programChairCurriculumName || `หลักสูตรที่ ${getChairName()} รับผิดชอบ`;
+  const chairDisplayText =
+    programChairCurriculumName || `หลักสูตรที่ ${getChairName()} รับผิดชอบ`;
 
   return (
     <div className="min-h-screen bg-slate-50/30 p-8 font-sarabun text-slate-800">
@@ -262,7 +273,7 @@ export default function YearlyReportPage() {
           <Button
             className="gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-md rounded-full px-6 transition-all"
             onClick={handlePrint}
-            disabled={isPrinting || processedData.every(t => t.courses.length === 0)}
+            disabled={isPrinting || processedData.every((t) => t.courses.length === 0)}
           >
             {isPrinting ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
             {isPrinting ? "กำลังเตรียมเอกสาร..." : "พิมพ์รายงาน (PDF)"}
@@ -271,26 +282,36 @@ export default function YearlyReportPage() {
 
         {/* Filter Section */}
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-6 items-end">
+          {/* ─── ปีการศึกษา ─── */}
           <div className="space-y-1.5 w-40">
             <label className="text-xs font-semibold text-slate-500">
               <Calendar size={12} className="inline mr-1" /> ปีการศึกษา
             </label>
-            <Select value={selectedYear} onValueChange={setSelectedYear} disabled={availableYears.length === 0}>
+            <Select
+              value={selectedYear}
+              onValueChange={setSelectedYear}
+              disabled={availableYears.length === 0}
+            >
               <SelectTrigger className="bg-slate-50 border-slate-200 h-10">
                 <SelectValue placeholder="เลือกปีการศึกษา" />
               </SelectTrigger>
               <SelectContent>
                 {availableYears.length > 0 ? (
-                  availableYears.map(year => (
-                    <SelectItem key={year} value={year}>{year}</SelectItem>
+                  availableYears.map((year) => (
+                    <SelectItem key={year} value={year}>
+                      {year}
+                    </SelectItem>
                   ))
                 ) : (
-                  <SelectItem value="no-data" disabled>ไม่พบข้อมูลปีการศึกษา</SelectItem>
+                  <SelectItem value="no-data" disabled>
+                    ไม่พบข้อมูลปีการศึกษา
+                  </SelectItem>
                 )}
               </SelectContent>
             </Select>
           </div>
 
+          {/* ─── หลักสูตร ─── */}
           <div className="space-y-1.5 min-w-[300px] max-w-lg flex-1">
             <label className="text-xs font-semibold text-slate-500">
               <Filter size={12} className="inline mr-1" /> หลักสูตร
@@ -306,8 +327,10 @@ export default function YearlyReportPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">แสดงทั้งหมด</SelectItem>
-                  {curriculumOptions.map(c => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  {curriculumOptions.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -332,7 +355,7 @@ export default function YearlyReportPage() {
               <Loader2 className="animate-spin w-8 h-8 mb-2" />
               <p>กำลังประมวลผลข้อมูล...</p>
             </div>
-          ) : processedData.every(term => term.courses.length === 0) ? (
+          ) : processedData.every((term) => term.courses.length === 0) ? (
             <div className="h-64 flex flex-col items-center justify-center text-slate-400">
               <AlertCircle className="w-12 h-12 mb-3 text-slate-300" />
               <p className="text-lg font-medium">ไม่พบข้อมูลรายวิชา</p>
@@ -382,7 +405,9 @@ export default function YearlyReportPage() {
                             {course.instructors.map((inst, iIndex) => (
                               <tr
                                 key={iIndex}
-                                className={`hover:bg-slate-50 transition-colors ${course.isExternal ? "bg-orange-50/20" : ""}`}
+                                className={`hover:bg-slate-50 transition-colors ${
+                                  course.isExternal ? "bg-orange-50/20" : ""
+                                }`}
                               >
                                 {iIndex === 0 && (
                                   <td
@@ -408,11 +433,13 @@ export default function YearlyReportPage() {
 
                                 <td className="py-3 px-4 align-top text-slate-700 border-r border-slate-50">
                                   <div className="font-medium">{inst.name}</div>
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                                    inst.role.includes("รับผิดชอบ")
-                                      ? "bg-orange-50 text-orange-700 border-orange-100"
-                                      : "bg-blue-50 text-blue-700 border-blue-100"
-                                  }`}>
+                                  <span
+                                    className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                                      inst.role.includes("รับผิดชอบ")
+                                        ? "bg-orange-50 text-orange-700 border-orange-100"
+                                        : "bg-blue-50 text-blue-700 border-blue-100"
+                                    }`}
+                                  >
                                     {inst.role}
                                   </span>
                                   {inst.isExternal && inst.externalFaculty && (
@@ -421,9 +448,15 @@ export default function YearlyReportPage() {
                                     </div>
                                   )}
                                 </td>
-                                <td className="py-3 px-2 align-top text-center text-slate-600">{inst.lecture || "-"}</td>
-                                <td className="py-3 px-2 align-top text-center text-slate-600">{inst.lab || "-"}</td>
-                                <td className="py-3 px-2 align-top text-center text-slate-600">{inst.exam || "-"}</td>
+                                <td className="py-3 px-2 align-top text-center text-slate-600">
+                                  {inst.lecture || "-"}
+                                </td>
+                                <td className="py-3 px-2 align-top text-center text-slate-600">
+                                  {inst.lab || "-"}
+                                </td>
+                                <td className="py-3 px-2 align-top text-center text-slate-600">
+                                  {inst.exam || "-"}
+                                </td>
                                 <td className="py-3 px-2 align-top text-center text-purple-600 font-bold bg-purple-50/10">
                                   {inst.critique || "-"}
                                 </td>
