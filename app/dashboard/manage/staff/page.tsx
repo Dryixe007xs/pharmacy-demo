@@ -200,8 +200,10 @@ const Modal = ({
 // ==========================================
 // CONSTANTS
 // ==========================================
-// ✅ ครอบคลุมทุกชื่อที่เป็นสายสนับสนุน
 const OFFICE_KEYWORDS = ["สำนักงานคณะ", "สายสนับสนุน", "ฝ่ายสนับสนุน", "สนับสนุน"];
+
+// ✅ ชื่อสังกัดที่จะ fix อัตโนมัติเมื่อเลือกสายสนับสนุน
+const OFFICE_DEPARTMENT_FIXED = "สำนักงานคณะ";
 
 const ROLE_OPTIONS_ACADEMIC: DropdownOption[] = [
   { label: "อาจารย์ผู้สอน (ทั่วไป)", value: "LECTURER", description: "สิทธิ์กรอกภาระงานสอน" },
@@ -283,7 +285,6 @@ export default function ManageStaffPage() {
     return name.slice(0, 2).toUpperCase();
   };
 
-  // ✅ ตรวจสอบว่า curriculum ที่เลือกเป็นสำนักงานคณะหรือไม่
   const isOfficeCurriculum = (curriculumId: string | number) => {
     if (!curriculumId) return false;
     const found = curriculums.find(c => String(c.id) === String(curriculumId));
@@ -302,7 +303,6 @@ export default function ManageStaffPage() {
 
   // ---- Handlers ----
   const handleDelete = async (id: string, name: string) => {
-    // ✅ ถามครั้งแรก
     const first = await Swal.fire({
       title: 'ลบข้อมูลบุคลากร?',
       html: `ต้องการลบข้อมูลบุคลากรของ<br/><strong class="text-gray-800">${name}</strong><br/>ใช่หรือไม่?`,
@@ -318,7 +318,6 @@ export default function ManageStaffPage() {
 
     if (!first.isConfirmed) return;
 
-    // ✅ ถามยืนยันครั้งที่สอง
     const second = await Swal.fire({
       title: 'ยืนยันอีกครั้ง',
       html: `คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลของ<br/><strong class="text-red-600">${name}</strong><br/><span class="text-sm text-gray-500">การกระทำนี้ไม่สามารถเรียกคืนได้</span>`,
@@ -369,7 +368,6 @@ export default function ManageStaffPage() {
       return;
     }
 
-    // ✅ ยืนยันก่อนบันทึก (edit mode)
     if (isEditMode) {
       const confirm = await Swal.fire({
         title: 'บันทึกการแก้ไข?',
@@ -394,7 +392,7 @@ export default function ManageStaffPage() {
         firstName: formData.firstName,
         lastName: formData.lastName,
         role: formData.role,
-        adminTitle: null, // ✅ ตัด adminTitle ออกเสมอ (ไม่มีฟิลด์ตำแหน่งบริหารแล้ว)
+        adminTitle: null,
         department: formData.department || null,
         curriculumId: formData.curriculumId,
         workStatus: formData.workStatus
@@ -448,14 +446,17 @@ export default function ManageStaffPage() {
     setIsModalOpen(true);
   };
 
-  // ✅ เมื่อเปลี่ยน curriculum ให้ auto-set role ด้วย
+  // ✅ เมื่อเปลี่ยน curriculum:
+  //    - ถ้าเป็นสายสนับสนุน → role = ADMIN, department = "สำนักงานคณะ" (fix)
+  //    - ถ้าเป็นสายวิชาการ  → role = LECTURER (ถ้าเดิมเป็น ADMIN), department = ""
   const handleCurriculumChange = (val: string) => {
     const found = curriculums.find(c => String(c.id) === val);
     const isOffice = found ? OFFICE_KEYWORDS.some(kw => found.name.includes(kw)) : false;
     setFormData((prev: any) => ({
       ...prev,
       curriculumId: val,
-      role: isOffice ? "ADMIN" : (prev.role === "ADMIN" ? "LECTURER" : prev.role)
+      role: isOffice ? "ADMIN" : (prev.role === "ADMIN" ? "LECTURER" : prev.role),
+      department: isOffice ? OFFICE_DEPARTMENT_FIXED : (prev.department === OFFICE_DEPARTMENT_FIXED ? "" : prev.department),
     }));
   };
 
@@ -468,17 +469,18 @@ export default function ManageStaffPage() {
     return matchesSearch;
   });
 
+  // ✅ กรองหลักสูตรสายสนับสนุนออกจาก filter dropdown ของแท็บสายวิชาการ
   const curriculumFilterOptions = [
     { label: "ทุกหลักสูตร", value: "" },
-    ...curriculums.map(c => ({ label: c.name, value: String(c.id) }))
+    ...curriculums
+      .filter(c => !OFFICE_KEYWORDS.some(kw => c.name.includes(kw)))
+      .map(c => ({ label: c.name, value: String(c.id) }))
   ];
 
-  // ✅ ตรวจสอบว่า form ปัจจุบันเป็น สายสนับสนุน หรือไม่
   const currentIsOffice = isOfficeCurriculum(formData.curriculumId);
 
   return (
     <>
-      {/* ✅ inject CSS สำหรับ swal z-index ให้สูงกว่า modal ทั่วไป */}
       <style>{`
         .swal-above-modal { z-index: 99999 !important; }
         .swal2-container { z-index: 99990 !important; }
@@ -523,6 +525,7 @@ export default function ManageStaffPage() {
                   <input type="text" placeholder="ค้นหาชื่อ หรือ อีเมล..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full h-10 pl-10 pr-4 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all bg-slate-50/30 focus:bg-white" />
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 </div>
+                {/* ✅ แสดง filter dropdown เฉพาะแท็บ สายวิชาการ และกรองสายสนับสนุนออกแล้ว */}
                 {activeTab === "ACADEMIC" && (
                   <div className="w-full md:w-72">
                     <FilterDropdown
@@ -632,15 +635,30 @@ export default function ManageStaffPage() {
                 />
                 {currentIsOffice && (
                   <p className="text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100 mt-1 flex items-center gap-1.5">
-                    <BadgeCheck size={13}/> สังกัดสำนักงานคณะ — สิทธิ์จะถูกกำหนดเป็น Admin อัตโนมัติ
+                    <BadgeCheck size={13}/> สังกัดสำนักงานคณะ — สิทธิ์และสังกัดย่อยถูกกำหนดอัตโนมัติ
                   </p>
                 )}
               </div>
 
-              {/* กลุ่มวิชา */}
+              {/* กลุ่มวิชา / สังกัดย่อย */}
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-slate-700">กลุ่มวิชา / สังกัดย่อย <span className="text-slate-400 font-normal">(ถ้ามี)</span></label>
-                <input type="text" value={formData.department || ""} onChange={(e) => setFormData({...formData, department: e.target.value})} placeholder="เช่น เภสัชกรรมคลินิก, สำนักงานคณะ" className="w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" />
+                <label className="text-sm font-semibold text-slate-700">
+                  กลุ่มวิชา / สังกัดย่อย{" "}
+                  {currentIsOffice
+                    ? <span className="text-amber-500 font-normal text-xs">(ถูกกำหนดอัตโนมัติ)</span>
+                    : <span className="text-slate-400 font-normal">(ถ้ามี)</span>
+                  }
+                </label>
+                <input
+                  type="text"
+                  value={formData.department || ""}
+                  onChange={(e) => setFormData({...formData, department: e.target.value})}
+                  placeholder="เช่น เภสัชกรรมคลินิก, สำนักงานคณะ"
+                  // ✅ ถ้าเป็นสายสนับสนุน → disable และแสดงค่า fix
+                  disabled={currentIsOffice}
+                  className={`w-full border border-slate-200 rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all
+                    ${currentIsOffice ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
+                />
               </div>
             </div>
 
@@ -690,7 +708,6 @@ export default function ManageStaffPage() {
                     <span>สิทธิ์การใช้งาน</span>
                     {currentIsOffice && <span className="text-[11px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100 font-normal">ถูกล็อกเป็น Admin</span>}
                   </label>
-                  {/* ✅ ถ้าเป็นสำนักงานคณะ → lock เป็น Admin / ถ้าเป็นหลักสูตรวิชาการ → ไม่มีตัวเลือก Admin */}
                   <CustomDropdown
                     options={currentIsOffice ? ROLE_OPTIONS_ADMIN : ROLE_OPTIONS_ACADEMIC}
                     value={currentIsOffice ? "ADMIN" : (formData.role === "ADMIN" ? "LECTURER" : formData.role || "LECTURER")}

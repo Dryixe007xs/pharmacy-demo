@@ -10,11 +10,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// ✅ 1. เพิ่มสถานะ "รอรองฯ วิชาการ" (PENDING_DEAN)
 const getStatusBadge = (status: string) => {
     switch(status) {
         case 'APPROVED': return { text: "อนุมัติแล้ว", color: "text-green-600 bg-green-50 border-green-200" };
-        case 'PENDING_DEAN': return { text: "รอรองฯ วิชาการ", color: "text-purple-600 bg-purple-50 border-purple-200" }; // เพิ่มสีม่วง
+        case 'PENDING_DEAN': return { text: "รอรองฯ วิชาการ", color: "text-purple-600 bg-purple-50 border-purple-200" };
         case 'PENDING_HEAD': return { text: "รอประธานฯ", color: "text-blue-600 bg-blue-50 border-blue-200" };
         case 'IN_PROGRESS': return { text: "กำลังดำเนินการ", color: "text-orange-600 bg-orange-50 border-orange-200" };
         case 'REJECTED': return { text: "ถูกตีกลับ", color: "text-red-600 bg-red-50 border-red-200" };
@@ -23,7 +22,6 @@ const getStatusBadge = (status: string) => {
     }
 };
 
-// Helper Semester Badge
 const getSemesterBadge = (semester: number) => {
     switch(semester) {
         case 1: return { text: "ภาคต้น", color: "bg-blue-100 text-blue-700 border-blue-200" };
@@ -39,32 +37,11 @@ export default function AdminDashboard({ session }: { session: any }) {
     const [instructors, setInstructors] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [availableYears, setAvailableYears] = useState<string[]>([]);
-    
-    const [selectedYear, setSelectedYear] = useState<string>(""); 
+    const [selectedYear, setSelectedYear] = useState<string>("");
     const [selectedSemester, setSelectedSemester] = useState<string>("all");
 
-    const fetchYears = async () => {
-        try {
-            const res = await fetch(`/api/admin/dashboard?meta=true`); 
-            const json = await res.json();
-            
-            if (json.availableYears) {
-                setAvailableYears(json.availableYears.map(String));
-            }
-            
-            if (!selectedYear && json.activeYear) {
-                return String(json.activeYear);
-            } else if (!selectedYear && json.availableYears?.length > 0) {
-                return String(json.availableYears[0]);
-            }
-            return selectedYear || String(new Date().getFullYear() + 543);
-        } catch (e) {
-            console.error("Failed to fetch years", e);
-            return String(new Date().getFullYear() + 543);
-        }
-    };
-
     const fetchData = async (year: string, semester: string) => {
+        if (!year) return;
         setLoading(true);
         try {
             let resultData: any[] = [];
@@ -76,17 +53,13 @@ export default function AdminDashboard({ session }: { session: any }) {
                 );
 
                 const instructorMap = new Map();
-
                 responses.forEach((res, index) => {
                     const currentSem = index + 1;
                     const data = res.data || [];
-
                     data.forEach((inst: any) => {
                         const coursesWithSem = inst.courses.map((c: any) => ({ ...c, semester: currentSem }));
-                        
                         if (instructorMap.has(inst.id)) {
-                            const existingInst = instructorMap.get(inst.id);
-                            existingInst.courses.push(...coursesWithSem);
+                            instructorMap.get(inst.id).courses.push(...coursesWithSem);
                         } else {
                             instructorMap.set(inst.id, { ...inst, courses: coursesWithSem });
                         }
@@ -94,11 +67,9 @@ export default function AdminDashboard({ session }: { session: any }) {
                 });
 
                 resultData = Array.from(instructorMap.values());
-
             } else {
                 const res = await fetch(`/api/admin/dashboard?year=${year}&semester=${semester}`);
                 const json = await res.json();
-                
                 resultData = (json.data || []).map((inst: any) => ({
                     ...inst,
                     courses: inst.courses.map((c: any) => ({ ...c, semester: parseInt(semester) }))
@@ -106,7 +77,6 @@ export default function AdminDashboard({ session }: { session: any }) {
             }
 
             setInstructors(resultData);
-
         } catch (error) {
             console.error("Fetch error:", error);
         } finally {
@@ -114,11 +84,29 @@ export default function AdminDashboard({ session }: { session: any }) {
         }
     };
 
+    // ✅ แยก init ออกมาชัดเจน: fetch years ก่อน → set state → fetch data ด้วยปีที่ถูกต้อง
     useEffect(() => {
         const init = async () => {
-            const activeYear = await fetchYears();
-            setSelectedYear(activeYear);
-            fetchData(activeYear, "all");
+            try {
+                const res = await fetch(`/api/admin/dashboard?meta=true`);
+                const json = await res.json();
+
+                const years: string[] = (json.availableYears || []).map(String);
+                setAvailableYears(years);
+
+                // ✅ default = ปีที่ active, ถ้าไม่มีให้ใช้ปีแรกใน list
+                const defaultYear = json.activeYear
+                    ? String(json.activeYear)
+                    : years[0] ?? String(new Date().getFullYear() + 543);
+
+                setSelectedYear(defaultYear);
+                fetchData(defaultYear, "all");
+            } catch (e) {
+                console.error("Failed to fetch years", e);
+                const fallback = String(new Date().getFullYear() + 543);
+                setSelectedYear(fallback);
+                fetchData(fallback, "all");
+            }
         };
         init();
     }, []);
@@ -134,22 +122,22 @@ export default function AdminDashboard({ session }: { session: any }) {
     };
 
     const toggleRow = (id: string) => {
-        setExpandedRows(prev => 
+        setExpandedRows(prev =>
             prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]
         );
     };
 
-    const filteredData = instructors.filter(i => 
-        i.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const filteredData = instructors.filter(i =>
+        i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         i.department.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    // Stats Logic
     const totalInstructors = instructors.length;
     const totalCourses = instructors.reduce((acc, curr) => acc + curr.courses.length, 0);
-    // นับเฉพาะที่ Dean Approved แล้วจริงๆ
-    const completedCourses = instructors.reduce((acc, curr) => acc + curr.courses.filter((c: any) => c.deanApprovalStatus === 'APPROVED' || c.status === 'APPROVED').length, 0);
-    const percentComplete = totalCourses > 0 ? Math.round((completedCourses/totalCourses)*100) : 0;
+    const completedCourses = instructors.reduce((acc, curr) =>
+        acc + curr.courses.filter((c: any) => c.deanApprovalStatus === 'APPROVED' || c.status === 'APPROVED').length, 0
+    );
+    const percentComplete = totalCourses > 0 ? Math.round((completedCourses / totalCourses) * 100) : 0;
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 font-sarabun p-6 bg-slate-50/30 min-h-screen">
@@ -163,7 +151,7 @@ export default function AdminDashboard({ session }: { session: any }) {
                     <div className="flex items-center gap-2 px-2 text-sm text-slate-500 font-medium">
                         <Calendar size={16} /> ปีการศึกษา:
                     </div>
-                    
+
                     <Select value={selectedSemester} onValueChange={(v) => handleFilterChange('semester', v)}>
                         <SelectTrigger className="w-[160px] h-9 text-sm bg-slate-50 font-bold">
                             <SelectValue placeholder="เทอม" />
@@ -178,20 +166,23 @@ export default function AdminDashboard({ session }: { session: any }) {
 
                     <span className="text-slate-300">/</span>
 
-                    <Select value={selectedYear} onValueChange={(v) => handleFilterChange('year', v)}>
-                        <SelectTrigger className="w-[100px] h-9 text-sm bg-slate-50">
-                            <SelectValue placeholder="ปี" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {availableYears.length > 0 ? (
-                                availableYears.map(y => (
+                    {/* ✅ ป้องกัน Select render ก่อนที่ selectedYear จะมีค่า */}
+                    {selectedYear ? (
+                        <Select value={selectedYear} onValueChange={(v) => handleFilterChange('year', v)}>
+                            <SelectTrigger className="w-[100px] h-9 text-sm bg-slate-50">
+                                <SelectValue placeholder="ปี" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {availableYears.map(y => (
                                     <SelectItem key={y} value={y}>{y}</SelectItem>
-                                ))
-                            ) : (
-                                <SelectItem value={selectedYear || "2569"}>{selectedYear || "..."}</SelectItem>
-                            )}
-                        </SelectContent>
-                    </Select>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    ) : (
+                        <div className="w-[100px] h-9 bg-slate-50 border rounded-md flex items-center justify-center">
+                            <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -203,7 +194,7 @@ export default function AdminDashboard({ session }: { session: any }) {
                             <p className="text-sm text-slate-500 font-medium">ผู้รับผิดชอบรายวิชาที่มีภาระงาน</p>
                             <h3 className="text-3xl font-bold text-slate-800 mt-1">{totalInstructors} <span className="text-sm font-normal text-slate-400">ท่าน</span></h3>
                         </div>
-                        <div className="bg-blue-50 p-3 rounded-full text-blue-600"><Users size={24}/></div>
+                        <div className="bg-blue-50 p-3 rounded-full text-blue-600"><Users size={24} /></div>
                     </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-orange-500 shadow-sm">
@@ -214,7 +205,7 @@ export default function AdminDashboard({ session }: { session: any }) {
                             </p>
                             <h3 className="text-3xl font-bold text-slate-800 mt-1">{totalCourses} <span className="text-sm font-normal text-slate-400">วิชา</span></h3>
                         </div>
-                        <div className="bg-orange-50 p-3 rounded-full text-orange-600"><BookOpen size={24}/></div>
+                        <div className="bg-orange-50 p-3 rounded-full text-orange-600"><BookOpen size={24} /></div>
                     </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-green-500 shadow-sm">
@@ -223,7 +214,7 @@ export default function AdminDashboard({ session }: { session: any }) {
                             <p className="text-sm text-slate-500 font-medium">อนุมัติแล้ว (ภาพรวม)</p>
                             <h3 className="text-3xl font-bold text-green-600 mt-1">{percentComplete}%</h3>
                         </div>
-                        <div className="bg-green-50 p-3 rounded-full text-green-600"><BarChart3 size={24}/></div>
+                        <div className="bg-green-50 p-3 rounded-full text-green-600"><BarChart3 size={24} /></div>
                     </CardContent>
                 </Card>
             </div>
@@ -233,17 +224,26 @@ export default function AdminDashboard({ session }: { session: any }) {
                 <CardHeader className="pb-4 bg-white border-b border-slate-100">
                     <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                         <CardTitle className="text-lg text-slate-800 flex items-center gap-2">
-                            <Clock className="w-5 h-5 text-purple-600"/> สถานะความคืบหน้า
+                            <Clock className="w-5 h-5 text-purple-600" /> สถานะความคืบหน้า
                         </CardTitle>
                         <div className="relative w-full md:w-72">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                            <input type="text" placeholder="ค้นหาชื่ออาจารย์..." className="w-full pl-10 pr-4 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 bg-slate-50 focus:bg-white transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                            <input
+                                type="text"
+                                placeholder="ค้นหาชื่ออาจารย์..."
+                                className="w-full pl-10 pr-4 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 bg-slate-50 focus:bg-white transition-all"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
                         </div>
                     </div>
                 </CardHeader>
                 <div className="overflow-x-auto min-h-[300px]">
                     {loading ? (
-                        <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-2"><Loader2 className="w-8 h-8 animate-spin text-purple-500" /><p>กำลังโหลดข้อมูล...</p></div>
+                        <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-2">
+                            <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+                            <p>กำลังโหลดข้อมูล...</p>
+                        </div>
                     ) : filteredData.length > 0 ? (
                         <table className="w-full text-sm text-left">
                             <thead className="bg-slate-50/70 text-slate-500 uppercase text-xs font-semibold tracking-wider">
@@ -257,13 +257,16 @@ export default function AdminDashboard({ session }: { session: any }) {
                             <tbody className="divide-y divide-slate-100 bg-white">
                                 {filteredData.map((instructor) => {
                                     const total = instructor.courses.length;
-                                    const finished = instructor.courses.filter((c:any) => c.status === 'APPROVED' || c.deanApprovalStatus === 'APPROVED').length;
+                                    const finished = instructor.courses.filter((c: any) => c.status === 'APPROVED' || c.deanApprovalStatus === 'APPROVED').length;
                                     const percent = total > 0 ? (finished / total) * 100 : 0;
                                     const isExpanded = expandedRows.includes(instructor.id);
 
                                     return (
                                         <React.Fragment key={instructor.id}>
-                                            <tr className={cn("transition-colors cursor-pointer hover:bg-slate-50", isExpanded ? "bg-slate-50" : "")} onClick={() => toggleRow(instructor.id)}>
+                                            <tr
+                                                className={cn("transition-colors cursor-pointer hover:bg-slate-50", isExpanded ? "bg-slate-50" : "")}
+                                                onClick={() => toggleRow(instructor.id)}
+                                            >
                                                 <td className="px-6 py-4">
                                                     <div className="font-bold text-slate-700">{instructor.name}</div>
                                                     <div className="text-xs text-slate-400 mt-0.5">{total} วิชาที่รับผิดชอบ</div>
@@ -283,7 +286,7 @@ export default function AdminDashboard({ session }: { session: any }) {
                                                     </Button>
                                                 </td>
                                             </tr>
-                                            
+
                                             {isExpanded && (
                                                 <tr className="bg-slate-50/50 animate-in fade-in duration-200">
                                                     <td colSpan={4} className="px-6 py-6 pb-8 shadow-inner">
@@ -302,19 +305,13 @@ export default function AdminDashboard({ session }: { session: any }) {
                                                                         instructor.courses
                                                                             .sort((a: any, b: any) => a.semester - b.semester || a.code.localeCompare(b.code))
                                                                             .map((course: any, idx: number) => {
-                                                                                
-                                                                                // ✅ 2. แก้ Logic การแสดงสถานะตรงนี้
                                                                                 let displayStatus = course.status;
-
-                                                                                // ถ้าประธานอนุมัติแล้ว แต่รองฯ ยัง Pending => ให้ขึ้นว่า "รอรองฯ"
-                                                                                // (สมมติว่า backend ส่ง deanApprovalStatus มาด้วย หรือถ้าไม่มี logic นี้อาจจะไม่ทำงาน แต่ปลอดภัยไว้ก่อน)
                                                                                 if (course.headApprovalStatus === 'APPROVED' && course.deanApprovalStatus === 'PENDING') {
                                                                                     displayStatus = 'PENDING_DEAN';
                                                                                 }
-
                                                                                 const status = getStatusBadge(displayStatus);
                                                                                 const semBadge = getSemesterBadge(course.semester);
-                                                                                
+
                                                                                 return (
                                                                                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                                                                                         <td className="px-4 py-3">

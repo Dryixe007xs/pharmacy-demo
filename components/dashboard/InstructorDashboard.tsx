@@ -36,6 +36,8 @@ type Assignment = {
   semester: number; 
   lectureHours: number;
   labHours: number;
+  examHours: number;         // คุมสอบนอกตาราง
+  examCritiqueHours: number; // วิพากษ์ข้อสอบ
   subject: {
     id: number;
     code: string;
@@ -155,11 +157,11 @@ const CourseTableSection = ({
           <thead className="bg-slate-50/50 border-b border-slate-200 text-slate-700 text-sm font-semibold uppercase tracking-wider">
             <tr>
               <th className="p-4 pl-6 w-[12%]">รหัสวิชา</th>
-              <th className="p-4 w-[33%]">ชื่อรายวิชา</th>
-              <th className="p-4 w-[10%] text-center">{type === 'responsible' ? 'หน่วยกิต' : 'ภาระงาน'}</th>
-              <th className="p-4 w-[20%] text-center">ข้อมูลเพิ่มเติม</th>
+              <th className="p-4 w-[30%]">ชื่อรายวิชา</th>
+              <th className="p-4 w-[18%] text-center">{type === 'responsible' ? 'หน่วยกิต' : 'ภาระงาน (ชม.)'}</th>
+              <th className="p-4 w-[17%] text-center">ข้อมูลเพิ่มเติม</th>
               <th className="p-4 w-[13%] text-center">สถานะ</th>
-              <th className="p-4 pr-6 w-[12%] text-center"></th> 
+              <th className="p-4 pr-6 w-[10%] text-center"></th> 
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
@@ -187,7 +189,6 @@ const CourseTableSection = ({
                         const assignment = type === 'teaching' ? item : null;
                         const key = type === 'responsible' ? course.id : assignment.id;
 
-                        // Logic แสดงผลสถานะ
                         const showStatus = type === 'responsible' ? course.status : assignment.lecturerStatus;
 
                         return (
@@ -201,8 +202,28 @@ const CourseTableSection = ({
                                     {type === 'responsible' ? (
                                         <span className="bg-slate-50 border rounded px-2 py-1 inline-block text-slate-600 whitespace-nowrap">{course.credit}</span>
                                     ) : (
-                                        <div className="bg-slate-50 border rounded px-2 py-1 inline-block text-slate-600 whitespace-nowrap">
-                                            {assignment.lectureHours} บรรยาย / {assignment.labHours} ปฏิบัติ
+                                        // ✅ แสดงภาระงานครบ 4 ประเภท
+                                        <div className="space-y-1.5 text-left inline-block">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0"></span>
+                                                <span className="text-slate-500 w-20">บรรยาย</span>
+                                                <span className="font-semibold text-slate-700 tabular-nums">{assignment.lectureHours ?? 0} ชม.</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0"></span>
+                                                <span className="text-slate-500 w-20">ปฏิบัติ</span>
+                                                <span className="font-semibold text-slate-700 tabular-nums">{assignment.labHours ?? 0} ชม.</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0"></span>
+                                                <span className="text-slate-500 w-20">คุมสอบนอกตาราง</span>
+                                                <span className="font-semibold text-slate-700 tabular-nums">{assignment.examHours ?? 0} ชม.</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="w-2 h-2 rounded-full bg-purple-400 flex-shrink-0"></span>
+                                                <span className="text-slate-500 w-20">วิพากษ์</span>
+                                                <span className="font-semibold text-slate-700 tabular-nums">{assignment.examCritiqueHours ?? 0} ชม.</span>
+                                            </div>
                                         </div>
                                     )}
                                 </td>
@@ -276,24 +297,20 @@ export default function InstructorDashboard({ session }: { session: any }) {
             if (Array.isArray(allCourses)) {
                 let myCourses = allCourses.filter((c: any) => String(c.responsibleUserId) === String(currentUser.id));
                 
-                // Re-Calculate Status Logic
                 myCourses = myCourses.map((course: any) => {
                     const assigns = course.teachingAssignments || [];
                     
                     if (assigns.length > 0) {
                         const allHeadApproved = assigns.every((a: any) => a.headApprovalStatus === 'APPROVED');
-                        // ✅ เช็ค academicApprovalStatus ตามที่ต้องการ
                         const allDeanApproved = assigns.every((a: any) => a.academicApprovalStatus === 'APPROVED');
-                        
                         const anyRejected = assigns.some((a: any) => a.headApprovalStatus === 'REJECTED' || a.responsibleStatus === 'REJECTED');
                         const allSubmitted = assigns.every((a: any) => a.responsibleStatus === 'APPROVED'); 
 
-                        // Override status logic
-                        if (allDeanApproved) course.status = 'APPROVED'; // เขียว (เสร็จสิ้น)
-                        else if (allHeadApproved) course.status = 'PENDING_DEAN'; // ม่วง (รอรองฯ)
-                        else if (anyRejected) course.status = 'REJECTED'; // แดง
-                        else if (allSubmitted) course.status = 'PENDING_HEAD'; // ฟ้า (รอประธาน)
-                        else course.status = 'IN_PROGRESS'; // ส้ม
+                        if (allDeanApproved) course.status = 'APPROVED';
+                        else if (allHeadApproved) course.status = 'PENDING_DEAN';
+                        else if (anyRejected) course.status = 'REJECTED';
+                        else if (allSubmitted) course.status = 'PENDING_HEAD';
+                        else course.status = 'IN_PROGRESS';
                     }
                     return course;
                 });
@@ -306,7 +323,9 @@ export default function InstructorDashboard({ session }: { session: any }) {
             if (Array.isArray(myAssign)) {
                 const mappedAssign = myAssign.map((a: any) => ({
                     ...a,
-                    semester: Number(a.semester || a.subject?.semester)
+                    semester: Number(a.semester || a.subject?.semester),
+                    examHours: Number(a.examHours ?? 0),
+                    examCritiqueHours: Number(a.examCritiqueHours ?? 0),
                 }));
                 
                 setAllAssignments(mappedAssign);
@@ -335,7 +354,13 @@ export default function InstructorDashboard({ session }: { session: any }) {
       if (statFilter !== "all") {
           filtered = allAssignments.filter(a => a.semester === Number(statFilter));
       }
-      return filtered.reduce((sum, a) => sum + (Number(a.lectureHours) || 0) + (Number(a.labHours) || 0), 0);
+      return filtered.reduce((sum, a) => 
+          sum + 
+          (Number(a.lectureHours) || 0) + 
+          (Number(a.labHours) || 0) + 
+          (Number(a.examHours) || 0) + 
+          (Number(a.examCritiqueHours) || 0), 
+      0);
   }, [allAssignments, statFilter]);
 
   const getDaysRemaining = (endDateStr?: string) => {
@@ -365,7 +390,6 @@ export default function InstructorDashboard({ session }: { session: any }) {
       if (!currentStep) {
           const isFinished = activeTerm.step4End && new Date() > new Date(activeTerm.step4End);
           if (isFinished) return { label: "สิ้นสุดระยะเวลาดำเนินการ", status: "CLOSED", daysLeft: 0, theme: steps[3] };
-          
           return { label: "อยู่นอกช่วงเวลากำหนดการ", status: "WAITING", daysLeft: 0, theme: { ...steps[0], color: "text-slate-500", bg: "bg-slate-100", border: "border-slate-200", hover: "", progress: "bg-slate-300" } };
       }
       return { label: `กำลังดำเนินการ: ${currentStep.label}`, end: currentStep.end, status: "ACTIVE", daysLeft: getDaysRemaining(currentStep.end), theme: currentStep };
@@ -445,7 +469,6 @@ export default function InstructorDashboard({ session }: { session: any }) {
             ) : activeTab === "responsible" ? (
               <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
                 <CourseTableSection title="รายวิชา" courses={filteredRespCourses} loading={loading} currentUser={currentUser} targetSemesters={[1, 2, 3]} type="responsible" />
-                {/* ✅ ซ่อนข้อความถ้ากำลังโหลด */}
                 {!loading && filteredRespCourses.length === 0 && (
                     <div className="p-10 text-center border rounded-xl bg-slate-50/50 text-slate-400 flex flex-col items-center gap-2"><BookOpen className="w-8 h-8 opacity-20" /><p>คุณไม่มีรายวิชาที่รับผิดชอบ</p></div>
                 )}
@@ -453,7 +476,6 @@ export default function InstructorDashboard({ session }: { session: any }) {
             ) : (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
                 <CourseTableSection title="รายวิชา" courses={filteredTeaching} loading={loading} currentUser={currentUser} targetSemesters={[1, 2, 3]} type="teaching" />
-                {/* ✅ ซ่อนข้อความถ้ากำลังโหลด */}
                 {!loading && filteredTeaching.length === 0 && (
                     <div className="p-10 text-center border rounded-xl bg-slate-50/50 text-slate-400 flex flex-col items-center gap-2"><BookOpen className="w-8 h-8 opacity-20" /><p>ยังไม่มีรายวิชาที่ถูกมอบหมายให้สอน</p></div>
                 )}
@@ -469,7 +491,6 @@ export default function InstructorDashboard({ session }: { session: any }) {
                         <div>
                             <p className="text-sm font-medium text-slate-500 mb-1">ภาระงานรวม</p>
                             <Select value={statFilter} onValueChange={setStatFilter}>
-                                {/* ✅ ปรับความกว้างเป็น 150px */}
                                 <SelectTrigger className="h-7 text-xs w-[150px] bg-slate-50 border-slate-200 font-bold text-slate-700"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">ทั้งปีการศึกษา</SelectItem>

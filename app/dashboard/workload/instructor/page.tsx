@@ -640,10 +640,10 @@ export default function InstructorWorkloadPage() {
                   <TableHead className="text-center font-bold text-slate-700 w-[9%]">ภาคการศึกษา</TableHead>
                   <TableHead className="text-center font-bold text-slate-700 w-[7%]">หน่วยกิต</TableHead>
                   <TableHead className="text-center font-bold text-slate-700 w-[7%]">บทบาท</TableHead>
-                  <TableHead className="text-center font-bold text-slate-700 w-[7%]">บรรยาย</TableHead>
-                  <TableHead className="text-center font-bold text-slate-700 w-[7%]">ปฏิบัติ</TableHead>
-                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">คุมสอบ</TableHead>
-                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">วิพากษ์</TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-[7%]">บรรยาย(ชม.)</TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-[7%]">ปฏิบัติ(ชม.)</TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">คุมสอบนอกตาราง(ชม.)</TableHead>
+                  <TableHead className="text-center font-bold text-slate-700 w-[8%]">วิพากษ์ข้อสอบ(หัวข้อ)</TableHead>
                   <TableHead className="text-center font-bold text-slate-700 w-[23%]">การดำเนินการ</TableHead>
                 </TableRow>
               </TableHeader>

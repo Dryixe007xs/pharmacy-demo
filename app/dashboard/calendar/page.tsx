@@ -194,7 +194,10 @@ export default function AcademicYearConfigPage() {
                 responsibleName: sub.responsibleUser
                   ? `${sub.responsibleUser.firstName} ${sub.responsibleUser.lastName}`
                   : "-",
-                programName: sub.program ? sub.program.name_th : "วิชาแกน",
+                // ✅ เพิ่มปีของหลักสูตรต่อท้าย เช่น "ฟาร์มาซี (ปี 4)"
+                programName: sub.program
+                  ? `${sub.program.name_th}${sub.program.year ? ` (ปี ${sub.program.year})` : ""}`
+                  : "วิชาแกน",
               };
             });
 
@@ -324,7 +327,6 @@ export default function AcademicYearConfigPage() {
   const handleDeleteYear = useCallback(async () => {
     if (!selectedYear) return;
 
-    // บล็อกถ้าปีนั้น active อยู่
     if (db[selectedYear]?.isActiveYear) {
       await Swal.fire({
         title: "ไม่สามารถลบได้",
@@ -336,7 +338,6 @@ export default function AcademicYearConfigPage() {
       return;
     }
 
-    // ให้พิมพ์ปีเพื่อยืนยัน
     const { value: inputYear } = await Swal.fire({
       title: "ยืนยันการลบปีการศึกษา",
       html: `
@@ -557,9 +558,7 @@ export default function AcademicYearConfigPage() {
 
   // ─── สร้างปีการศึกษา ─────────────────────────────────────────────────────
   const handleCreateYear = useCallback(async () => {
-    // ตรวจสอบว่าปีนั้นมีอยู่แล้วหรือยัง
     if (db[String(newYearInput)]) {
-      // ปิด Dialog ก่อน แล้วค่อยแสดง Swal เพื่อไม่ให้ถูก overlay บัง
       setIsCreateModalOpen(false);
       await new Promise((r) => setTimeout(r, 200));
       await Swal.fire({
@@ -573,7 +572,6 @@ export default function AcademicYearConfigPage() {
       return;
     }
 
-    // ปิด Dialog ก่อนแสดง Swal ยืนยัน
     setIsCreateModalOpen(false);
     await new Promise((r) => setTimeout(r, 200));
 
@@ -591,7 +589,6 @@ export default function AcademicYearConfigPage() {
       reverseButtons: true,
     });
 
-    // กด ยกเลิก → เปิด Dialog กลับมา
     if (!result.isConfirmed) {
       setIsCreateModalOpen(true);
       return;
@@ -665,7 +662,6 @@ export default function AcademicYearConfigPage() {
           </div>
         </div>
 
-        {/* ✅ ปุ่มเปิดใช้งาน — Swal ยืนยัน แค่กด confirm ได้เลย */}
         {currentYearData && !currentYearData.isActiveYear && (
           <Button
             onClick={handleSetActiveYear}
@@ -693,7 +689,6 @@ export default function AcademicYearConfigPage() {
           <p className="text-slate-500 text-sm mt-1">ตั้งค่ากำหนดการและรายวิชา</p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Select ปี */}
           <Select
             value={selectedYear}
             onValueChange={(val) => {
@@ -717,7 +712,6 @@ export default function AcademicYearConfigPage() {
             </SelectContent>
           </Select>
 
-          {/* ✅ Dialog สร้างปี — กด "สร้าง" แล้ว Swal ยืนยัน */}
           <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="icon" aria-label="เพิ่มปีการศึกษาใหม่">
@@ -767,7 +761,6 @@ export default function AcademicYearConfigPage() {
             </DialogContent>
           </Dialog>
 
-          {/* ✅ ปุ่มลบ — Swal ทั้งหมด ไม่มี AlertDialog */}
           {hasData && (
             <Button
               variant="outline"
@@ -907,8 +900,9 @@ export default function AcademicYearConfigPage() {
                         />
                       </div>
 
+                      {/* ✅ Dropdown ฟิลเตอร์หลักสูตร — แสดงชื่อ + ปี */}
                       <Select value={selectedProgram} onValueChange={setSelectedProgram}>
-                        <SelectTrigger className="w-48 text-xs h-8 gap-1">
+                        <SelectTrigger className="w-56 text-xs h-8 gap-1">
                           <Filter className="w-3 h-3 text-slate-400 shrink-0" />
                           <SelectValue placeholder="ทุกหลักสูตร" />
                         </SelectTrigger>
@@ -983,6 +977,7 @@ export default function AcademicYearConfigPage() {
                               <td className="px-4 py-3 font-semibold text-slate-700 align-top pt-4">{course.code}</td>
                               <td className="px-4 py-3 align-top pt-3">
                                 <div className="text-slate-800 font-medium">{course.name}</div>
+                                {/* ✅ Badge หลักสูตร — แสดงชื่อ + ปี */}
                                 <Badge variant="outline" className="mt-1 text-[10px] text-slate-500 bg-slate-50 border-slate-200 font-normal">
                                   {course.programName}
                                 </Badge>

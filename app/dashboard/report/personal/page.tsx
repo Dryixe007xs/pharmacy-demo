@@ -12,7 +12,6 @@ import {
   GraduationCap,
   Calendar,
   FileText,
-  Building2,
   Info,
   Layers,
 } from "lucide-react";
@@ -60,7 +59,6 @@ function PersonalReportContent() {
   const [printUrl, setPrintUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    // ✅ รอให้ status ชัดเจนก่อน ไม่ trigger ซ้ำตอน loading
     if (status === "loading") return;
     if (status === "unauthenticated" && !queryLecturerId) {
       setLoading(false);
@@ -73,7 +71,6 @@ function PersonalReportContent() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // ✅ ดึงพร้อมกัน ไม่รอทีละตัว
         const [termRes, reportRes] = await Promise.all([
           fetch("/api/term-config/active"),
           fetch(`/api/report/personal?lecturerId=${targetId}`),
@@ -141,7 +138,7 @@ function PersonalReportContent() {
     };
 
     fetchData();
-  }, [status, session?.user?.id, queryLecturerId]); // ✅ dependency เดิม แต่ guard ข้างบนจัดการแล้ว
+  }, [status, session?.user?.id, queryLecturerId]);
 
   const handlePrint = () => {
     const targetId = queryLecturerId || session?.user?.id;
