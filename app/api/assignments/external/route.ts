@@ -1,61 +1,52 @@
-// app/api/assignments/external/route.ts
 import { NextResponse } from "next/server";
+import { ApprovalStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
-// ─── helper: หา subjectId placeholder สำหรับ external course ───
-// กลยุทธ์: ใช้ subject แรกของ program แรกที่มีในระบบเป็น placeholder
-// (เพราะ subjectId เป็น required ใน schema)
-// *** ถ้าโปรเจกต์มี subject พิเศษสำหรับ external ให้เปลี่ยนตรงนี้ ***
-async function getExternalPlaceholderSubjectId(): Promise<number> {
-  const subject = await prisma.subject.findFirst({
-    orderBy: { id: "asc" },
-  });
-  if (!subject) throw new Error("ไม่พบ subject ในระบบ กรุณาเพิ่มรายวิชาก่อน");
-  return subject.id;
-}
+// GET: Fetch assignments
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const subjectId = searchParams.get("subjectId");
+  const lecturerId = searchParams.get("lecturerId");
+  const scope = searchParams.get("scope");
+  const reqSemester = searchParams.get("semester");
 
-// ==========================================================
-// GET /api/assignments/external
-// ==========================================================
-/**
- * GET /api/assignments/external?chairId=xxx   → ประธานหลักสูตร
- *   - ดึงเฉพาะ assignment ที่ headApproverId = chairId
- *   - ไม่ filter headApprovalStatus (ประธานเห็นทุก status)
- *
- * GET /api/assignments/external               → รองคณบดีวิชาการ
- *   - ดึงทุก external assignment
- *   - filter เฉพาะที่ headApprovalStatus = "APPROVED" แล้วเท่านั้น
- */
-export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return new NextResponse("Unauthorized", { status: 401 });
-
-    const { searchParams } = new URL(req.url);
-    const chairId = searchParams.get("chairId");
-
     const activeYear = await prisma.academicYear.findFirst({
       where: { isActive: true },
+      include: { terms: true },
     });
 
     if (!activeYear) return NextResponse.json([]);
 
-    const whereClause: any = {
+    let whereClause: any = {
       academicYear: activeYear.id,
-      courseType: "EXTERNAL",
     };
 
-    if (chairId) {
-      // ประธานหลักสูตร → เห็นเฉพาะของตัวเอง ทุก status
-      whereClause.headApproverId = chairId;
-    } else {
-      // รองคณบดี → เห็นทุกคน แต่เฉพาะที่ประธานรับรองแล้ว
-      whereClause.headApprovalStatus = "APPROVED";
+    if (reqSemester) {
+      whereClause.semester = Number(reqSemester);
+    } else if (scope !== "year") {
+      const now = new Date();
+      const currentTerm = activeYear.terms.find(
+        (t) =>
+          t.step1Start &&
+          t.step4End &&
+          now >= new Date(t.step1Start) &&
+          now <= new Date(t.step4End)
+      );
+      whereClause.semester = currentTerm ? currentTerm.semester : 1;
     }
 
-    const externalAssignments = await prisma.teachingAssignment.findMany({
+    if (subjectId) {
+      whereClause.subjectId = Number(subjectId);
+    } else if (lecturerId) {
+      whereClause.lecturerId = lecturerId;
+    }
+
+    const targetSemester = whereClause.semester;
+
+    const assignments = await prisma.teachingAssignment.findMany({
       where: whereClause,
       include: {
         lecturer: {
@@ -63,8 +54,8 @@ export async function GET(req: Request) {
             id: true,
             firstName: true,
             lastName: true,
-            title: true,
             email: true,
+            title: true,
             curriculumRef: {
               select: { id: true, name: true, chairId: true },
             },
@@ -72,18 +63,31 @@ export async function GET(req: Request) {
         },
         subject: {
           select: {
-            id: true,
             code: true,
             name_th: true,
             name_en: true,
             credit: true,
-            responsibleUserId: true,
-            program: {
-              select: {
-                id: true,
-                name_th: true,
-                programChairId: true,
+            program: { select: { name_th: true } },
+            // ดึง courseOfferings เพื่อหา responsible ของ term นี้
+            courseOfferings: {
+              where: {
+                termConfig: {
+                  academicYear: activeYear.id,
+                  semester: targetSemester,
+                },
               },
+              select: {
+                responsibleUserId: true,
+                responsibleUser: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    title: true,
+                  },
+                },
+              },
+              take: 1,
             },
           },
         },
@@ -91,192 +95,361 @@ export async function GET(req: Request) {
       orderBy: { id: "asc" },
     });
 
-    if (externalAssignments.length === 0) return NextResponse.json([]);
-
-    // Group by subjectId + semester เพื่อให้ structure เหมือน /api/courses
-    const subjectMap = new Map<string, any>();
-
-    for (const a of externalAssignments) {
-      const key = `${a.subjectId}-${a.semester}`;
-
-      if (!subjectMap.has(key)) {
-        subjectMap.set(key, {
-          id: a.subject.id,
-          code: a.subject.code,
-          name_th: a.subject.name_th,
-          name_en: a.subject.name_en,
-          credit: a.subject.credit,
-          responsibleUserId: a.subject.responsibleUserId,
-          program: a.subject.program,
-          responsibleUser: null,
-          semester: a.semester,
-          teachingAssignments: [],
-          status: "IN_PROGRESS",
-        });
-      }
-
-      subjectMap.get(key).teachingAssignments.push({
+    const result = assignments.map((a) => {
+      const offering = a.subject.courseOfferings[0];
+      return {
         ...a,
+        subject: {
+          ...a.subject,
+          responsibleUserId: offering?.responsibleUserId ?? null,
+          responsibleUser: offering?.responsibleUser ?? null,
+        },
         examCritiqueHours: a.examCritiqueHours ?? 0,
+        courseType: a.courseType ?? null,
+        externalFaculty: a.externalFaculty ?? null,
+        externalCourseCode: a.externalCourseCode ?? null,
+        externalCourseName: a.externalCourseName ?? null,
+        externalCourseNameEn: (a as any).externalCourseNameEn ?? null,
+        externalCredit: a.externalCredit ?? null,
+        evidenceLink: a.evidenceLink ?? null,
         headApprovalStatus: a.headApprovalStatus ?? null,
         academicApprovalStatus: a.academicApprovalStatus ?? null,
-      });
-    }
+      };
+    });
 
-    return NextResponse.json(Array.from(subjectMap.values()));
+    return NextResponse.json(result);
   } catch (error) {
-    console.error("GET /api/assignments/external error:", error);
+    console.error("Error fetching assignments:", error);
     return NextResponse.json(
-      { error: "Failed to fetch external assignments" },
+      { error: "Failed to fetch assignments" },
       { status: 500 }
     );
   }
 }
 
-// ==========================================================
-// POST /api/assignments/external  → ผู้สอนเพิ่มวิชานอกคณะ
-// ==========================================================
-export async function POST(req: Request) {
+// POST: Add lecturer to course
+export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) return new NextResponse("Unauthorized", { status: 401 });
-
-    const body = await req.json();
+    const body = await request.json();
     const {
+      subjectId,
       lecturerId,
-      faculty,
-      code,
-      nameTh,
-      nameEn,
-      credit,
+      lecturerStatus,
       semester,
-      lectureHours,
-      labHours,
-      examHours,
-      examCritiqueHours,
+      courseType,
+      externalFaculty,
+      externalCourseCode,
+      externalCourseName,
+      externalCourseNameEn,
+      externalCredit,
       evidenceLink,
     } = body;
-
-    // Validation
-    if (!lecturerId) return NextResponse.json({ error: "กรุณาระบุผู้สอน" }, { status: 400 });
-    if (!faculty?.trim()) return NextResponse.json({ error: "กรุณากรอกชื่อคณะ/หน่วยงาน" }, { status: 400 });
-    if (!code?.trim()) return NextResponse.json({ error: "กรุณากรอกรหัสวิชา" }, { status: 400 });
-    if (!nameTh?.trim()) return NextResponse.json({ error: "กรุณากรอกชื่อรายวิชา (ไทย)" }, { status: 400 });
-    if (!credit?.trim()) return NextResponse.json({ error: "กรุณากรอกหน่วยกิต" }, { status: 400 });
-    if (!evidenceLink?.trim()) return NextResponse.json({ error: "กรุณาแนบลิงก์เอกสารอ้างอิง" }, { status: 400 });
 
     const activeYear = await prisma.academicYear.findFirst({
       where: { isActive: true },
+      include: { terms: true },
     });
-    if (!activeYear) return NextResponse.json({ error: "ไม่พบปีการศึกษาที่เปิดใช้งาน" }, { status: 400 });
 
-    // subjectId เป็น required ใน schema → ต้องใช้ placeholder
-    const placeholderSubjectId = await getExternalPlaceholderSubjectId();
+    if (!activeYear) {
+      return NextResponse.json(
+        { error: "ระบบยังไม่เปิดภาคการศึกษา (No Active Year)" },
+        { status: 400 }
+      );
+    }
 
-    const assignment = await prisma.teachingAssignment.create({
-      data: {
-        lecturerId,
-        subjectId: placeholderSubjectId,
+    const targetSemester = semester ? Number(semester) : 1;
+    const isExternal = courseType === "EXTERNAL";
+
+    const existing = await prisma.teachingAssignment.findFirst({
+      where: {
+        subjectId: Number(subjectId),
+        lecturerId: lecturerId,
         academicYear: activeYear.id,
-        semester: semester ?? 1,
-        lectureHours: lectureHours ?? 0,
-        labHours: labHours ?? 0,
-        examHours: examHours ?? 0,
-        examCritiqueHours: examCritiqueHours ?? 0,
-        courseType: "EXTERNAL",
-        externalFaculty: faculty,
-        externalCourseCode: code,
-        externalCourseName: nameTh,
-        externalCourseNameEn: nameEn ?? null,
-        externalCredit: credit,
-        evidenceLink,
-        lecturerStatus: "PENDING",
-        responsibleStatus: "PENDING",
+        semester: targetSemester,
+        ...(isExternal && externalCourseCode ? { externalCourseCode } : {}),
       },
     });
 
-    return NextResponse.json(assignment, { status: 201 });
+    if (existing) {
+      return NextResponse.json(
+        { error: "อาจารย์ท่านนี้มีชื่ออยู่ในรายวิชานี้แล้ว" },
+        { status: 400 }
+      );
+    }
+
+    const initialStatus =
+      lecturerStatus === null || lecturerStatus === undefined
+        ? ApprovalStatus.DRAFT
+        : lecturerStatus;
+
+    let resolvedHeadApproverId: string | null = null;
+
+    if (isExternal) {
+      const lecturer = await prisma.user.findUnique({
+        where: { id: lecturerId },
+        include: {
+          curriculumRef: { select: { chairId: true } },
+        },
+      });
+      resolvedHeadApproverId = lecturer?.curriculumRef?.chairId ?? null;
+    } else {
+      const subject = await prisma.subject.findUnique({
+        where: { id: Number(subjectId) },
+        include: { program: { select: { programChairId: true } } },
+      });
+      resolvedHeadApproverId = subject?.program?.programChairId ?? null;
+    }
+
+    const newAssignment = await prisma.teachingAssignment.create({
+      data: {
+        subjectId: Number(subjectId),
+        lecturerId: lecturerId,
+        academicYear: activeYear.id,
+        semester: targetSemester,
+        lectureHours: 0,
+        labHours: 0,
+        examHours: 0,
+        examCritiqueHours: 0,
+        lecturerStatus: initialStatus,
+        responsibleStatus: isExternal
+          ? ApprovalStatus.APPROVED
+          : ApprovalStatus.PENDING,
+        headApprovalStatus: null,
+        academicApprovalStatus: null,
+        headApproverId: resolvedHeadApproverId,
+        academicApproverId: null,
+        courseType: isExternal ? "EXTERNAL" : "INTERNAL",
+        externalFaculty: externalFaculty ?? null,
+        externalCourseCode: externalCourseCode ?? null,
+        externalCourseName: externalCourseName ?? null,
+        externalCourseNameEn: externalCourseNameEn ?? null,
+        externalCredit: externalCredit ?? null,
+        evidenceLink: evidenceLink ?? null,
+      },
+      include: { lecturer: true },
+    });
+
+    return NextResponse.json(newAssignment);
   } catch (error) {
-    console.error("POST /api/assignments/external error:", error);
+    console.error(error);
     return NextResponse.json(
-      { error: "Failed to create external assignment" },
+      { error: "Failed to add lecturer" },
       { status: 500 }
     );
   }
 }
 
-// ==========================================================
-// PUT /api/assignments/external  → แก้ไขวิชานอกคณะ
-// ==========================================================
-export async function PUT(req: Request) {
+// PUT: Update workload/status
+export async function PUT(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) return new NextResponse("Unauthorized", { status: 401 });
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const body = await req.json();
+    const currentUser = session.user as any;
+    const isAdmin = currentUser.role === "ADMIN";
+
+    const body = await request.json();
     const {
       id,
-      faculty,
-      code,
-      nameTh,
-      nameEn,
-      credit,
-      semester,
       lectureHours,
       labHours,
       examHours,
       examCritiqueHours,
-      evidenceLink,
+      lecturerStatus,
+      lecturerFeedback,
+      responsibleStatus,
+      headApprovalStatus,
+      academicApprovalStatus,
+      approverId,
+      // flag ที่ฝั่ง client ส่งมาเมื่อแอดมินตั้งใจ override
+      // โดยไม่ต้องการให้ระบบ auto-reset สถานะ (เช่น แก้ typo หลังอนุมัติแล้ว)
+      adminOverride,
     } = body;
 
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
-    if (!faculty?.trim()) return NextResponse.json({ error: "กรุณากรอกชื่อคณะ/หน่วยงาน" }, { status: 400 });
-    if (!code?.trim()) return NextResponse.json({ error: "กรุณากรอกรหัสวิชา" }, { status: 400 });
-    if (!nameTh?.trim()) return NextResponse.json({ error: "กรุณากรอกชื่อรายวิชา (ไทย)" }, { status: 400 });
-    if (!evidenceLink?.trim()) return NextResponse.json({ error: "กรุณาแนบลิงก์เอกสารอ้างอิง" }, { status: 400 });
-
-    // ตรวจสอบว่า assignment นี้มีอยู่จริงและเป็น EXTERNAL
-    const existing = await prisma.teachingAssignment.findUnique({
-      where: { id },
-    });
-    if (!existing) return NextResponse.json({ error: "ไม่พบรายวิชา" }, { status: 404 });
-    if (existing.courseType !== "EXTERNAL") {
-      return NextResponse.json({ error: "ไม่สามารถแก้ไขวิชาภายในผ่าน endpoint นี้" }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
 
-    // ถ้าประธานส่งกลับ (REJECTED) → reset approval เพื่อให้ส่งใหม่ได้
-    const resetApproval = existing.headApprovalStatus === "REJECTED";
+    // ป้องกัน adminOverride จากคนที่ไม่ใช่ ADMIN
+    if (adminOverride === true && !isAdmin) {
+      return NextResponse.json(
+        {
+          error:
+            "Forbidden: เฉพาะแอดมินเท่านั้นที่สามารถบังคับแก้ไขสถานะ/ชั่วโมงนี้ได้",
+        },
+        { status: 403 }
+      );
+    }
+
+    const existingAssignment = await prisma.teachingAssignment.findUnique({
+      where: { id: Number(id) },
+      select: { courseType: true },
+    });
+
+    if (!existingAssignment) {
+      return NextResponse.json(
+        { error: "ไม่พบข้อมูลภาระงาน" },
+        { status: 404 }
+      );
+    }
+
+    const dataToUpdate: any = {};
+    let hoursUpdated = false;
+
+    if (lectureHours !== undefined) {
+      dataToUpdate.lectureHours = Number(lectureHours);
+      hoursUpdated = true;
+    }
+    if (labHours !== undefined) {
+      dataToUpdate.labHours = Number(labHours);
+      hoursUpdated = true;
+    }
+    if (examHours !== undefined) {
+      dataToUpdate.examHours = Number(examHours);
+      hoursUpdated = true;
+    }
+    if (examCritiqueHours !== undefined) {
+      dataToUpdate.examCritiqueHours = Number(examCritiqueHours);
+      hoursUpdated = true;
+    }
+
+    // เมื่อมีการแก้ชั่วโมง → reset สถานะอนุมัติขั้นถัดไปให้เริ่มใหม่
+    // เว้นแต่ adminOverride ระบุค่าสถานะมาเองตรงๆ
+    if (hoursUpdated && !adminOverride) {
+      if (responsibleStatus === undefined) {
+        dataToUpdate.responsibleStatus =
+          existingAssignment.courseType === "EXTERNAL"
+            ? ApprovalStatus.APPROVED
+            : ApprovalStatus.PENDING;
+      }
+      if (headApprovalStatus === undefined) {
+        dataToUpdate.headApprovalStatus = null;
+        dataToUpdate.headApprovedAt = null;
+      }
+      if (academicApprovalStatus === undefined) {
+        dataToUpdate.academicApprovalStatus = null;
+        dataToUpdate.academicApprovedAt = null;
+      }
+    }
+
+    if (lecturerStatus !== undefined) {
+      dataToUpdate.lecturerStatus =
+        lecturerStatus === null ? ApprovalStatus.DRAFT : lecturerStatus;
+    }
+
+    if (lecturerFeedback !== undefined) {
+      dataToUpdate.lecturerFeedback = lecturerFeedback;
+    }
+
+    if (responsibleStatus !== undefined) {
+      dataToUpdate.responsibleStatus = responsibleStatus;
+    }
+
+    // headApprovalStatus: รองรับทั้ง set ค่าจริง และ reset เป็น null
+    if (headApprovalStatus !== undefined) {
+      if (headApprovalStatus === null) {
+        dataToUpdate.headApprovalStatus = null;
+        dataToUpdate.headApprovedAt = null;
+
+        // ✅ cascade reset:
+        // เมื่อ head ถูก reset → responsible ต้องกลับไป PENDING
+        // เพื่อให้ผู้รับผิดชอบรายวิชาต้องกดส่งใหม่อีกครั้ง
+        // (ป้องกันสถานะ "ส่งแล้ว" ค้างหน้า owner ทั้งที่ head ถูก reset แล้ว)
+        if (responsibleStatus === undefined) {
+          dataToUpdate.responsibleStatus = ApprovalStatus.PENDING;
+        }
+
+        // cascade reset academic ด้วย (head เป็น prerequisite ของ academic)
+        if (academicApprovalStatus === undefined) {
+          dataToUpdate.academicApprovalStatus = null;
+          dataToUpdate.academicApprovedAt = null;
+        }
+      } else {
+        dataToUpdate.headApprovalStatus = headApprovalStatus;
+        dataToUpdate.headApprovedAt = new Date();
+
+        if (approverId) {
+          dataToUpdate.headApproverId = approverId;
+        } else if (headApprovalStatus === "PENDING") {
+          const assignment = await prisma.teachingAssignment.findUnique({
+            where: { id: Number(id) },
+            include: {
+              lecturer: {
+                include: {
+                  curriculumRef: { select: { chairId: true } },
+                },
+              },
+              subject: {
+                include: {
+                  program: { select: { programChairId: true } },
+                },
+              },
+            },
+          });
+
+          if (assignment?.courseType === "EXTERNAL") {
+            const chairId = assignment?.lecturer?.curriculumRef?.chairId;
+            if (chairId) dataToUpdate.headApproverId = chairId;
+          } else {
+            const chairId = assignment?.subject?.program?.programChairId;
+            if (chairId) dataToUpdate.headApproverId = chairId;
+          }
+        }
+      }
+    }
+
+    // academicApprovalStatus: รองรับทั้ง set ค่าจริง และ reset เป็น null
+    if (academicApprovalStatus !== undefined) {
+      if (academicApprovalStatus === null) {
+        dataToUpdate.academicApprovalStatus = null;
+        dataToUpdate.academicApprovedAt = null;
+      } else {
+        dataToUpdate.academicApprovalStatus = academicApprovalStatus;
+        dataToUpdate.academicApprovedAt = new Date();
+
+        if (approverId) {
+          dataToUpdate.academicApproverId = approverId;
+        } else {
+          const viceDean = await prisma.user.findFirst({
+            where: { role: "VICE_DEAN" },
+            select: { id: true },
+          });
+          if (viceDean) dataToUpdate.academicApproverId = viceDean.id;
+        }
+      }
+    }
 
     const updated = await prisma.teachingAssignment.update({
-      where: { id },
-      data: {
-        semester: semester ?? existing.semester,
-        lectureHours: lectureHours ?? existing.lectureHours,
-        labHours: labHours ?? existing.labHours,
-        examHours: examHours ?? existing.examHours,
-        examCritiqueHours: examCritiqueHours ?? existing.examCritiqueHours,
-        externalFaculty: faculty,
-        externalCourseCode: code,
-        externalCourseName: nameTh,
-        externalCourseNameEn: nameEn ?? null,
-        externalCredit: credit,
-        evidenceLink,
-        // reset approval เมื่อแก้ไข ให้ส่งใหม่ผ่าน submitToChair
-        ...(resetApproval && {
-          headApprovalStatus: null,
-          headApprovedAt: null,
-          academicApprovalStatus: null,
-          academicApprovedAt: null,
-        }),
-      },
+      where: { id: Number(id) },
+      data: dataToUpdate,
     });
 
     return NextResponse.json(updated);
   } catch (error) {
-    console.error("PUT /api/assignments/external error:", error);
+    console.error("PUT error:", error);
     return NextResponse.json(
-      { error: "Failed to update external assignment" },
+      { error: "Failed to update assignment" },
       { status: 500 }
     );
+  }
+}
+
+export { PUT as PATCH };
+
+// DELETE: Remove lecturer
+export async function DELETE(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+
+  if (!id)
+    return NextResponse.json({ error: "ID required" }, { status: 400 });
+
+  try {
+    await prisma.teachingAssignment.delete({ where: { id: Number(id) } });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
   }
 }

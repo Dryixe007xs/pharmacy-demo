@@ -48,15 +48,41 @@ export async function GET(request: Request) {
           select: {
             code: true,
             name_th: true,
-            responsibleUserId: true,
             credit: true,
+            // ✅ ดึง courseOfferings เพื่อหา responsible ของ term นั้น
+            courseOfferings: {
+              where: {
+                termConfig: {
+                  academicYear: activeYear?.id,
+                }
+              },
+              select: {
+                responsibleUserId: true,
+                termConfig: {
+                  select: { semester: true }
+                }
+              }
+            }
           },
         },
       },
       orderBy: { semester: "asc" },
     });
 
-    // ดึง VICE_DEAN จาก User table
+    // ✅ map responsibleUserId จาก CourseOffering ของ semester ที่ตรงกัน
+    const assignmentsWithResponsible = assignments.map((a) => {
+      const matchingOffering = a.subject.courseOfferings.find(
+        (o) => o.termConfig.semester === a.semester
+      );
+      return {
+        ...a,
+        subject: {
+          ...a.subject,
+          responsibleUserId: matchingOffering?.responsibleUserId ?? null,
+        }
+      };
+    });
+
     const viceDeanRaw = await prisma.user.findFirst({
       where: { role: 'VICE_DEAN' },
       select: { title: true, firstName: true, lastName: true, adminTitle: true },
@@ -69,7 +95,11 @@ export async function GET(request: Request) {
         }
       : { name: '-', position: 'รองคณบดีฝ่ายวิชาการ' };
 
-    return NextResponse.json({ lecturer, assignments, viceDean });
+    return NextResponse.json({ 
+      lecturer, 
+      assignments: assignmentsWithResponsible, 
+      viceDean 
+    });
   } catch (error) {
     console.error("Error fetching personal report:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

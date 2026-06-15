@@ -55,21 +55,26 @@ const menuItems: MenuItem[] = [
       { 
           title: "ผู้รับผิดชอบรายวิชา", 
           href: "/dashboard/workload/owner", 
-          roles: ['ADMIN', 'LECTURER', 'PROGRAM_CHAIR', 'VICE_DEAN'] 
+          roles: ['LECTURER', 'PROGRAM_CHAIR', 'VICE_DEAN'] 
       },
       { 
           title: "ผู้สอน", 
           href: "/dashboard/workload/instructor", 
-          roles: ['ADMIN', 'LECTURER', 'PROGRAM_CHAIR', 'VICE_DEAN'] 
+          roles: ['LECTURER', 'PROGRAM_CHAIR', 'VICE_DEAN'] 
       },
       { 
           title: "ประธานหลักสูตร", 
           href: "/dashboard/workload/program-chair", 
-          roles: ['ADMIN', 'PROGRAM_CHAIR'] 
+          roles: ['PROGRAM_CHAIR'] 
       },
       { 
           title: "รองคณบดีฝ่ายวิชาการ", 
           href: "/dashboard/workload/vice-dean", 
+          roles: ['VICE_DEAN'] 
+      },
+      { 
+          title: "ตรวจสอบ/แก้ไขภาระงาน (แอดมิน)", 
+          href: "/dashboard/workload/admin", 
           roles: ['ADMIN', 'VICE_DEAN'] 
       },
     ],

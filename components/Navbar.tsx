@@ -8,25 +8,26 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import DebugUserSwitcher from "@/components/DebugUserSwitcher";
+// import DebugUserSwitcher from "@/components/DebugUserSwitcher"; // 🚫 ปิดการใช้งาน
 
 export function Navbar() {
-  const { data: session, update } = useSession();
+  // 🚫 ลบ update ออก เพราะไม่ได้ใช้สวมรอยแล้ว
+  const { data: session } = useSession(); 
   const router = useRouter();
   
   const user = session?.user;
-  const [allStaffs, setAllStaffs] = useState<any[]>([]);
+  
+  // 🚫 ปิดตัวแปรที่ใช้จำลองสิทธิ์
+  // const isImpersonating = user?.isImpersonating;
+  // const [allStaffs, setAllStaffs] = useState<any[]>([]);
+
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
   const [photoLoading, setPhotoLoading] = useState(true);
 
-  const isImpersonating = (user as any)?.isImpersonating;
-
-  // ✅ ดึงรูปโปรไฟล์ (ส่วนนี้เหมือนเดิม)
+  // ดึงรูปโปรไฟล์
   useEffect(() => {
     const fetchProfilePhoto = async () => {
       if (!user?.email) {
@@ -51,6 +52,7 @@ export function Navbar() {
       }
     };
     fetchProfilePhoto();
+    
     return () => {
       if (profilePhotoUrl?.startsWith('blob:')) {
         URL.revokeObjectURL(profilePhotoUrl);
@@ -58,9 +60,8 @@ export function Navbar() {
     };
   }, [user?.email]);
 
-  // 🔥 แก้จุดที่ 1: เอาเงื่อนไข if (Admin) ออก เพื่อให้ทุกคนดึงรายชื่อ Staff มาใส่ Dropdown ได้
+  /* 🚫 ปิดการดึงข้อมูล Staff เพื่อจำลองสิทธิ์
   useEffect(() => {
-    // ถ้ามี user (ล็อกอินแล้ว) ให้ดึงข้อมูลเลย ไม่ต้องเช็ค Role
     if (user) { 
         const fetchStaffs = async () => {
             try {
@@ -73,18 +74,24 @@ export function Navbar() {
         };
         fetchStaffs();
     }
-  }, [user]); // เปลี่ยน dependency ให้เหลือแค่ user
+  }, [user]); 
+  */
 
+  /* 🚫 ปิดฟังก์ชันสลับผู้ใช้งาน (Impersonation)
   const handleUserChange = async (newUserId: string) => {
       await update({ impersonateId: newUserId || null });
       router.refresh();
       window.location.reload(); 
   };
+  */
 
+  // ฟังก์ชันออกจากระบบแบบปกติ
   const handleLogout = async () => {
+    /* 🚫 ปิดการคืนสิทธิ์
     if (isImpersonating) {
         await update({ impersonateId: null });
     }
+    */
     await signOut({ callbackUrl: "/", redirect: true });
   };
 
@@ -110,6 +117,7 @@ export function Navbar() {
   return (
     <nav className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-[60] px-4 flex items-center justify-between font-sarabun shadow-sm">
       
+      {/* ฝั่งซ้าย: โลโก้ */}
       <div className="flex items-center gap-4">
         <div className="flex items-center h-full pl-2">
             <img 
@@ -125,25 +133,28 @@ export function Navbar() {
         </div>
       </div>
 
-      <div className="hidden lg:block">
-        {/* 🔥 แก้จุดที่ 2: ลบเงื่อนไข { ... && () } ออก เรียกใช้ตรงๆ เลย */}
-        <DebugUserSwitcher 
-            users={allStaffs}
-            currentUser={(user as any) || null} 
-            realUserRole={user?.role} // ส่ง Role จริงไป (หรือจะส่ง "ADMIN" หลอกๆ ก็ได้ถ้าอยากให้ชัวร์ แต่น่าจะแก้ที่ตัวลูกแล้ว)
-            onUserChange={handleUserChange} 
-        />
-      </div>
-
+      {/* ฝั่งขวา: เมนูจัดการผู้ใช้ */}
       <div className="flex items-center gap-2 sm:gap-4">
+        
+        {/* 🚫 ปิด UI สำหรับสวมรอยทั้งหมด
+        <div className="hidden lg:block">
+          <DebugUserSwitcher 
+              users={allStaffs}
+              currentUser={user || null} 
+              realUserRole={user?.role} 
+              onUserChange={handleUserChange} 
+          />
+        </div>
+
         {isImpersonating && (
              <span className="hidden sm:inline-block text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded-md font-bold border border-red-200 animate-pulse">
                 จำลองสิทธิ์
              </span>
         )}
-
         <div className="h-6 w-px bg-slate-200 hidden sm:block"></div>
+        */}
 
+        {/* เมนูโปรไฟล์ผู้ใช้งาน */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <div className="flex items-center gap-3 pl-1 pr-2 py-1 rounded-full hover:bg-slate-50 transition-colors cursor-pointer border border-transparent hover:border-slate-100 outline-none">

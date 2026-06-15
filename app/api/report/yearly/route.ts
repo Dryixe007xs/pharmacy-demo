@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
@@ -23,9 +23,8 @@ export async function GET(req: Request) {
     const canViewAll = userRole === "ADMIN" || userRole === "VICE_DEAN";
     const isProgramChair = userRole === "PROGRAM_CHAIR";
 
-    // ─── META BRANCH ──────────────────────────────────────────────────────────
+    // ─── META BRANCH ─────────────────────────────────────────────────────────
     if (isMeta) {
-      // ดึงปีการศึกษาทั้งหมด เรียงจากมากไปน้อย
       const academicYears = await prisma.academicYear.findMany({
         select: { id: true, isActive: true },
         orderBy: { id: "desc" },
@@ -35,7 +34,6 @@ export async function GET(req: Request) {
       const activeYear =
         academicYears.find((y) => y.isActive)?.id ?? availableYears[0] ?? null;
 
-      // programs สำหรับ Admin / Vice Dean
       let programs: { id: number; name_th: string }[] = [];
       if (canViewAll) {
         const allPrograms = await prisma.program.findMany({
@@ -47,14 +45,13 @@ export async function GET(req: Request) {
         programs = Array.from(unique.values());
       }
 
-      // ชื่อหลักสูตรที่ Program Chair รับผิดชอบ
       let programChairCurriculum: string | null = null;
       if (isProgramChair) {
         const chaired = await prisma.program.findFirst({
           where: {
             OR: [
               { programChairId: session.user.id },
-              // @ts-ignore — fallback สำหรับ id แบบ number
+              // @ts-ignore
               { programChairId: Number(session.user.id) },
             ],
           },
@@ -71,12 +68,11 @@ export async function GET(req: Request) {
       });
     }
 
-    // ─── DATA BRANCH ──────────────────────────────────────────────────────────
+    // ─── DATA BRANCH ─────────────────────────────────────────────────────────
     let programs: any[] = [];
     let userProgramIds: number[] = [];
     let whereClause: any = {};
 
-    // Program Chair
     if (isProgramChair) {
       const programsChaired = await prisma.program.findMany({
         where: { programChairId: session.user.id },
@@ -98,7 +94,6 @@ export async function GET(req: Request) {
       }
     }
 
-    // กำหนดปีการศึกษา
     let targetYear = yearParam ? parseInt(yearParam) : undefined;
     if (!targetYear) {
       const activeYear = await prisma.academicYear.findFirst({
@@ -109,12 +104,9 @@ export async function GET(req: Request) {
     }
 
     whereClause.academicYear = targetYear;
-
-    // แสดงเฉพาะรายวิชาที่ผ่านการอนุมัติครบทั้งสองขั้น
     whereClause.headApprovalStatus = "APPROVED";
     whereClause.academicApprovalStatus = "APPROVED";
 
-    // Where Clause ตาม role
     if (isProgramChair) {
       if (userProgramIds.length > 0) {
         whereClause.subject = { programId: { in: userProgramIds } };
@@ -124,7 +116,8 @@ export async function GET(req: Request) {
     } else if (canViewAll) {
       if (curriculum && curriculum !== "all") {
         const isNumeric = !isNaN(Number(curriculum));
-        if (isNumeric) whereClause.subject = { programId: parseInt(curriculum) };
+        if (isNumeric)
+          whereClause.subject = { programId: parseInt(curriculum) };
         else whereClause.subject = { program: { name_th: curriculum } };
       } else if (programId) {
         whereClause.subject = { programId: parseInt(programId) };
@@ -141,7 +134,6 @@ export async function GET(req: Request) {
       }
     }
 
-    // Query
     const assignments = await prisma.teachingAssignment.findMany({
       where: whereClause,
       select: {
@@ -158,7 +150,13 @@ export async function GET(req: Request) {
         externalCourseNameEn: true,
         externalCredit: true,
         lecturer: {
-          select: { id: true, firstName: true, lastName: true, title: true },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            title: true,
+            email: true,
+          },
         },
         subject: {
           select: {
@@ -166,24 +164,60 @@ export async function GET(req: Request) {
             name_th: true,
             name_en: true,
             credit: true,
-            responsibleUserId: true,
-            program: { select: { id: true, name_th: true, year: true } },
+            program: {
+              select: {
+                id: true,
+                name_th: true,
+                year: true,
+                degree_level: true,
+              },
+            },
+            // ✅ ดึง courseOfferings เพื่อหา responsible ของ term นั้น
+            courseOfferings: {
+              where: {
+                termConfig: {
+                  academicYear: targetYear,
+                }
+              },
+              select: {
+                responsibleUserId: true,
+                termConfig: {
+                  select: { semester: true }
+                }
+              }
+            },
           },
         },
       },
       orderBy: [{ semester: "asc" }, { subject: { code: "asc" } }],
     });
 
-    // Vice Dean Info
+    // ✅ map responsibleUserId จาก CourseOffering ของ semester ที่ตรงกัน
+    const assignmentsWithResponsible = assignments.map((a) => {
+      const matchingOffering = a.subject.courseOfferings.find(
+        (o) => o.termConfig.semester === a.semester
+      );
+      return {
+        ...a,
+        subject: {
+          ...a.subject,
+          responsibleUserId: matchingOffering?.responsibleUserId ?? null,
+        },
+      };
+    });
+
     const viceDeanRaw = await prisma.user.findFirst({
       where: {
-        OR: [
-          { role: "VICE_DEAN" },
-          { adminTitle: { contains: "รองคณบดี" } },
-        ],
+        OR: [{ role: "VICE_DEAN" }, { adminTitle: { contains: "รองคณบดี" } }],
       },
-      select: { firstName: true, lastName: true, title: true, adminTitle: true },
+      select: {
+        firstName: true,
+        lastName: true,
+        title: true,
+        adminTitle: true,
+      },
     });
+
     const viceDean = viceDeanRaw
       ? {
           firstName: viceDeanRaw.firstName,
@@ -193,9 +227,17 @@ export async function GET(req: Request) {
         }
       : null;
 
-    return NextResponse.json({ assignments, programs, viceDean, programChair: null });
+    return NextResponse.json({
+      assignments: assignmentsWithResponsible,
+      programs,
+      viceDean,
+      programChair: null,
+    });
   } catch (error) {
     console.error("Yearly Report Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }

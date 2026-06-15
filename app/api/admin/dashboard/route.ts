@@ -10,7 +10,6 @@ export async function GET(request: Request) {
   const metaParam = searchParams.get('meta');
 
   try {
-    // ✅ Handler สำหรับ ?meta=true — ส่ง availableYears และ activeYear กลับไป
     if (metaParam === 'true') {
       const [academicYears, activeYear] = await Promise.all([
         prisma.academicYear.findMany({ orderBy: { id: 'desc' } }),
@@ -23,7 +22,6 @@ export async function GET(request: Request) {
       });
     }
 
-    // 1. หาข้อมูล Term ID เป้าหมาย
     let targetYear: number;
     let targetSemester: number;
 
@@ -51,7 +49,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: [], meta: { year: targetYear, semester: targetSemester } });
     }
 
-    // 2. ดึงข้อมูลอาจารย์
+    // ✅ ดึงจาก CourseOffering แทน responsibleSubjects
     const instructors = await prisma.user.findMany({
       orderBy: { firstName: 'asc' },
       select: {
@@ -59,29 +57,29 @@ export async function GET(request: Request) {
         firstName: true,
         lastName: true,
         title: true,
-        responsibleSubjects: {
+        responsibleOfferings: {
           where: {
-            courseOfferings: {
-              some: {
-                termConfigId: targetTermConfig.id,
-                isOpen: true
-              }
-            }
+            termConfigId: targetTermConfig.id,
+            isOpen: true,
           },
           select: {
-            id: true,
-            code: true,
-            name_th: true,
-            teachingAssignments: {
-              where: {
-                academicYear: targetYear,
-                semester: targetSemester
-              },
+            subject: {
               select: {
-                lecturerStatus: true,
-                responsibleStatus: true,
-                headApprovalStatus: true,
-                academicApprovalStatus: true
+                id: true,
+                code: true,
+                name_th: true,
+                teachingAssignments: {
+                  where: {
+                    academicYear: targetYear,
+                    semester: targetSemester
+                  },
+                  select: {
+                    lecturerStatus: true,
+                    responsibleStatus: true,
+                    headApprovalStatus: true,
+                    academicApprovalStatus: true
+                  }
+                }
               }
             }
           }
@@ -89,9 +87,10 @@ export async function GET(request: Request) {
       }
     });
 
-    // 3. แปลงข้อมูล
+    // แปลงข้อมูล
     const dashboardData = instructors.map(inst => {
-      const courses = inst.responsibleSubjects.map(sub => {
+      const courses = inst.responsibleOfferings.map(offering => {
+        const sub = offering.subject;
         const assigns = sub.teachingAssignments;
         let status = 'WAITING';
         let headStatus = 'PENDING';
@@ -121,7 +120,7 @@ export async function GET(request: Request) {
           id: sub.id,
           code: sub.code,
           name: sub.name_th,
-          status: status,
+          status,
           headApprovalStatus: headStatus,
           academicApprovalStatus: academicStatus
         };
@@ -131,7 +130,7 @@ export async function GET(request: Request) {
         id: String(inst.id),
         name: `${inst.title || ''}${inst.firstName} ${inst.lastName}`.trim(),
         department: "คณะเภสัชศาสตร์",
-        courses: courses
+        courses
       };
     }).filter(inst => inst.courses.length > 0);
 

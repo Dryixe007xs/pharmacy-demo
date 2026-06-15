@@ -7,17 +7,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ==========================================================
-// 1. CORE MASTER DATA
-// ==========================================================
-
 model Curriculum {
   id        Int      @id @default(autoincrement())
   name      String
   chairId   String?  @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
   chair     User?    @relation("CurriculumChair", fields: [chairId], references: [id])
   staffs    User[]   @relation("CurriculumStaff")
 
@@ -25,48 +20,38 @@ model Curriculum {
 }
 
 model User {
-  id             String    @id @default(cuid())
-  email          String?   @unique
-  name           String?
-  emailVerified  DateTime?
-  image          String?
-  title          String?
-  firstName      String?
-  lastName       String?
-  academicRank   String?
-  workStatus     String?
-  department     String?
-  adminTitle     String?
-  
-  role           Role      @default(USER)
-  userType       UserType  @default(ACADEMIC)
-  
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  deletedAt      DateTime?
-  curriculumId   Int?
-  
-  accounts       Account[]
-  sessions       Session[]
-  
-  managedCurriculum Curriculum? @relation("CurriculumChair")
-  managedPrograms   Program[]   @relation("ProgramChair")
-  
-  responsibleSubjects Subject[]            @relation("SubjectResponsible")
-  teachingAssignments TeachingAssignment[]
-  
-  chairApprovals     TeachingAssignment[] @relation("ChairApprovals")
-  academicApprovals  TeachingAssignment[] @relation("AcademicApprovals")
-  
-  curriculumRef      Curriculum?          @relation("CurriculumStaff", fields: [curriculumId], references: [id])
+  id                   String               @id @default(cuid())
+  email                String?              @unique
+  name                 String?
+  emailVerified        DateTime?
+  image                String?
+  title                String?
+  firstName            String?
+  lastName             String?
+  academicRank         String?
+  workStatus           String?
+  department           String?
+  adminTitle           String?
+  role                 Role                 @default(USER)
+  userType             UserType             @default(ACADEMIC)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  curriculumId         Int?
+  deletedAt            DateTime?
+  accounts             Account[]
+  responsibleOfferings CourseOffering[]     @relation("CourseOfferingResponsible")
+  managedCurriculum    Curriculum?          @relation("CurriculumChair")
+  managedPrograms      Program[]            @relation("ProgramChair")
+  sessions             Session[]
+  academicApprovals    TeachingAssignment[] @relation("AcademicApprovals")
+  chairApprovals       TeachingAssignment[] @relation("ChairApprovals")
+  teachingAssignments  TeachingAssignment[]
+  curriculumRef        Curriculum?          @relation("CurriculumStaff", fields: [curriculumId], references: [id])
 
-  // --- เพิ่ม index ใหม่ ---
   @@index([role])
   @@index([userType, role])
-  // ------------------------
-
   @@index([curriculumId], map: "user_curriculumId_fkey")
-  @@map("user") 
+  @@map("user")
 }
 
 model Account {
@@ -110,20 +95,15 @@ model VerificationToken {
   @@map("verificationtoken")
 }
 
-// ==========================================================
-// 2. ACADEMIC STRUCTURE
-// ==========================================================
-
 model Program {
-  id             Int         @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
   name_th        String
   degree_level   String
   year           Int
   programChairId String?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-  
-  programChair   User?       @relation("ProgramChair", fields: [programChairId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  programChair   User?     @relation("ProgramChair", fields: [programChairId], references: [id])
   subjects       Subject[]
 
   @@index([programChairId], map: "program_programChairId_fkey")
@@ -131,82 +111,60 @@ model Program {
 }
 
 model Subject {
-  id                Int      @id @default(autoincrement())
-  code              String
-  name_th           String
-  name_en           String?
-  credit            String
-  instructor        String?  @db.Text
-  program_full_name String?
-  
-  programId         Int
-  responsibleUserId String?
-  
-  program           Program  @relation(fields: [programId], references: [id])
-  responsibleUser   User?    @relation("SubjectResponsible", fields: [responsibleUserId], references: [id])
-  
+  id                  Int                  @id @default(autoincrement())
+  code                String
+  name_th             String
+  name_en             String?
+  credit              String
+  instructor          String?              @db.Text
+  program_full_name   String?
+  programId           Int
+  courseOfferings     CourseOffering[]
+  program             Program              @relation(fields: [programId], references: [id])
   teachingAssignments TeachingAssignment[]
-  courseOfferings     CourseOffering[] 
 
   @@unique([code, programId])
   @@index([programId], map: "subject_programId_fkey")
-  @@index([responsibleUserId], map: "subject_responsibleUserId_fkey")
   @@map("subject")
 }
 
-// ==========================================================
-// 3. WORKLOAD & APPROVAL FLOW
-// ==========================================================
-
 model TeachingAssignment {
-  id                  Int             @id @default(autoincrement())
-  academicYear        Int
-  semester            Int
-  
-  lectureHours        Float           @default(0)
-  labHours            Float           @default(0)
-  examHours           Float           @default(0)
-  examCritiqueHours   Float           @default(0)
-
-  lecturerStatus      ApprovalStatus?
-  lecturerFeedback    String?         @db.Text
-  lecturerActionAt    DateTime?
-  
-  responsibleStatus   ApprovalStatus  @default(PENDING)
-  responsibleActionAt DateTime?
-  
-  headApprovalStatus  ApprovalStatus?
-  headApprovedAt      DateTime?
-  headApproverId      String?
-  
+  id                     Int             @id @default(autoincrement())
+  academicYear           Int
+  semester               Int
+  lectureHours           Float           @default(0)
+  labHours               Float           @default(0)
+  examHours              Float           @default(0)
+  lecturerStatus         ApprovalStatus?
+  lecturerFeedback       String?         @db.Text
+  lecturerActionAt       DateTime?
+  responsibleStatus      ApprovalStatus  @default(PENDING)
+  responsibleActionAt    DateTime?
+  headApprovalStatus     ApprovalStatus?
+  headApprovedAt         DateTime?
+  headApproverId         String?
+  lecturerId             String
+  subjectId              Int
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  examCritiqueHours      Float           @default(0)
   academicApprovalStatus ApprovalStatus?
   academicApprovedAt     DateTime?
   academicApproverId     String?
-  
-  lecturerId          String
-  subjectId           Int
-  
-  courseType          CourseType      @default(INTERNAL)
-  externalFaculty     String?
-  externalCourseCode  String?
-  externalCourseName  String?
-  externalCourseNameEn  String?
-  externalCredit        String?
-  evidenceLink        String?
-  
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-  
-  headApprover        User?           @relation("ChairApprovals", fields: [headApproverId], references: [id])
-  academicApprover    User?           @relation("AcademicApprovals", fields: [academicApproverId], references: [id])
-  lecturer            User            @relation(fields: [lecturerId], references: [id], onDelete: Restrict)
-  subject             Subject         @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  courseType             CourseType      @default(INTERNAL)
+  evidenceLink           String?
+  externalCourseCode     String?
+  externalCourseName     String?
+  externalFaculty        String?
+  externalCourseNameEn   String?
+  externalCredit         String?
+  academicApprover       User?           @relation("AcademicApprovals", fields: [academicApproverId], references: [id])
+  headApprover           User?           @relation("ChairApprovals", fields: [headApproverId], references: [id])
+  lecturer               User            @relation(fields: [lecturerId], references: [id])
+  subject                Subject         @relation(fields: [subjectId], references: [id])
 
-  // --- เพิ่ม index ใหม่ ---
   @@index([academicYear, semester])
   @@index([subjectId, academicYear, semester])
-  // ------------------------
-
   @@index([lecturerId, academicYear, semester])
   @@index([headApproverId], map: "teachingassignment_headApproverId_fkey")
   @@index([academicApproverId], map: "teachingassignment_academicApproverId_fkey")
@@ -214,61 +172,52 @@ model TeachingAssignment {
   @@map("teachingassignment")
 }
 
-// ==========================================================
-// 4. SYSTEM CONFIGURATION
-// ==========================================================
-
 model AcademicYear {
-  id           Int      @id
-  isActive     Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  terms        TermConfiguration[]
+  id        Int                 @id
+  isActive  Boolean             @default(false)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  terms     TermConfiguration[]
 
   @@map("academic_year_master")
 }
 
 model TermConfiguration {
-  id           String   @id @default(cuid())
-  academicYear Int
-  semester     Int
-
-  step1Start   DateTime?
-  step1End     DateTime?
-  step2Start   DateTime?
-  step2End     DateTime?
-  step3Start   DateTime?
-  step3End     DateTime?
-  step4Start   DateTime?
-  step4End     DateTime?
-
-  yearRef      AcademicYear @relation(fields: [academicYear], references: [id], onDelete: Cascade)
+  id              String           @id @default(cuid())
+  academicYear    Int
+  semester        Int
+  step1Start      DateTime?
+  step1End        DateTime?
+  step2Start      DateTime?
+  step2End        DateTime?
+  step3Start      DateTime?
+  step3End        DateTime?
+  step4Start      DateTime?
+  step4End        DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   courseOfferings CourseOffering[]
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  yearRef         AcademicYear     @relation(fields: [academicYear], references: [id], onDelete: Cascade)
 
   @@unique([academicYear, semester])
   @@map("term_configuration")
 }
 
 model CourseOffering {
-  id           String            @id @default(cuid())
-  termConfigId String
-  subjectId    Int
-  isOpen       Boolean           @default(true)
-
-  termConfig   TermConfiguration @relation(fields: [termConfigId], references: [id], onDelete: Cascade)
-  subject      Subject           @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  id                String            @id @default(cuid())
+  termConfigId      String
+  subjectId         Int
+  isOpen            Boolean           @default(true)
+  responsibleUserId String?
+  responsibleUser   User?             @relation("CourseOfferingResponsible", fields: [responsibleUserId], references: [id], onUpdate: NoAction)
+  subject           Subject           @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  termConfig        TermConfiguration @relation(fields: [termConfigId], references: [id], onDelete: Cascade)
 
   @@unique([termConfigId, subjectId])
+  @@index([responsibleUserId])
+  @@index([subjectId], map: "course_offering_subjectId_fkey")
   @@map("course_offering")
 }
-
-// ==========================================================
-// 5. ENUMS
-// ==========================================================
 
 enum Role {
   ADMIN
@@ -291,6 +240,6 @@ enum ApprovalStatus {
 }
 
 enum CourseType {
-  INTERNAL 
-  EXTERNAL 
+  INTERNAL
+  EXTERNAL
 }

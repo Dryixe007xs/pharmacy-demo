@@ -84,7 +84,6 @@ export default function AdminDashboard({ session }: { session: any }) {
         }
     };
 
-    // ✅ แยก init ออกมาชัดเจน: fetch years ก่อน → set state → fetch data ด้วยปีที่ถูกต้อง
     useEffect(() => {
         const init = async () => {
             try {
@@ -94,7 +93,6 @@ export default function AdminDashboard({ session }: { session: any }) {
                 const years: string[] = (json.availableYears || []).map(String);
                 setAvailableYears(years);
 
-                // ✅ default = ปีที่ active, ถ้าไม่มีให้ใช้ปีแรกใน list
                 const defaultYear = json.activeYear
                     ? String(json.activeYear)
                     : years[0] ?? String(new Date().getFullYear() + 543);
@@ -134,8 +132,12 @@ export default function AdminDashboard({ session }: { session: any }) {
 
     const totalInstructors = instructors.length;
     const totalCourses = instructors.reduce((acc, curr) => acc + curr.courses.length, 0);
+
+    // ✅ แก้ใช้ academicApprovalStatus แทน deanApprovalStatus
     const completedCourses = instructors.reduce((acc, curr) =>
-        acc + curr.courses.filter((c: any) => c.deanApprovalStatus === 'APPROVED' || c.status === 'APPROVED').length, 0
+        acc + curr.courses.filter((c: any) =>
+            c.academicApprovalStatus === 'APPROVED' || c.status === 'APPROVED'
+        ).length, 0
     );
     const percentComplete = totalCourses > 0 ? Math.round((completedCourses / totalCourses) * 100) : 0;
 
@@ -166,7 +168,6 @@ export default function AdminDashboard({ session }: { session: any }) {
 
                     <span className="text-slate-300">/</span>
 
-                    {/* ✅ ป้องกัน Select render ก่อนที่ selectedYear จะมีค่า */}
                     {selectedYear ? (
                         <Select value={selectedYear} onValueChange={(v) => handleFilterChange('year', v)}>
                             <SelectTrigger className="w-[100px] h-9 text-sm bg-slate-50">
@@ -257,7 +258,11 @@ export default function AdminDashboard({ session }: { session: any }) {
                             <tbody className="divide-y divide-slate-100 bg-white">
                                 {filteredData.map((instructor) => {
                                     const total = instructor.courses.length;
-                                    const finished = instructor.courses.filter((c: any) => c.status === 'APPROVED' || c.deanApprovalStatus === 'APPROVED').length;
+
+                                    // ✅ แก้ใช้ academicApprovalStatus แทน deanApprovalStatus
+                                    const finished = instructor.courses.filter((c: any) =>
+                                        c.status === 'APPROVED' || c.academicApprovalStatus === 'APPROVED'
+                                    ).length;
                                     const percent = total > 0 ? (finished / total) * 100 : 0;
                                     const isExpanded = expandedRows.includes(instructor.id);
 
@@ -305,10 +310,16 @@ export default function AdminDashboard({ session }: { session: any }) {
                                                                         instructor.courses
                                                                             .sort((a: any, b: any) => a.semester - b.semester || a.code.localeCompare(b.code))
                                                                             .map((course: any, idx: number) => {
+                                                                                // ✅ แก้ใช้ academicApprovalStatus แทน deanApprovalStatus
                                                                                 let displayStatus = course.status;
-                                                                                if (course.headApprovalStatus === 'APPROVED' && course.deanApprovalStatus === 'PENDING') {
+                                                                                if (course.headApprovalStatus === 'APPROVED' &&
+                                                                                    (!course.academicApprovalStatus || course.academicApprovalStatus === 'PENDING')) {
                                                                                     displayStatus = 'PENDING_DEAN';
                                                                                 }
+                                                                                if (course.academicApprovalStatus === 'APPROVED') {
+                                                                                    displayStatus = 'APPROVED';
+                                                                                }
+
                                                                                 const status = getStatusBadge(displayStatus);
                                                                                 const semBadge = getSemesterBadge(course.semester);
 

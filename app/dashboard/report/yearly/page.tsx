@@ -5,14 +5,20 @@ import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Printer, FileText, Calendar, Filter, Loader2, Info, Layers, BookOpen, AlertCircle } from "lucide-react";
+import { Printer, FileText, Calendar, Filter, Loader2, Info, Layers, BookOpen, AlertCircle, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  exportLectureReport,
+  exportLabReport,
+  exportSeminarReport,
+} from "@/lib/exportYearlyReport";
 
 interface InstructorData {
   id: string;
   name: string;
+  email: string;
   role: string;
   lecture: number;
   lab: number;
@@ -25,6 +31,7 @@ interface CourseData {
   code: string;
   name: string;
   credit: string | number;
+  degreeLevel: string; // ✅ เพิ่ม degreeLevel
   isExternal?: boolean;
   instructors: InstructorData[];
 }
@@ -66,8 +73,6 @@ export default function YearlyReportPage() {
     return fullName || "ท่านประธาน";
   };
 
-  // ─── fetchMeta: โหลดรายการปี + หลักสูตร ──────────────────────────────────
-  // ใช้ session?.user เป็น dependency เพื่อให้ re-run เมื่อชื่อโหลดครบ
   useEffect(() => {
     if (!session) return;
 
@@ -86,12 +91,9 @@ export default function YearlyReportPage() {
         if (fetchedYears && fetchedYears.length > 0) {
           const yearStrings: string[] = fetchedYears.map(String);
           setAvailableYears(yearStrings);
-
-          // ✅ ใช้ activeYear เป็น default ถ้ามี ไม่งั้นใช้ปีแรก
           const defaultYear = activeYear ? String(activeYear) : yearStrings[0];
           setSelectedYear(defaultYear);
         } else {
-          // Fallback กรณี DB ไม่มีข้อมูล
           const currentYear = new Date().getFullYear() + 543;
           const fallback = [String(currentYear), String(currentYear + 1)];
           setAvailableYears(fallback);
@@ -117,11 +119,8 @@ export default function YearlyReportPage() {
     };
 
     fetchMeta();
-    // ✅ แก้ dependency จาก session?.user?.role เป็น session?.user
-    // เพื่อให้ re-run เมื่อข้อมูลชื่อโหลดครบ
   }, [session?.user]);
 
-  // ─── fetchData: โหลดข้อมูลตารางเมื่อปีหรือหลักสูตรเปลี่ยน ───────────────
   useEffect(() => {
     if (!session || !selectedYear) return;
 
@@ -157,6 +156,7 @@ export default function YearlyReportPage() {
                 code: isExternal ? assign.externalCourseCode || "-" : assign.subject?.code || "-",
                 name: isExternal ? assign.externalCourseName || "-" : assign.subject?.name_th || "-",
                 credit: isExternal ? assign.externalCredit || "-" : assign.subject?.credit || "-",
+                degreeLevel: assign.subject?.program?.degree_level || "-", // ✅ map degreeLevel
                 isExternal,
                 instructors: [],
               });
@@ -172,6 +172,7 @@ export default function YearlyReportPage() {
             course.instructors.push({
               id: assign.lecturer?.id,
               name: fullName,
+              email: assign.lecturer?.email || "",
               role: isResponsible ? "ผู้รับผิดชอบรายวิชา" : "ผู้สอน",
               lecture: assign.lectureHours || 0,
               lab: assign.labHours || 0,
@@ -228,6 +229,33 @@ export default function YearlyReportPage() {
     setTimeout(() => setIsPrinting(false), 3000);
   };
 
+  const getCurriculumLabel = () =>
+    isProgramChair
+      ? programChairCurriculumName || `หลักสูตรที่ ${getChairName()} รับผิดชอบ`
+      : selectedCurriculum === "all"
+      ? "รวมทุกหลักสูตร"
+      : curriculumOptions.find((c) => c.value === selectedCurriculum)?.label || "ไม่ระบุหลักสูตร";
+
+  const hasData = !processedData.every((t) => t.courses.length === 0);
+
+  const handleExportLecture = () => {
+    const result = exportLectureReport(processedData, selectedYear, getCurriculumLabel());
+    if (result.empty) toast.warning("ไม่มีข้อมูลการสอนบรรยาย");
+    else toast.success("ดาวน์โหลดไฟล์บรรยายแล้ว");
+  };
+
+  const handleExportLab = () => {
+    const result = exportLabReport(processedData, selectedYear, getCurriculumLabel());
+    if (result.empty) toast.warning("ไม่มีข้อมูลการสอนปฏิบัติการ");
+    else toast.success("ดาวน์โหลดไฟล์ปฏิบัติการแล้ว");
+  };
+
+  const handleExportSeminar = () => {
+    const result = exportSeminarReport(processedData, selectedYear, getCurriculumLabel());
+    if (result.empty) toast.warning("ไม่มีข้อมูลการสอนสัมมนา");
+    else toast.success("ดาวน์โหลดไฟล์สัมมนาแล้ว");
+  };
+
   if (!session)
     return (
       <div className="h-screen flex items-center justify-center">
@@ -270,19 +298,44 @@ export default function YearlyReportPage() {
             </p>
           </div>
 
-          <Button
-            className="gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-md rounded-full px-6 transition-all"
-            onClick={handlePrint}
-            disabled={isPrinting || processedData.every((t) => t.courses.length === 0)}
-          >
-            {isPrinting ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
-            {isPrinting ? "กำลังเตรียมเอกสาร..." : "พิมพ์รายงาน (PDF)"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              className="gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+              onClick={handleExportLecture}
+              disabled={loading || !hasData}
+            >
+              <Download size={16} /> บรรยาย
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 border-sky-200 text-sky-700 hover:bg-sky-50"
+              onClick={handleExportLab}
+              disabled={loading || !hasData}
+            >
+              <Download size={16} /> ปฏิบัติการ
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 border-amber-200 text-amber-700 hover:bg-amber-50"
+              onClick={handleExportSeminar}
+              disabled={loading || !hasData}
+            >
+              <Download size={16} /> สัมมนา
+            </Button>
+            <Button
+              className="gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-md rounded-full px-6 transition-all"
+              onClick={handlePrint}
+              disabled={isPrinting || !hasData}
+            >
+              {isPrinting ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
+              {isPrinting ? "กำลังเตรียมเอกสาร..." : "พิมพ์รายงาน (PDF)"}
+            </Button>
+          </div>
         </div>
 
         {/* Filter Section */}
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-6 items-end">
-          {/* ─── ปีการศึกษา ─── */}
           <div className="space-y-1.5 w-40">
             <label className="text-xs font-semibold text-slate-500">
               <Calendar size={12} className="inline mr-1" /> ปีการศึกษา
@@ -311,7 +364,6 @@ export default function YearlyReportPage() {
             </Select>
           </div>
 
-          {/* ─── หลักสูตร ─── */}
           <div className="space-y-1.5 min-w-[300px] max-w-lg flex-1">
             <label className="text-xs font-semibold text-slate-500">
               <Filter size={12} className="inline mr-1" /> หลักสูตร
@@ -355,7 +407,7 @@ export default function YearlyReportPage() {
               <Loader2 className="animate-spin w-8 h-8 mb-2" />
               <p>กำลังประมวลผลข้อมูล...</p>
             </div>
-          ) : processedData.every((term) => term.courses.length === 0) ? (
+          ) : !hasData ? (
             <div className="h-64 flex flex-col items-center justify-center text-slate-400">
               <AlertCircle className="w-12 h-12 mb-3 text-slate-300" />
               <p className="text-lg font-medium">ไม่พบข้อมูลรายวิชา</p>

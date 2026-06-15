@@ -12,7 +12,6 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const filter = searchParams.get('filter'); 
 
-    // ✅ กรณีที่ 1: ดึงรายวิชาที่เปิดสอนในปีปัจจุบัน (Active Year)
     if (filter === 'active' || filter === 'year') {
         const activeYear = await prisma.academicYear.findFirst({
             where: { isActive: true },
@@ -22,31 +21,34 @@ export async function GET(req: Request) {
                         courseOfferings: {
                             where: { isOpen: true },
                             include: {
+                                responsibleUser: {
+                                    select: {
+                                        id: true,
+                                        firstName: true,
+                                        lastName: true,
+                                        title: true,
+                                        email: true,
+                                    }
+                                },
                                 subject: {
                                     include: {
                                         program: {
                                             include: {
                                                 programChair: {
                                                     select: {
-                                                        id: true, firstName: true, lastName: true, title: true, email: true, adminTitle: true
+                                                        id: true, firstName: true, lastName: true,
+                                                        title: true, email: true, adminTitle: true
                                                     }
                                                 }
                                             }
                                         },
-                                        responsibleUser: {
-                                            select: {
-                                                id: true, firstName: true, lastName: true, email: true, title: true,
-                                            }
-                                        },
+                                        // ✅ ลบ responsibleUser ออกจาก subject แล้ว
                                         teachingAssignments: {
-                                            where: {
-                                                // ✅ filter เฉพาะปีและ semester ที่ตรงกับ term นั้น
-                                                // (ดึงแบบ flat ก่อน แล้วค่อย filter ทีหลังเหมือนเดิม)
-                                            },
                                             include: {
                                                 lecturer: {
                                                     select: {
-                                                        id: true, firstName: true, lastName: true, title: true, email: true
+                                                        id: true, firstName: true, lastName: true,
+                                                        title: true, email: true
                                                     }
                                                 }
                                             },
@@ -69,8 +71,12 @@ export async function GET(req: Request) {
                 const relevantAssignments = offering.subject.teachingAssignments.filter(
                     a => a.academicYear === activeYear.id && a.semester === term.semester
                 );
+
                 courses.push({
                     ...offering.subject,
+                    // ✅ ใช้จาก CourseOffering อย่างเดียว ไม่มี fallback ไป subject แล้ว
+                    responsibleUserId: offering.responsibleUserId,
+                    responsibleUser:   offering.responsibleUser,
                     teachingAssignments: relevantAssignments,
                     semester: term.semester,
                     termConfigId: term.id,
@@ -82,8 +88,7 @@ export async function GET(req: Request) {
         return NextResponse.json(courses);
     }
 
-    // ✅ กรณีที่ 2: ดึง Master Data รายวิชาทั้งหมด (สำหรับ Admin จัดการ)
-    // ❌ ตัด teachingAssignments ออก เพราะหน้า manage/courses ไม่ได้ใช้
+    // Master Data (Admin)
     const courses = await prisma.subject.findMany({
       include: { 
         program: {
@@ -91,16 +96,13 @@ export async function GET(req: Request) {
                 id: true, name_th: true, year: true, degree_level: true, programChairId: true,
                 programChair: {      
                     select: {
-                        id: true, firstName: true, lastName: true, title: true, email: true, adminTitle: true
+                        id: true, firstName: true, lastName: true, title: true,
+                        email: true, adminTitle: true
                     }
                 }
             }
         },
-        responsibleUser: {
-            select: {
-                id: true, firstName: true, lastName: true, email: true, title: true, 
-            }
-        },
+        // ✅ ลบ responsibleUser ออกแล้ว
       },
       orderBy: { id: 'desc' }
     });
@@ -116,13 +118,13 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { code, name_th, name_en, credit, programId, responsibleUserId, instructor } = body;
+    // ✅ ลบ responsibleUserId ออกแล้ว
+    const { code, name_th, name_en, credit, programId, instructor } = body;
 
     const newCourse = await prisma.subject.create({
         data: {
             code, name_th, name_en, credit,
             programId: Number(programId), 
-            responsibleUserId: responsibleUserId || null, 
             instructor,
         }
     });
@@ -136,7 +138,8 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { id, code, name_th, name_en, credit, programId, responsibleUserId, instructor } = body;
+    // ✅ ลบ responsibleUserId ออกแล้ว
+    const { id, code, name_th, name_en, credit, programId, instructor } = body;
 
     if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
 
@@ -145,7 +148,6 @@ export async function PUT(req: Request) {
         data: {
             code, name_th, name_en, credit,
             programId: Number(programId),
-            responsibleUserId: responsibleUserId || null,
             instructor,
         }
     });
