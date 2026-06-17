@@ -75,15 +75,6 @@ function extractCredit(credit: string | number, pos: 0 | 1): number | string {
 }
 
 // ── คอลัมน์หัวตาราง ───────────────────────────────────────────────────────────
-// UPMAIL        = อีเมล
-// WORKLOAD_DETAIL = รหัส+ชื่อวิชา
-// SEMESTER      = ภาคการศึกษา
-// LEVELNAME     = ระดับ
-// STUDENTCOUNT  = จำนวนนิสิต
-// UNIT          = หน่วยกิตรวม (บรรยาย-ปฏิบัติการ-เรียนรู้ด้วยตนเอง)
-// HOURS         = ชั่วโมง
-// RESULT_HOURS  = ชั่วโมงผล (= HOURS เผื่ออนาคต)
-// REMARK        = หมายเหตุ
 const COLUMNS = [
   "UPMAIL",
   "WORKLOAD_DETAIL",
@@ -111,18 +102,27 @@ function buildRows(
     filtered.forEach((course) => {
       const codeAndName = `${course.code} ${course.name}`.trim();
       const unit = extractCredit(course.credit, creditPos);
-      course.instructors.forEach((inst) => {
-        const hours = inst[hourKey] || 0;
+
+      // ✅ กรองเฉพาะ instructor ที่มีชั่วโมงในประเภทนั้น > 0
+      const eligibleInstructors = course.instructors.filter(
+        (inst) => (inst[hourKey] || 0) > 0
+      );
+
+      // ✅ ถ้าไม่มี instructor ที่มีชั่วโมงเลย ข้ามวิชานี้
+      if (eligibleInstructors.length === 0) return;
+
+      eligibleInstructors.forEach((inst) => {
+        const hours = inst[hourKey];
         rows.push([
-          inst.email,                           // UPMAIL
-          codeAndName,                          // WORKLOAD_DETAIL
-          shortenTerm(term.termTitle),          // SEMESTER
-          normalizeLevel(course.degreeLevel),   // LEVELNAME
-          "",                                   // STUDENTCOUNT
-          unit,                                 // UNIT (หน่วยกิตตามประเภท)
-          hours,                                // HOURS
-          hours,                                // RESULT_HOURS (= HOURS เผื่ออนาคต)
-          "",                                   // REMARK
+          inst.email,                          // UPMAIL
+          codeAndName,                         // WORKLOAD_DETAIL
+          shortenTerm(term.termTitle),         // SEMESTER
+          normalizeLevel(course.degreeLevel),  // LEVELNAME
+          "",                                  // STUDENTCOUNT
+          unit,                                // UNIT (หน่วยกิตตามประเภท)
+          hours,                               // HOURS
+          hours,                               // RESULT_HOURS (= HOURS เผื่ออนาคต)
+          "",                                  // REMARK
         ]);
       });
     });

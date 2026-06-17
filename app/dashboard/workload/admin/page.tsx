@@ -55,7 +55,6 @@ const STAGE_LABELS = [
   "อนุมัติครบทุกขั้นตอน",
 ];
 
-// ✅ แก้ปัญหาที่ 1: กำหนด Tailwind Class แบบตายตัว ป้องกันการโดน Purge ตอน Build
 const STAGE_THEMES = [
   { text: "text-slate-600", border: "border-slate-400", ring: "ring-slate-200" },
   { text: "text-amber-600", border: "border-amber-400", ring: "ring-amber-200" },
@@ -139,7 +138,6 @@ function getStage(
 
 // ===== COMPONENTS =====
 
-// ✅ แก้ปัญหาที่ 4: Component สำหรับ Badge ท้ายตาราง
 function CourseLevelBadge({ course }: { course: CourseWorkloadWithStage }) {
   const { courseStage, instructors: insts } = course;
   const headStatuses = insts.map((i) => i.headStatus);
@@ -577,12 +575,13 @@ function CourseStatusModal({
       forcePatch: { headApprovalStatus: "APPROVED" },
       forceLabel: "บังคับอนุมัติแทนประธานหลักสูตร",
       resetIds: allIds,
-      // ✅ แก้ปัญหาที่ 5: รีเซ็ต head ให้ล้าง academic ด้วย
       resetPatch: { headApprovalStatus: null, academicApprovalStatus: null },
       resetLabel: "รีเซ็ตสถานะประธานหลักสูตร (จะรีเซ็ตรองวิชาการด้วย)",
       canForce: !headAllApproved,
       canReset: headAnyApproved || headAnyRejected,
       stepNum: 3,
+      isForceDisabled: false,
+      disableReason: "",
     },
     {
       label: "รองคณบดีฝ่ายวิชาการอนุมัติ",
@@ -602,6 +601,8 @@ function CourseStatusModal({
       canForce: !academicAllApproved,
       canReset: academicAnyApproved,
       stepNum: 4,
+      isForceDisabled: !headAllApproved, // ต้องรอประธานหลักสูตรให้ครบก่อนถึงจะกดได้
+      disableReason: "ต้องรอประธานหลักสูตรอนุมัติให้ครบก่อน",
     },
   ];
 
@@ -657,15 +658,15 @@ function CourseStatusModal({
               <div className="flex items-center gap-1.5 shrink-0">
                 {step.canForce && step.forceIds.length > 0 && (
                   <button
-                    disabled={isBusy}
-                    title={step.forceLabel}
+                    disabled={isBusy || step.isForceDisabled}
+                    title={step.isForceDisabled ? step.disableReason : step.forceLabel}
                     onClick={() =>
                       updateStatusBatch(step.forceIds, step.forcePatch, {
                         title: step.forceLabel + "?",
                         text: "การดำเนินการนี้ไม่สามารถย้อนกลับได้โดยอัตโนมัติ",
                       })
                     }
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 disabled:opacity-40 transition-colors whitespace-nowrap"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                   >
                     {isBusy && pendingId === step.forceIds[0] ? (
                       <Loader2 size={12} className="animate-spin" />
@@ -710,7 +711,6 @@ function CourseStatusModal({
 // ===== MAIN COMPONENT =====
 export default function AdminWorkloadPage() {
   const { data: session } = useSession();
-  // ✅ แก้ปัญหาที่ 6: นำ as any ออกให้ Type Safety ชัดเจน
   const currentUser = session?.user;
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -725,7 +725,6 @@ export default function AdminWorkloadPage() {
 
   const { courses, loading, error, refetch } = useWorkloadData();
   
-  // ✅ แก้ปัญหาที่ 7 & 2: ผูกการล้างสถานะ Draft/Edit ไว้กับตอน refetch ข้อมูลป้องกันบัค
   const handleRefetch = useCallback(() => {
     setHourDrafts({});
     setEditingId(null);
@@ -770,7 +769,6 @@ export default function AdminWorkloadPage() {
       });
   }, [coursesWithStage, searchTerm, selectedProgram, selectedSemester, selectedStage]);
 
-  // ✅ แก้ปัญหาที่ 3: ใช้ getStage() เป็นศูนย์กลางคำนวณป้องกัน logic ซ้ำซ้อน
   const stageCounts = useMemo(() => {
     const counts = [0, 0, 0, 0, 0];
     let rejected = 0;
