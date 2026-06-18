@@ -35,6 +35,7 @@ import {
   XCircle,
   UserCheck,
   AlertTriangle,
+  Send,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -111,13 +112,15 @@ type CourseLevelStage = {
 // ===== LOGIC HELPERS =====
 function getCourseLevelStage(instructors: InstructorLoad[]): CourseLevelStage {
   return {
+    // ✅ บังคับให้วิชานอกคณะ (isExternal) ข้ามขั้นยืนยันชั่วโมงไปเลย 100%
     allLecturerApproved:
       instructors.length > 0 &&
-      instructors.every((i) => i.lecturerStatus === "APPROVED"),
+      instructors.every((i) => i.isExternal || i.lecturerStatus === "APPROVED"),
+    // ✅ บังคับให้วิชานอกคณะข้ามขั้นผู้รับผิดชอบไปด้วย
     allResponsibleApproved:
       instructors.length > 0 &&
-      instructors.every((i) => i.responsibleStatus === "APPROVED"),
-    anyLecturerRejected: instructors.some((i) => i.lecturerStatus === "REJECTED"),
+      instructors.every((i) => i.isExternal || i.responsibleStatus === "APPROVED"),
+    anyLecturerRejected: instructors.some((i) => !i.isExternal && i.lecturerStatus === "REJECTED"),
   };
 }
 
@@ -129,6 +132,17 @@ function getStage(
 
   if (anyLecturerRejected) return { index: 0, rejected: true };
   if (inst.headStatus === "REJECTED") return { index: 1, rejected: true };
+
+  // ✅ วิชานอกคณะ: จะไม่แตะแท็บ 0 เลย! เริ่มต้นชีวิตที่แท็บ 1 (รอนำส่ง) ทันที
+  if (inst.isExternal) {
+    if (!inst.headStatus || inst.headStatus === "DRAFT") return { index: 1, rejected: false }; 
+    if (inst.academicStatus === "APPROVED") return { index: 4, rejected: false };
+    if (inst.headStatus === "APPROVED") return { index: 3, rejected: false };
+    if (inst.headStatus === "PENDING") return { index: 2, rejected: false };
+    return { index: 1, rejected: false };
+  }
+
+  // ✅ วิชาในคณะ (Flow ปกติ)
   if (!allLecturerApproved) return { index: 0, rejected: false };
   if (!allResponsibleApproved) return { index: 1, rejected: false };
   if (inst.academicStatus === "APPROVED") return { index: 4, rejected: false };
@@ -137,7 +151,6 @@ function getStage(
 }
 
 // ===== COMPONENTS =====
-
 function CourseLevelBadge({ course }: { course: CourseWorkloadWithStage }) {
   const { courseStage, instructors: insts } = course;
   const headStatuses = insts.map((i) => i.headStatus);
@@ -147,13 +160,37 @@ function CourseLevelBadge({ course }: { course: CourseWorkloadWithStage }) {
   const allHead = headStatuses.length > 0 && headStatuses.every((s) => s === "APPROVED");
   const anyHeadRejected = headStatuses.some((s) => s === "REJECTED");
   const anyLecturerRejected = courseStage.anyLecturerRejected;
+  const allExternal = insts.length > 0 && insts.every((i) => i.isExternal);
 
   if (allAcademic) return (
     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
       <CheckCircle size={12} /> อนุมัติครบทุกขั้นตอน
     </span>
   );
-  if (anyHeadRejected || anyLecturerRejected) return (
+  if (anyHeadRejected) return (
+    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 whitespace-nowrap">
+      <XCircle size={12} /> ถูกตีกลับ
+    </span>
+  );
+  if (allExternal) {
+    if (allHead) return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-violet-50 text-violet-700 border border-violet-200 whitespace-nowrap">
+        <Clock size={12} /> รอรองวิชาการอนุมัติ
+      </span>
+    );
+    const allSubmitted = insts.every((i) => i.headStatus === "PENDING" || i.headStatus === "APPROVED");
+    if (allSubmitted) return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+        <Clock size={12} /> รอประธานหลักสูตรอนุมัติ
+      </span>
+    );
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-orange-50 text-orange-700 border border-orange-200 whitespace-nowrap">
+        <Clock size={12} /> รอส่งให้ประธาน
+      </span>
+    );
+  }
+  if (anyLecturerRejected) return (
     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200 whitespace-nowrap">
       <XCircle size={12} /> ถูกตีกลับ
     </span>
@@ -180,13 +217,44 @@ function CourseLevelBadge({ course }: { course: CourseWorkloadWithStage }) {
   );
 }
 
-const StageBadge = ({
-  inst,
-}: {
-  inst: InstructorLoad;
-}) => {
-  const isResponsible = inst.role === "ผู้รับผิดชอบรายวิชา";
+const StageBadge = ({ inst }: { inst: InstructorLoad }) => {
+  if (inst.isExternal) {
+    if (inst.academicStatus === "APPROVED") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+          <CheckCircle size={11} /> อนุมัติครบทุกขั้นตอน
+        </span>
+      );
+    }
+    if (inst.headStatus === "APPROVED") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-violet-50 text-violet-700 border border-violet-200 whitespace-nowrap">
+          <Clock size={11} /> รอรองวิชาการอนุมัติ
+        </span>
+      );
+    }
+    if (inst.headStatus === "REJECTED") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-50 text-red-700 border border-red-200 whitespace-nowrap">
+          <AlertOctagon size={11} /> ประธานส่งกลับแก้ไข
+        </span>
+      );
+    }
+    if (inst.headStatus === "PENDING") {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+          <Clock size={11} /> รอประธานอนุมัติ
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-orange-50 text-orange-700 border border-orange-200 whitespace-nowrap">
+        <Clock size={11} /> รอส่งให้ประธาน
+      </span>
+    );
+  }
 
+  const isResponsible = inst.role === "ผู้รับผิดชอบรายวิชา";
   if (isResponsible) {
     if (inst.lecturerStatus === "APPROVED") {
       return (
@@ -290,42 +358,43 @@ function transformInternalCourses(allCourses: any[]): CourseWorkload[] {
 function transformExternalCourses(externalContainers: any[]): CourseWorkload[] {
   const workloadData: CourseWorkload[] = [];
   externalContainers.forEach((container: any) => {
-    (container.teachingAssignments || []).forEach((a: any) => {
-      workloadData.push({
-        id: `ext-${a.id}`,
-        originalCourseId: container.id,
-        code: a.externalCourseCode || "ไม่ระบุรหัส",
-        name: a.externalCourseName || "ไม่ระบุชื่อวิชา",
-        nameEn: a.externalCourseNameEn || "",
-        credit: a.externalCredit || "-",
-        programName: a.externalFaculty || "ไม่ระบุคณะ",
-        semester: a.semester,
-        instructors: [
-          {
-            id: a.id,
-            name: a.lecturer
-              ? `${a.lecturer.title || ""}${a.lecturer.firstName} ${a.lecturer.lastName}`.trim()
-              : "ไม่ระบุชื่อ",
-            role: "ผู้สอน",
-            lecture: Number(a.lectureHours) || 0,
-            lab: Number(a.labHours) || 0,
-            exam: Number(a.examHours) || 0,
-            critique: Number(a.examCritiqueHours) || 0,
-            lecturerStatus: a.lecturerStatus ?? null,
-            responsibleStatus: a.responsibleStatus ?? null,
-            headStatus: a.headApprovalStatus ?? null,
-            academicStatus: a.academicApprovalStatus ?? null,
-            lecturerFeedback: a.lecturerFeedback ?? null,
-            isExternal: true,
-            externalFaculty: a.externalFaculty ?? null,
-            externalCourseCode: a.externalCourseCode ?? null,
-            externalCourseName: a.externalCourseName ?? null,
-            externalCredit: a.externalCredit ?? null,
-            evidenceLink: a.evidenceLink ?? null,
-            courseType: "EXTERNAL",
-          },
-        ],
-      });
+    const assignments = container.teachingAssignments || [];
+    if (assignments.length === 0) return;
+
+    const instructors: InstructorLoad[] = assignments.map((a: any) => ({
+      id: a.id,
+      name: a.lecturer
+        ? `${a.lecturer.title || ""}${a.lecturer.firstName} ${a.lecturer.lastName}`.trim()
+        : "ไม่ระบุชื่อ",
+      role: "ผู้สอน",
+      lecture: Number(a.lectureHours) || 0,
+      lab: Number(a.labHours) || 0,
+      exam: Number(a.examHours) || 0,
+      critique: Number(a.examCritiqueHours) || 0,
+      lecturerStatus: a.lecturerStatus ?? null,
+      responsibleStatus: a.responsibleStatus ?? null,
+      headStatus: a.headApprovalStatus ?? null,
+      academicStatus: a.academicApprovalStatus ?? null,
+      lecturerFeedback: a.lecturerFeedback ?? null,
+      isExternal: true,
+      externalFaculty: a.externalFaculty ?? null,
+      externalCourseCode: a.externalCourseCode ?? null,
+      externalCourseName: a.externalCourseName ?? null,
+      externalCredit: a.externalCredit ?? null,
+      evidenceLink: a.evidenceLink ?? null,
+      courseType: "EXTERNAL",
+    }));
+
+    workloadData.push({
+      id: `ext-${container.code}-${container.semester}`,
+      originalCourseId: container.id || 0,
+      code: container.code || "ไม่ระบุรหัส",
+      name: container.name_th || "ไม่ระบุชื่อวิชา",
+      nameEn: container.name_en || "",
+      credit: container.credit || "-",
+      programName: assignments[0]?.externalFaculty || "ไม่ระบุคณะ",
+      semester: container.semester || 1,
+      instructors: instructors,
     });
   });
   return workloadData;
@@ -353,7 +422,7 @@ function useWorkloadData() {
     try {
       const [resInternal, resExternal] = await Promise.all([
         fetch("/api/courses?filter=active"),
-        fetch("/api/assignments/external"),
+        fetch("/api/assignments/external?showAll=true"),
       ]);
       if (!resInternal.ok) throw new Error(`Courses API Error: ${resInternal.status}`);
       if (!resExternal.ok) throw new Error(`External API Error: ${resExternal.status}`);
@@ -558,6 +627,7 @@ function CourseStatusModal({
   const headAnyRejected = headStatuses.some((s) => s === "REJECTED");
   const academicAllApproved = academicStatuses.every((s) => s === "APPROVED");
   const academicAnyApproved = academicStatuses.some((s) => s === "APPROVED");
+  const responsibleAllApproved = instructors.every((i) => i.isExternal || i.responsibleStatus === "APPROVED");
 
   const steps = [
     {
@@ -580,8 +650,8 @@ function CourseStatusModal({
       canForce: !headAllApproved,
       canReset: headAnyApproved || headAnyRejected,
       stepNum: 3,
-      isForceDisabled: false,
-      disableReason: "",
+      isForceDisabled: !responsibleAllApproved,
+      disableReason: "ต้องรอผู้รับผิดชอบนำส่งให้ประธานก่อน",
     },
     {
       label: "รองคณบดีฝ่ายวิชาการอนุมัติ",
@@ -601,7 +671,7 @@ function CourseStatusModal({
       canForce: !academicAllApproved,
       canReset: academicAnyApproved,
       stepNum: 4,
-      isForceDisabled: !headAllApproved, // ต้องรอประธานหลักสูตรให้ครบก่อนถึงจะกดได้
+      isForceDisabled: !headAllApproved, 
       disableReason: "ต้องรอประธานหลักสูตรอนุมัติให้ครบก่อน",
     },
   ];
@@ -970,224 +1040,267 @@ export default function AdminWorkloadPage() {
         ) : filteredCourses.length > 0 ? (
           <div className="space-y-6">
             <AnimatePresence mode="popLayout">
-              {filteredCourses.map((course, index) => (
-                <motion.div
-                  key={course.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ delay: index * 0.03 }}
-                  className="bg-white rounded-2xl border border-slate-200 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden"
-                >
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gradient-to-r from-slate-50 to-slate-100/50 text-slate-500 font-semibold text-xs uppercase tracking-wide">
-                        <tr>
-                          <th className="py-3.5 px-5 text-left w-[17%]">รายวิชา</th>
-                          <th className="py-3.5 px-3 text-center w-[8%]">ภาค</th>
-                          <th className="py-3.5 px-5 text-left w-[14%]">อาจารย์ผู้สอน</th>
-                          <th className="py-3.5 px-3 text-center w-[7%]">บรรยาย<br/>(ชม.)</th>
-                          <th className="py-3.5 px-3 text-center w-[7%]">ปฏิบัติ<br/>(ชม.)</th>
-                          <th className="py-3.5 px-3 text-center w-[7%]">คุมสอบ<br/>(ชม.)</th>
-                          <th className="py-3.5 px-3 text-center w-[7%]">วิพากษ์<br/>(หัวข้อ)</th>
-                          <th className="py-3.5 px-3 text-center w-[18%]">สถานะปัจจุบัน</th>
-                          <th className="py-3.5 px-3 text-center w-[15%]">จัดการ</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {course.instructors.map((instructor, idx) => {
-                          const isEditing = editingId === instructor.id;
-                          const draft = hourDrafts[instructor.id];
-                          const isSaving = savingId === instructor.id;
-                          const isConfirming = pendingId === instructor.id;
-                          const lecturerApproved = instructor.lecturerStatus === "APPROVED";
+              {filteredCourses.map((course, index) => {
+                const allExternal = course.instructors.every(i => i.isExternal);
+                const anyUnsentExternal = course.instructors.some(i => !i.headStatus || i.headStatus === "DRAFT");
 
-                          return (
-                            <tr
-                              key={instructor.id}
-                              className={`transition-colors ${
-                                instructor.isExternal
-                                  ? "bg-orange-50/30 hover:bg-orange-50/60"
-                                  : "hover:bg-indigo-50/20"
-                              }`}
-                            >
-                              {idx === 0 ? (
-                                <>
-                                  <td
-                                    rowSpan={course.instructors.length}
-                                    className="py-5 px-5 align-top border-r border-slate-100 bg-white"
-                                  >
-                                    <div className="flex flex-col gap-2">
-                                      <div className="flex items-start justify-between gap-2 flex-wrap">
-                                        <span className="font-bold text-lg text-slate-800 tracking-tight leading-none">
-                                          {course.code}
+                return (
+                  <motion.div
+                    key={course.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ delay: index * 0.03 }}
+                    className="bg-white rounded-2xl border border-slate-200 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden"
+                  >
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gradient-to-r from-slate-50 to-slate-100/50 text-slate-500 font-semibold text-xs uppercase tracking-wide">
+                          <tr>
+                            <th className="py-3.5 px-5 text-left w-[17%]">รายวิชา</th>
+                            <th className="py-3.5 px-3 text-center w-[8%]">ภาค</th>
+                            <th className="py-3.5 px-5 text-left w-[14%]">อาจารย์ผู้สอน</th>
+                            <th className="py-3.5 px-3 text-center w-[7%]">บรรยาย<br/>(ชม.)</th>
+                            <th className="py-3.5 px-3 text-center w-[7%]">ปฏิบัติ<br/>(ชม.)</th>
+                            <th className="py-3.5 px-3 text-center w-[7%]">คุมสอบ<br/>(ชม.)</th>
+                            <th className="py-3.5 px-3 text-center w-[7%]">วิพากษ์<br/>(หัวข้อ)</th>
+                            <th className="py-3.5 px-3 text-center w-[18%]">สถานะปัจจุบัน</th>
+                            <th className="py-3.5 px-3 text-center w-[15%]">จัดการ</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {course.instructors.map((instructor, idx) => {
+                            const isEditing = editingId === instructor.id;
+                            const draft = hourDrafts[instructor.id];
+                            const isSaving = savingId === instructor.id;
+                            const isConfirming = pendingId === instructor.id;
+                            const lecturerApproved = instructor.lecturerStatus === "APPROVED";
+
+                            return (
+                              <tr
+                                key={instructor.id}
+                                className={`transition-colors ${
+                                  instructor.isExternal
+                                    ? "bg-orange-50/30 hover:bg-orange-50/60"
+                                    : "hover:bg-indigo-50/20"
+                                }`}
+                              >
+                                {idx === 0 ? (
+                                  <>
+                                    <td
+                                      rowSpan={course.instructors.length}
+                                      className="py-5 px-5 align-top border-r border-slate-100 bg-white"
+                                    >
+                                      <div className="flex flex-col gap-2">
+                                        <div className="flex items-start justify-between gap-2 flex-wrap">
+                                          <span className="font-bold text-lg text-slate-800 tracking-tight leading-none">
+                                            {course.code}
+                                          </span>
+                                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200 whitespace-nowrap">
+                                            <BookOpen size={11} /> {course.credit} หน่วยกิต
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <p className="text-slate-700 font-medium text-sm leading-snug">{course.name}</p>
+                                          {course.nameEn && (
+                                            <p className="text-slate-400 text-xs mt-0.5 leading-snug">{course.nameEn}</p>
+                                          )}
+                                        </div>
+                                        <span className="inline-flex w-fit items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600">
+                                          {course.programName}
                                         </span>
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200 whitespace-nowrap">
-                                          <BookOpen size={11} /> {course.credit} หน่วยกิต
-                                        </span>
-                                      </div>
-                                      <div>
-                                        <p className="text-slate-700 font-medium text-sm leading-snug">{course.name}</p>
-                                        {course.nameEn && (
-                                          <p className="text-slate-400 text-xs mt-0.5 leading-snug">{course.nameEn}</p>
+                                        {course.instructors.some((i) => i.isExternal) && (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-orange-100 text-orange-700 border border-orange-200 w-fit">
+                                            🏛️ นอกคณะ
+                                          </span>
                                         )}
                                       </div>
-                                      <span className="inline-flex w-fit items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600">
-                                        {course.programName}
-                                      </span>
-                                      {course.instructors.some((i) => i.isExternal) && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-orange-100 text-orange-700 border border-orange-200 w-fit">
-                                          🏛️ นอกคณะ
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td
-                                    rowSpan={course.instructors.length}
-                                    className="py-5 px-3 align-top border-r border-slate-100 bg-white text-center"
-                                  >
-                                    <span
-                                      className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full font-bold text-[11px] border whitespace-nowrap ${
-                                        course.semester === 1
-                                          ? "bg-amber-50 text-amber-700 border-amber-200"
-                                          : course.semester === 2
-                                          ? "bg-blue-50 text-blue-700 border-blue-200"
-                                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                      }`}
+                                    </td>
+                                    <td
+                                      rowSpan={course.instructors.length}
+                                      className="py-5 px-3 align-top border-r border-slate-100 bg-white text-center"
                                     >
-                                      {SEMESTER_CONFIG[course.semester as keyof typeof SEMESTER_CONFIG]?.label ?? `เทอม ${course.semester}`}
-                                    </span>
-                                  </td>
-                                </>
-                              ) : null}
-
-                              <td className="py-3.5 px-5 align-middle">
-                                <div className="flex flex-col gap-1">
-                                  <span className="text-slate-700 font-medium text-sm">{instructor.name}</span>
-                                  {instructor.role === "ผู้รับผิดชอบรายวิชา" && (
-                                    <span className="inline-flex w-fit items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 border border-purple-200">
-                                      ผู้รับผิดชอบ
-                                    </span>
-                                  )}
-                                  {instructor.isExternal && instructor.evidenceLink && (
-                                    <a href={instructor.evidenceLink} target="_blank" rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline w-fit">
-                                      <ExternalLink size={10} /> เอกสาร
-                                    </a>
-                                  )}
-                                  {instructor.lecturerFeedback && (
-                                    <div className="inline-flex items-start gap-1 text-[11px] bg-yellow-50 text-yellow-800 border border-yellow-200 rounded px-1.5 py-1 max-w-[140px]"
-                                      title={instructor.lecturerFeedback}>
-                                      <FileText size={10} className="mt-0.5 shrink-0" />
-                                      <span className="line-clamp-2">{instructor.lecturerFeedback}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-
-                              {(["lecture", "lab", "exam", "critique"] as const).map((field) => (
-                                <td key={field} className="py-3.5 px-3 text-center align-middle">
-                                  {isEditing ? (
-                                    <HourCell
-                                      value={draft?.[field] ?? instructor[field]}
-                                      disabled={isSaving}
-                                      onChange={(v) =>
-                                        setHourDrafts((prev) => ({
-                                          ...prev,
-                                          [instructor.id]: { ...prev[instructor.id], [field]: v },
-                                        }))
-                                      }
-                                    />
-                                  ) : (
-                                    <span className="text-slate-700 font-semibold">{instructor[field]}</span>
-                                  )}
-                                </td>
-                              ))}
-
-                              <td className="py-3.5 px-3 text-center align-middle">
-                                <StageBadge inst={instructor} />
-                              </td>
-
-                              <td className="py-3.5 px-3 text-center align-middle">
-                                <div className="flex items-center justify-center gap-1.5">
-                                  {isEditing ? (
-                                    <>
-                                      <button
-                                        disabled={isSaving}
-                                        onClick={() => confirmSaveHours(instructor)}
-                                        title="บันทึกชั่วโมง"
-                                        className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
-                                      >
-                                        {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                                      </button>
-                                      <button
-                                        disabled={isSaving}
-                                        onClick={() => cancelEdit(instructor.id)}
-                                        title="ยกเลิก"
-                                        className="p-1.5 rounded-lg bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200 disabled:opacity-50 transition-colors"
-                                      >
-                                        <X size={14} />
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <button
-                                        onClick={() => startEdit(instructor)}
-                                        title="แก้ไขชั่วโมง"
-                                        className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors"
-                                      >
-                                        <Pencil size={14} />
-                                      </button>
-
-                                      <button
-                                        disabled={lecturerApproved || isConfirming}
-                                        onClick={() => confirmLecturerApprove(instructor)}
-                                        title={lecturerApproved ? "ยืนยันแล้ว" : "ยืนยันชั่วโมงแทนอาจารย์"}
-                                        className={`p-1.5 rounded-lg border transition-colors ${
-                                          lecturerApproved
-                                            ? "bg-emerald-50 text-emerald-400 border-emerald-200 cursor-default opacity-60"
-                                            : "bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100"
+                                      <span
+                                        className={`inline-flex items-center justify-center px-2.5 py-1 rounded-full font-bold text-[11px] border whitespace-nowrap ${
+                                          course.semester === 1
+                                            ? "bg-amber-50 text-amber-700 border-amber-200"
+                                            : course.semester === 2
+                                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
                                         }`}
                                       >
-                                        {isConfirming
-                                          ? <Loader2 size={14} className="animate-spin" />
-                                          : lecturerApproved
-                                          ? <CheckCircle size={14} />
-                                          : <UserCheck size={14} />
-                                        }
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                                        {SEMESTER_CONFIG[course.semester as keyof typeof SEMESTER_CONFIG]?.label ?? `เทอม ${course.semester}`}
+                                      </span>
+                                    </td>
+                                  </>
+                                ) : null}
 
-                  <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/40 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                      <span>{course.instructors.length} ผู้สอน</span>
-                      <span>·</span>
-                      <span>
-                        ยืนยันแล้ว {course.instructors.filter((i) => i.lecturerStatus === "APPROVED").length}/{course.instructors.length} คน
-                      </span>
+                                <td className="py-3.5 px-5 align-middle">
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-slate-700 font-medium text-sm">{instructor.name}</span>
+                                    {instructor.role === "ผู้รับผิดชอบรายวิชา" && (
+                                      <span className="inline-flex w-fit items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+                                        ผู้รับผิดชอบ
+                                      </span>
+                                    )}
+                                    {instructor.isExternal && instructor.evidenceLink && (
+                                      <a href={instructor.evidenceLink} target="_blank" rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline w-fit">
+                                        <ExternalLink size={10} /> เอกสาร
+                                      </a>
+                                    )}
+                                    {instructor.lecturerFeedback && (
+                                      <div className="inline-flex items-start gap-1 text-[11px] bg-yellow-50 text-yellow-800 border border-yellow-200 rounded px-1.5 py-1 max-w-[140px]"
+                                        title={instructor.lecturerFeedback}>
+                                        <FileText size={10} className="mt-0.5 shrink-0" />
+                                        <span className="line-clamp-2">{instructor.lecturerFeedback}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {(["lecture", "lab", "exam", "critique"] as const).map((field) => (
+                                  <td key={field} className="py-3.5 px-3 text-center align-middle">
+                                    {isEditing ? (
+                                      <HourCell
+                                        value={draft?.[field] ?? instructor[field]}
+                                        disabled={isSaving}
+                                        onChange={(v) =>
+                                          setHourDrafts((prev) => ({
+                                            ...prev,
+                                            [instructor.id]: { ...prev[instructor.id], [field]: v },
+                                          }))
+                                        }
+                                      />
+                                    ) : (
+                                      <span className="text-slate-700 font-semibold">{instructor[field]}</span>
+                                    )}
+                                  </td>
+                                ))}
+
+                                <td className="py-3.5 px-3 text-center align-middle">
+                                  <StageBadge inst={instructor} />
+                                </td>
+
+                                <td className="py-3.5 px-3 text-center align-middle">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    {isEditing ? (
+                                      <>
+                                        <button
+                                          disabled={isSaving}
+                                          onClick={() => confirmSaveHours(instructor)}
+                                          title="บันทึกชั่วโมง"
+                                          className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+                                        >
+                                          {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                                        </button>
+                                        <button
+                                          disabled={isSaving}
+                                          onClick={() => cancelEdit(instructor.id)}
+                                          title="ยกเลิก"
+                                          className="p-1.5 rounded-lg bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200 disabled:opacity-50 transition-colors"
+                                        >
+                                          <X size={14} />
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button
+                                          onClick={() => startEdit(instructor)}
+                                          title="แก้ไขชั่วโมง"
+                                          className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors"
+                                        >
+                                          <Pencil size={14} />
+                                        </button>
+
+                                        {/* ✅ ปิดปุ่มยืนยันชั่วโมงแทนอาจารย์สำหรับวิชานอกคณะไปเลย จะได้ไม่รกตา */}
+                                        {!instructor.isExternal && (
+                                          <button
+                                            disabled={lecturerApproved || isConfirming}
+                                            onClick={() => confirmLecturerApprove(instructor)}
+                                            title={lecturerApproved ? "ยืนยันแล้ว" : "ยืนยันชั่วโมงแทนอาจารย์"}
+                                            className={`p-1.5 rounded-lg border transition-colors ${
+                                              lecturerApproved
+                                                ? "bg-emerald-50 text-emerald-400 border-emerald-200 cursor-default opacity-60"
+                                                : "bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100"
+                                            }`}
+                                          >
+                                            {isConfirming
+                                              ? <Loader2 size={14} className="animate-spin" />
+                                              : lecturerApproved
+                                              ? <CheckCircle size={14} />
+                                              : <UserCheck size={14} />
+                                            }
+                                          </button>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <CourseLevelBadge course={course as CourseWorkloadWithStage} />
-                      <button
-                        onClick={() => setCourseModal(course as CourseWorkloadWithStage)}
-                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-indigo-200 text-indigo-700 text-xs font-semibold hover:bg-indigo-50 hover:shadow-sm transition-all"
-                      >
-                        <Settings2 size={14} />
-                        จัดการสถานะวิชานี้
-                      </button>
+
+                    <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/40 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-xs text-slate-400">
+                        <span>{course.instructors.length} ผู้สอน</span>
+                        <span>·</span>
+                        <span>
+                          ยืนยันแล้ว {course.instructors.filter((i) => i.isExternal || i.lecturerStatus === "APPROVED").length}/{course.instructors.length} คน
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CourseLevelBadge course={course as CourseWorkloadWithStage} />
+                        
+                        {course.courseStage.allLecturerApproved && allExternal && anyUnsentExternal && (
+                          <button
+                            disabled={pendingId !== null}
+                            onClick={() => {
+                              const ids = course.instructors.map(i => i.id);
+                              updateStatusBatch(ids, { headApprovalStatus: "PENDING" }, {
+                                title: "นำส่งประธานหลักสูตร?",
+                                text: "ส่งข้อมูลวิชานอกคณะนี้ให้ประธานหลักสูตรพิจารณาแทนผู้สอน"
+                              });
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50 transition-all shadow-sm"
+                          >
+                            <Send size={12} />
+                            นำส่งแทนผู้สอน
+                          </button>
+                        )}
+
+                        {course.courseStage.allLecturerApproved && !course.courseStage.allResponsibleApproved && !allExternal && (
+                          <button
+                            disabled={pendingId !== null}
+                            onClick={() => {
+                              const ids = course.instructors.map(i => i.id);
+                              updateStatusBatch(ids, { responsibleStatus: "APPROVED", headApprovalStatus: "PENDING", academicApprovalStatus: "PENDING" }, {
+                                title: "ส่งข้อมูลแทนผู้รับผิดชอบ?",
+                                text: "ส่งข้อมูลให้ประธานหลักสูตรพิจารณาแทนผู้รับผิดชอบรายวิชา"
+                              });
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 transition-all shadow-sm"
+                          >
+                            <Send size={12} />
+                            นำส่งแทนผู้รับผิดชอบ
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => setCourseModal(course as CourseWorkloadWithStage)}
+                          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-indigo-200 text-indigo-700 text-xs font-semibold hover:bg-indigo-50 hover:shadow-sm transition-all"
+                        >
+                          <Settings2 size={14} />
+                          จัดการสถานะวิชานี้
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           </div>
         ) : (

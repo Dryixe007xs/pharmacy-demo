@@ -13,6 +13,9 @@ import {
   exportLectureReport,
   exportLabReport,
   exportSeminarReport,
+  exportInternshipReport,
+  exportProjectReport,
+  exportThesisReport,
 } from "@/lib/exportYearlyReport";
 
 interface InstructorData {
@@ -256,6 +259,24 @@ export default function YearlyReportPage() {
     else toast.success("ดาวน์โหลดไฟล์สัมมนาแล้ว");
   };
 
+  const handleExportInternship = () => {
+    const result = exportInternshipReport(processedData, selectedYear, getCurriculumLabel());
+    if (result.empty) toast.warning("ไม่มีข้อมูลการสอนฝึกงาน/ปฏิบัติงาน");
+    else toast.success("ดาวน์โหลดไฟล์ฝึกงาน/ปฏิบัติงานแล้ว");
+  };
+
+  const handleExportProject = () => {
+    const result = exportProjectReport(processedData, selectedYear, getCurriculumLabel());
+    if (result.empty) toast.warning("ไม่มีข้อมูลการสอนโครงงาน");
+    else toast.success("ดาวน์โหลดไฟล์โครงงานแล้ว");
+  };
+
+  const handleExportThesis = () => {
+    const result = exportThesisReport(processedData, selectedYear, getCurriculumLabel());
+    if (result.empty) toast.warning("ไม่มีข้อมูลการสอนวิทยานิพนธ์");
+    else toast.success("ดาวน์โหลดไฟล์วิทยานิพนธ์แล้ว");
+  };
+
   if (!session)
     return (
       <div className="h-screen flex items-center justify-center">
@@ -301,36 +322,62 @@ export default function YearlyReportPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
-              className="gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+              className="gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-xs px-3"
               onClick={handleExportLecture}
               disabled={loading || !hasData}
             >
-              <Download size={16} /> บรรยาย
+              <Download size={14} /> 1.1 บรรยาย
             </Button>
             <Button
               variant="outline"
-              className="gap-2 border-sky-200 text-sky-700 hover:bg-sky-50"
+              className="gap-2 border-sky-200 text-sky-700 hover:bg-sky-50 text-xs px-3"
               onClick={handleExportLab}
               disabled={loading || !hasData}
             >
-              <Download size={16} /> ปฏิบัติการ
+              <Download size={14} /> 1.2 ปฏิบัติการ
             </Button>
             <Button
               variant="outline"
-              className="gap-2 border-amber-200 text-amber-700 hover:bg-amber-50"
+              className="gap-2 border-amber-200 text-amber-700 hover:bg-amber-50 text-xs px-3"
               onClick={handleExportSeminar}
               disabled={loading || !hasData}
             >
-              <Download size={16} /> สัมมนา
+              <Download size={14} /> 1.3 สัมมนา
             </Button>
             <Button
-              className="gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-md rounded-full px-6 transition-all"
-              onClick={handlePrint}
-              disabled={isPrinting || !hasData}
+              variant="outline"
+              className="gap-2 border-rose-200 text-rose-700 hover:bg-rose-50 text-xs px-3"
+              onClick={handleExportInternship}
+              disabled={loading || !hasData}
             >
-              {isPrinting ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
-              {isPrinting ? "กำลังเตรียมเอกสาร..." : "พิมพ์รายงาน (PDF)"}
+              <Download size={14} /> 1.4 ฝึกงาน
             </Button>
+            <Button
+              variant="outline"
+              className="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 text-xs px-3"
+              onClick={handleExportProject}
+              disabled={loading || !hasData}
+            >
+              <Download size={14} /> 1.6.1 โครงงาน
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 border-teal-200 text-teal-700 hover:bg-teal-50 text-xs px-3"
+              onClick={handleExportThesis}
+              disabled={loading || !hasData}
+            >
+              <Download size={14} /> 1.7 วิทยานิพนธ์
+            </Button>
+            <div className="w-full sm:w-auto mt-2 sm:mt-0 ml-auto">
+              <Button
+                className="gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-md rounded-full px-6 transition-all w-full sm:w-auto"
+                onClick={handlePrint}
+                disabled={isPrinting || !hasData}
+              >
+                {isPrinting ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
+                {isPrinting ? "กำลังเตรียม..." : "พิมพ์ PDF"}
+              </Button>
+            </div>
           </div>
         </div>
 

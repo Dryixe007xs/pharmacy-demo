@@ -28,17 +28,44 @@ interface SemesterGroup {
   courses: CourseData[];
 }
 
-// ── คำที่ใช้กรองออก (บรรยาย + ปฏิบัติ) ──────────────────────────────────────
-const EXCLUDE_KEYWORDS = ["สัมมนา", "ฝึกงาน", "วิทยานิพนธ์", "โครงงาน", "สหกิจ"];
-
-// ── คำที่ใช้กรองเข้า (สัมมนา) ────────────────────────────────────────────────
+// ── คำที่ใช้กรองเข้า (หมวดเฉพาะเจาะจง) ─────────────────────────────────────────
 const SEMINAR_KEYWORDS = ["สัมมนา"];
+const PROJECT_KEYWORDS = ["โครงงาน"];
+const THESIS_KEYWORDS = ["วิทยานิพนธ์"];
 
-const isExcluded = (courseName: string) =>
-  EXCLUDE_KEYWORDS.some((kw) => courseName.includes(kw));
+// แบ่งกลุ่มคำของ 1.4 ฝึกงาน ออกเป็น 2 แบบ
+const INTERNSHIP_INCLUDES = ["ฝึกงาน", "ปฏิบัติงาน", "สหกิจ", "ทักษะการบริบาล"]; // แค่มีคำพวกนี้อยู่ในชื่อก็ดึงมาเลย
+const INTERNSHIP_STARTSWITH = ["ปฏิบัติการ"]; // ✅ ต้อง "ขึ้นต้น" ด้วยคำนี้เท่านั้น ถึงจะดึงมา
 
+// ── ฟังก์ชันเช็คชื่อวิชา ───────────────────────────────────────────────────────
 const isSeminar = (courseName: string) =>
   SEMINAR_KEYWORDS.some((kw) => courseName.includes(kw));
+
+const isProject = (courseName: string) =>
+  PROJECT_KEYWORDS.some((kw) => courseName.includes(kw));
+
+const isThesis = (courseName: string) =>
+  THESIS_KEYWORDS.some((kw) => courseName.includes(kw));
+
+const isInternship = (courseName: string) => {
+  const name = courseName.trim();
+  return (
+    INTERNSHIP_INCLUDES.some((kw) => name.includes(kw)) ||
+    INTERNSHIP_STARTSWITH.some((kw) => name.startsWith(kw)) // ✅ เช็คแค่คำนำหน้า
+  );
+};
+
+// ── คำที่ใช้กรองออก (บรรยาย + ปฏิบัติ ปกติ) ──────────────────────────────────
+// ✅ โลจิกใหม่: ถ้ารายวิชานั้นไปตรงกับ สัมมนา, ฝึกงาน, โครงงาน หรือ วิทยานิพนธ์ แล้ว
+// ให้เตะออกจากหมวด บรรยาย/ปฏิบัติการ ทันที ป้องกันการซ้อนทับ 100%
+const isExcluded = (courseName: string) => {
+  return (
+    isSeminar(courseName) ||
+    isInternship(courseName) ||
+    isProject(courseName) ||
+    isThesis(courseName)
+  );
+};
 
 // ── แปลงชื่อภาคการศึกษาให้สั้น ───────────────────────────────────────────────
 function shortenTerm(termTitle: string): string {
@@ -59,7 +86,7 @@ function normalizeLevel(level: string): string {
 }
 
 // ── แยกหน่วยกิตจาก credit string ─────────────────────────────────────────────
-// รูปแบบ: "X (a-b-c)" → pos=0 คือบรรยาย, pos=1 คือปฏิบัติ/สัมนา
+// รูปแบบ: "X (a-b-c)" → pos=0 คือบรรยาย, pos=1 คือปฏิบัติ/สัมมนา
 // ถ้าเป็น "X (-)" หรือไม่มีวงเล็บ → คืน null
 function extractCredit(credit: string | number, pos: 0 | 1): number | string {
   const str = String(credit).trim();
@@ -88,7 +115,7 @@ const COLUMNS = [
 ];
 
 // ── สร้าง rows ────────────────────────────────────────────────────────────────
-// creditPos: 0 = บรรยาย (ตัวแรก), 1 = ปฏิบัติ/สัมนา (ตัวที่สอง)
+// creditPos: 0 = บรรยาย (ตัวแรก), 1 = ปฏิบัติ/สัมมนา (ตัวที่สอง)
 function buildRows(
   data: SemesterGroup[],
   filterFn: (course: CourseData) => boolean,
@@ -156,7 +183,7 @@ function makeFileName(type: string, year: string | number, label: string) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Export 1: การสอนบรรยาย → หน่วยกิตบรรยาย (ตัวแรก), ชั่วโมงบรรยาย
+// Export 1: การสอนบรรยาย (1.1) → หน่วยกิตบรรยาย (ตัวแรก), ชั่วโมงบรรยาย
 // ══════════════════════════════════════════════════════════════════════════════
 export function exportLectureReport(
   data: SemesterGroup[],
@@ -173,7 +200,7 @@ export function exportLectureReport(
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Export 2: การสอนปฏิบัติการ → หน่วยกิตปฏิบัติ (ตัวที่สอง), ชั่วโมงปฏิบัติ
+// Export 2: การสอนปฏิบัติการ (1.2) → หน่วยกิตปฏิบัติ (ตัวที่สอง), ชั่วโมงปฏิบัติ
 // ══════════════════════════════════════════════════════════════════════════════
 export function exportLabReport(
   data: SemesterGroup[],
@@ -190,7 +217,7 @@ export function exportLabReport(
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Export 3: การสอนสัมมนา → หน่วยกิตปฏิบัติ (ตัวที่สอง), ชั่วโมงปฏิบัติ
+// Export 3: การสอนสัมมนา (1.3) → หน่วยกิตปฏิบัติ (ตัวที่สอง), ชั่วโมงปฏิบัติ
 // ══════════════════════════════════════════════════════════════════════════════
 export function exportSeminarReport(
   data: SemesterGroup[],
@@ -203,5 +230,56 @@ export function exportSeminarReport(
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, makeSheet(rows), "การสอนสัมมนา");
   XLSX.writeFile(wb, makeFileName("สัมมนา", year, curriculumLabel));
+  return { empty: false };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Export 4: การสอนฝึกงาน/ปฏิบัติงาน (1.4) → หน่วยกิตปฏิบัติ (ตัวที่สอง), ชั่วโมงปฏิบัติ
+// ══════════════════════════════════════════════════════════════════════════════
+export function exportInternshipReport(
+  data: SemesterGroup[],
+  year: string | number,
+  curriculumLabel: string
+) {
+  const rows = buildRows(data, (course) => isInternship(course.name), "lab", 1);
+  if (rows.length <= 1) return { empty: true };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "การสอนฝึกงาน");
+  XLSX.writeFile(wb, makeFileName("ฝึกงาน_ปฏิบัติงาน", year, curriculumLabel));
+  return { empty: false };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Export 5: การสอนโครงงาน (1.6.1) → หน่วยกิตปฏิบัติ (ตัวที่สอง), ชั่วโมงปฏิบัติ
+// ══════════════════════════════════════════════════════════════════════════════
+export function exportProjectReport(
+  data: SemesterGroup[],
+  year: string | number,
+  curriculumLabel: string
+) {
+  const rows = buildRows(data, (course) => isProject(course.name), "lab", 1);
+  if (rows.length <= 1) return { empty: true };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "การสอนโครงงาน");
+  XLSX.writeFile(wb, makeFileName("โครงงาน", year, curriculumLabel));
+  return { empty: false };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Export 6: การสอนวิทยานิพนธ์ (1.7) → หน่วยกิตปฏิบัติ (ตัวที่สอง), ชั่วโมงปฏิบัติ
+// ══════════════════════════════════════════════════════════════════════════════
+export function exportThesisReport(
+  data: SemesterGroup[],
+  year: string | number,
+  curriculumLabel: string
+) {
+  const rows = buildRows(data, (course) => isThesis(course.name), "lab", 1);
+  if (rows.length <= 1) return { empty: true };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "การสอนวิทยานิพนธ์");
+  XLSX.writeFile(wb, makeFileName("วิทยานิพนธ์", year, curriculumLabel));
   return { empty: false };
 }
