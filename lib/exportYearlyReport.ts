@@ -149,7 +149,7 @@ function buildRows(
           unit,                                // UNIT (หน่วยกิตตามประเภท)
           hours,                               // HOURS
           hours,                               // RESULT_HOURS (= HOURS เผื่ออนาคต)
-          "",                                  // REMARK
+          course.isExternal ? "วิชานอกคณะ" : "", // REMARK
         ]);
       });
     });
@@ -194,7 +194,7 @@ export function exportLectureReport(
   if (rows.length <= 1) return { empty: true };
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "การสอนบรรยาย");
+  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "IMPORT");
   XLSX.writeFile(wb, makeFileName("บรรยาย", year, curriculumLabel));
   return { empty: false };
 }
@@ -211,7 +211,7 @@ export function exportLabReport(
   if (rows.length <= 1) return { empty: true };
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "การสอนปฏิบัติการ");
+  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "IMPORT");
   XLSX.writeFile(wb, makeFileName("ปฏิบัติการ", year, curriculumLabel));
   return { empty: false };
 }
@@ -228,7 +228,7 @@ export function exportSeminarReport(
   if (rows.length <= 1) return { empty: true };
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "การสอนสัมมนา");
+  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "IMPORT");
   XLSX.writeFile(wb, makeFileName("สัมมนา", year, curriculumLabel));
   return { empty: false };
 }
@@ -245,7 +245,7 @@ export function exportInternshipReport(
   if (rows.length <= 1) return { empty: true };
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "การสอนฝึกงาน");
+  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "IMPORT");
   XLSX.writeFile(wb, makeFileName("ฝึกงาน_ปฏิบัติงาน", year, curriculumLabel));
   return { empty: false };
 }
@@ -262,7 +262,7 @@ export function exportProjectReport(
   if (rows.length <= 1) return { empty: true };
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "การสอนโครงงาน");
+  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "IMPORT");
   XLSX.writeFile(wb, makeFileName("โครงงาน", year, curriculumLabel));
   return { empty: false };
 }
@@ -279,7 +279,7 @@ export function exportThesisReport(
   if (rows.length <= 1) return { empty: true };
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "การสอนวิทยานิพนธ์");
+  XLSX.utils.book_append_sheet(wb, makeSheet(rows), "IMPORT");
   XLSX.writeFile(wb, makeFileName("วิทยานิพนธ์", year, curriculumLabel));
   return { empty: false };
 }

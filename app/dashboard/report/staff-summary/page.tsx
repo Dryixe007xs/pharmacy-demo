@@ -112,38 +112,38 @@ export default function StaffSummaryListPage() {
             <div className="flex flex-col lg:flex-row gap-3 w-full lg:w-auto">
                 
                 {/* Curriculum Dropdown (Filter หลัก) */}
-                <div className="relative w-full lg:w-80">
-                    <div className="absolute left-3 top-2.5 pointer-events-none">
-                        <LayoutGrid className="w-4 h-4 text-slate-400" />
+                <div className="relative w-full lg:w-80 group">
+                    <div className="absolute left-3 top-2.5 pointer-events-none transition-colors group-hover:text-purple-500">
+                        <LayoutGrid className="w-4 h-4 text-slate-400 group-hover:text-purple-500 transition-colors" />
                     </div>
                     <select 
                         value={selectedCurriculum} 
                         onChange={(e) => setSelectedCurriculum(e.target.value)} 
-                        className="w-full border border-slate-200 rounded-lg pl-10 pr-8 py-2.5 text-sm text-slate-700 bg-white outline-none focus:ring-2 focus:ring-purple-100 focus:border-purple-300 appearance-none cursor-pointer"
+                        className="w-full border border-slate-200 rounded-lg pl-10 pr-8 py-2.5 text-sm text-slate-700 bg-white outline-none focus:ring-2 focus:ring-purple-100 focus:border-purple-400 hover:border-purple-300 appearance-none cursor-pointer transition-all"
                     >
-                        <option value="">ทุกหลักสูตร</option>
+                        <option value="">แสดงทุกหลักสูตร</option>
                         {uniqueCurriculums.map((curr, idx) => (
                             <option key={idx} value={curr}>{curr}</option>
                         ))}
                     </select>
-                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none group-hover:text-purple-500 transition-colors" />
                 </div>
 
                 {/* Search Input */}
-                <div className="relative w-full lg:w-80">
+                <div className="relative w-full lg:w-80 group">
                     <input 
                         type="text" 
                         placeholder="ค้นหาชื่ออาจารย์ หรือ อีเมล..." 
                         value={searchTerm} 
                         onChange={(e) => setSearchTerm(e.target.value)} 
-                        className="w-full border border-slate-200 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-purple-100 focus:border-purple-300 outline-none transition-all" 
+                        className="w-full border border-slate-200 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-900 hover:border-purple-300 focus:ring-2 focus:ring-purple-100 focus:border-purple-400 outline-none transition-all" 
                     />
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 group-hover:text-purple-500 transition-colors" />
                 </div>
             </div>
             
             <div className="text-sm text-slate-500 font-medium whitespace-nowrap">
-                พบข้อมูล {filteredStaff.length} ท่าน
+                พบข้อมูล <span className="text-purple-600 font-bold">{filteredStaff.length}</span> ท่าน
             </div>
         </div>
       </div>
@@ -183,7 +183,6 @@ export default function StaffSummaryListPage() {
                                                 <div className="font-semibold text-slate-800 text-base">
                                                     {getFullName(staff)}
                                                 </div>
-                                                {/* ❌ เอา ID ออกแล้ว */}
                                                 <div className="text-xs text-slate-500 mt-0.5">
                                                     {getDisplayRole(staff)}
                                                 </div>
@@ -237,15 +236,7 @@ export default function StaffSummaryListPage() {
             {/* Footer / Pagination */}
             <div className="bg-slate-50 border-t border-slate-200 px-6 py-3 flex items-center justify-between">
                  <div className="text-xs text-slate-500">
-                    แสดง {filteredStaff.length} รายการ
-                 </div>
-                 <div className="flex gap-2">
-                    <button disabled className="p-1.5 bg-white border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                        <ChevronLeft className="w-4 h-4 text-slate-600" />
-                    </button>
-                    <button disabled className="p-1.5 bg-white border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                        <ChevronRight className="w-4 h-4 text-slate-600" />
-                    </button>
+                    แสดงข้อมูลทั้งหมด <span className="font-semibold text-slate-700">{filteredStaff.length}</span> รายการ
                  </div>
             </div>
       </div>

@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Printer, FileText, Calendar, Filter, Loader2, Info, Layers, BookOpen, AlertCircle, Download } from "lucide-react";
+import { Printer, FileText, Calendar, Filter, Loader2, Info, Layers, BookOpen, AlertCircle, Download, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
 import {
   exportLectureReport,
   exportLabReport,
@@ -34,7 +35,7 @@ interface CourseData {
   code: string;
   name: string;
   credit: string | number;
-  degreeLevel: string; // ✅ เพิ่ม degreeLevel
+  degreeLevel: string; 
   isExternal?: boolean;
   instructors: InstructorData[];
 }
@@ -48,12 +49,14 @@ export default function YearlyReportPage() {
   const { data: session } = useSession();
 
   const [loading, setLoading] = useState(true);
-  const [processedData, setProcessedData] = useState<SemesterGroup[]>([]);
+  const [originalData, setOriginalData] = useState<SemesterGroup[]>([]); 
+  const [processedData, setProcessedData] = useState<SemesterGroup[]>([]); 
 
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [selectedCurriculum, setSelectedCurriculum] = useState("all");
   const [curriculumOptions, setCurriculumOptions] = useState<{ value: string; label: string }[]>([]);
+  const [searchQuery, setSearchQuery] = useState(""); 
 
   const [programChairCurriculumName, setProgramChairCurriculumName] = useState<string>("");
 
@@ -148,9 +151,10 @@ export default function YearlyReportPage() {
             if (!termCourses) return;
 
             const isExternal = assign.courseType === "EXTERNAL";
+            
             const subjectKey = isExternal
               ? `EXT-${assign.externalCourseCode || assign.id}`
-              : assign.subject?.code;
+              : `INT-${assign.subject?.id || assign.subject?.code}`; 
 
             if (!subjectKey) return;
 
@@ -159,7 +163,7 @@ export default function YearlyReportPage() {
                 code: isExternal ? assign.externalCourseCode || "-" : assign.subject?.code || "-",
                 name: isExternal ? assign.externalCourseName || "-" : assign.subject?.name_th || "-",
                 credit: isExternal ? assign.externalCredit || "-" : assign.subject?.credit || "-",
-                degreeLevel: assign.subject?.program?.degree_level || "-", // ✅ map degreeLevel
+                degreeLevel: assign.subject?.program?.degree_level || "-", 
                 isExternal,
                 instructors: [],
               });
@@ -198,7 +202,7 @@ export default function YearlyReportPage() {
           if (m) g.courses = Array.from(m.values()).sort((a, b) => a.code.localeCompare(b.code));
         });
 
-        setProcessedData(results);
+        setOriginalData(results); 
       } catch (error) {
         console.error("Failed to fetch yearly report:", error);
         toast.error("เกิดข้อผิดพลาดในการโหลดข้อมูล");
@@ -209,6 +213,44 @@ export default function YearlyReportPage() {
 
     fetchData();
   }, [selectedYear, selectedCurriculum, session?.user?.role]);
+
+  // 👈 Effect ตัวใหม่: ค้นหาแบบ "ตัดคนที่ไม่เกี่ยวข้องกันออก"
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+        setProcessedData(originalData);
+        return;
+    }
+
+    const lowerQuery = searchQuery.toLowerCase();
+
+    const filtered = originalData.map(term => {
+        const filteredCourses = term.courses.reduce((acc, course) => {
+            // เช็คว่า รหัส หรือ ชื่อวิชา ตรงกับคำค้นหาไหม?
+            const matchCourse = 
+                course.code.toLowerCase().includes(lowerQuery) || 
+                course.name.toLowerCase().includes(lowerQuery);
+
+            // เช็คว่า มีอาจารย์คนไหนที่ชื่อตรงกับคำค้นหาไหม?
+            const matchingInstructors = course.instructors.filter(inst => 
+                inst.name.toLowerCase().includes(lowerQuery)
+            );
+
+            if (matchCourse) {
+                // เคสที่ 1: ถ้าหาด้วยรหัส/ชื่อวิชา -> ให้ยกมาทั้งวิชาเลย (เห็นอาจารย์ทุกคนในวิชานั้น)
+                acc.push(course);
+            } else if (matchingInstructors.length > 0) {
+                // เคสที่ 2: ถ้าหาด้วยชื่ออาจารย์ -> ยกวิชานั้นมา แต่ "ตัดอาจารย์คนอื่นทิ้ง" ให้เหลือแค่คนที่หาเจอ
+                acc.push({ ...course, instructors: matchingInstructors });
+            }
+
+            return acc;
+        }, [] as CourseData[]);
+
+        return { ...term, courses: filteredCourses };
+    });
+
+    setProcessedData(filtered);
+  }, [searchQuery, originalData]);
 
   const handlePrint = () => {
     if (isPrinting) return;
@@ -225,6 +267,7 @@ export default function YearlyReportPage() {
       year: selectedYear,
       curriculum: isProgramChair ? "" : selectedCurriculum,
       curriculumLabel,
+      search: searchQuery.trim(),
       t: String(Date.now()),
     });
 
@@ -382,8 +425,8 @@ export default function YearlyReportPage() {
         </div>
 
         {/* Filter Section */}
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-6 items-end">
-          <div className="space-y-1.5 w-40">
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-end">
+          <div className="space-y-1.5 w-36">
             <label className="text-xs font-semibold text-slate-500">
               <Calendar size={12} className="inline mr-1" /> ปีการศึกษา
             </label>
@@ -411,7 +454,7 @@ export default function YearlyReportPage() {
             </Select>
           </div>
 
-          <div className="space-y-1.5 min-w-[300px] max-w-lg flex-1">
+          <div className="space-y-1.5 min-w-[250px] max-w-sm flex-1">
             <label className="text-xs font-semibold text-slate-500">
               <Filter size={12} className="inline mr-1" /> หลักสูตร
             </label>
@@ -435,150 +478,173 @@ export default function YearlyReportPage() {
               </Select>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* Table */}
-      <div className="w-full max-w-[95%] xl:max-w-[90rem] mx-auto bg-white shadow-sm rounded-2xl overflow-hidden border border-slate-200">
-        <div className="px-10 py-8 text-center border-b border-slate-100 bg-gradient-to-r from-purple-50/30 via-white to-white">
-          <h2 className="text-2xl font-bold text-slate-800">
-            รายงานสรุปรายวิชาประจำปีการศึกษา {selectedYear}
-          </h2>
-          <h3 className="text-lg font-medium text-purple-700 mt-1">{displayLabel}</h3>
-          <p className="font-light text-slate-500 text-sm mt-2">คณะเภสัชศาสตร์ มหาวิทยาลัยพะเยา</p>
+          {/* ช่องค้นหา */}
+          <div className="space-y-1.5 w-full md:flex-1 md:min-w-[300px]">
+            <label className="text-xs font-semibold text-slate-500">
+              <Search size={12} className="inline mr-1" /> ค้นหาอาจารย์ หรือ รายวิชา
+            </label>
+            <Input 
+              type="text"
+              placeholder="ค้นหาชื่ออาจารย์, รหัสวิชา, ชื่อวิชา..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-slate-50 border-slate-200 h-10 w-full"
+            />
+          </div>
         </div>
 
-        <div className="p-0 overflow-x-auto">
-          {loading ? (
-            <div className="h-64 flex flex-col items-center justify-center text-slate-400">
-              <Loader2 className="animate-spin w-8 h-8 mb-2" />
-              <p>กำลังประมวลผลข้อมูล...</p>
-            </div>
-          ) : !hasData ? (
-            <div className="h-64 flex flex-col items-center justify-center text-slate-400">
-              <AlertCircle className="w-12 h-12 mb-3 text-slate-300" />
-              <p className="text-lg font-medium">ไม่พบข้อมูลรายวิชา</p>
-              <p className="text-sm mt-1">
-                {availableYears.length > 0
-                  ? "กรุณาลองเลือกปีการศึกษาอื่น หรือตรวจสอบว่ามีการบันทึกภาระงานแล้ว"
-                  : "ยังไม่มีข้อมูลภาระงานสอนในระบบ"}
+        {/* Table */}
+        <div className="w-full max-w-[95%] xl:max-w-[90rem] mx-auto bg-white shadow-sm rounded-2xl overflow-hidden border border-slate-200 mt-6">
+          <div className="px-10 py-8 text-center border-b border-slate-100 bg-gradient-to-r from-purple-50/30 via-white to-white relative">
+            <h2 className="text-2xl font-bold text-slate-800">
+              รายงานสรุปรายวิชาประจำปีการศึกษา {selectedYear}
+            </h2>
+            <h3 className="text-lg font-medium text-purple-700 mt-1">{displayLabel}</h3>
+            {searchQuery && (
+              <p className="font-semibold text-indigo-600 text-sm mt-2 bg-indigo-50 px-3 py-1 rounded-full inline-block border border-indigo-200">
+                ผลการค้นหา: แสดงข้อมูลเฉพาะส่วนที่เกี่ยวข้องกับ "{searchQuery}"
               </p>
-            </div>
-          ) : (
-            <table className="w-full text-sm border-collapse min-w-[1000px]">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase text-xs tracking-wider font-semibold">
-                <tr>
-                  <th className="py-4 pl-8 pr-4 text-left w-[30%]">รหัส / ชื่อรายวิชา</th>
-                  <th className="py-4 px-4 text-left w-[25%]">ผู้สอน / บทบาท</th>
-                  <th className="py-4 px-2 text-center w-[10%]">บรรยาย (ชม.)</th>
-                  <th className="py-4 px-2 text-center w-[10%]">ปฏิบัติ (ชม.)</th>
-                  <th className="py-4 px-2 text-center w-[10%]">คุมสอบนอกตาราง (ชม.)</th>
-                  <th className="py-4 px-2 text-center w-[15%] text-purple-700 bg-purple-50/20">
-                    วิพากษ์ข้อสอบ (หัวข้อ)*
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {processedData.map((term, tIndex) => (
-                  <React.Fragment key={tIndex}>
-                    {term.courses.length > 0 && (
-                      <>
-                        <tr className="bg-slate-50">
-                          <td colSpan={6} className="p-0 border-t-[3px] border-slate-200">
-                            <div className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-indigo-50/80 to-transparent border-l-[6px] border-indigo-500 shadow-[inset_0_-1px_0_rgba(226,232,240,1)]">
-                              <div className="p-2 bg-indigo-100/50 rounded-lg text-indigo-600">
-                                <Layers size={18} strokeWidth={2.5} />
+            )}
+          </div>
+
+          <div className="p-0 overflow-x-auto">
+            {loading ? (
+              <div className="h-64 flex flex-col items-center justify-center text-slate-400">
+                <Loader2 className="animate-spin w-8 h-8 mb-2" />
+                <p>กำลังประมวลผลข้อมูล...</p>
+              </div>
+            ) : !hasData ? (
+              <div className="h-64 flex flex-col items-center justify-center text-slate-400">
+                <AlertCircle className="w-12 h-12 mb-3 text-slate-300" />
+                <p className="text-lg font-medium">ไม่พบข้อมูลรายวิชา</p>
+                <p className="text-sm mt-1">
+                  {searchQuery 
+                    ? "ลองเปลี่ยนคำค้นหา หรือล้างช่องค้นหา" 
+                    : availableYears.length > 0
+                      ? "กรุณาลองเลือกปีการศึกษาอื่น หรือตรวจสอบว่ามีการบันทึกภาระงานแล้ว"
+                      : "ยังไม่มีข้อมูลภาระงานสอนในระบบ"
+                  }
+                </p>
+              </div>
+            ) : (
+              <table className="w-full text-sm border-collapse min-w-[1000px]">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase text-xs tracking-wider font-semibold">
+                  <tr>
+                    <th className="py-4 pl-8 pr-4 text-left w-[30%]">รหัส / ชื่อรายวิชา</th>
+                    <th className="py-4 px-4 text-left w-[25%]">ผู้สอน / บทบาท</th>
+                    <th className="py-4 px-2 text-center w-[10%]">บรรยาย (ชม.)</th>
+                    <th className="py-4 px-2 text-center w-[10%]">ปฏิบัติ (ชม.)</th>
+                    <th className="py-4 px-2 text-center w-[10%]">คุมสอบนอกตาราง (ชม.)</th>
+                    <th className="py-4 px-2 text-center w-[15%] text-purple-700 bg-purple-50/20">
+                      วิพากษ์ข้อสอบ (หัวข้อ)*
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {processedData.map((term, tIndex) => (
+                    <React.Fragment key={tIndex}>
+                      {term.courses.length > 0 && (
+                        <>
+                          <tr className="bg-slate-50">
+                            <td colSpan={6} className="p-0 border-t-[3px] border-slate-200">
+                              <div className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-indigo-50/80 to-transparent border-l-[6px] border-indigo-500 shadow-[inset_0_-1px_0_rgba(226,232,240,1)]">
+                                <div className="p-2 bg-indigo-100/50 rounded-lg text-indigo-600">
+                                  <Layers size={18} strokeWidth={2.5} />
+                                </div>
+                                <h3 className="font-bold text-indigo-900 text-base tracking-wide">
+                                  {term.termTitle}
+                                </h3>
+                                <span className="ml-2 bg-white px-3 py-1 rounded-full text-xs font-semibold text-indigo-600 border border-indigo-100 shadow-sm">
+                                  {term.courses.length} รายวิชา
+                                </span>
                               </div>
-                              <h3 className="font-bold text-indigo-900 text-base tracking-wide">
-                                {term.termTitle}
-                              </h3>
-                              <span className="ml-2 bg-white px-3 py-1 rounded-full text-xs font-semibold text-indigo-600 border border-indigo-100 shadow-sm">
-                                {term.courses.length} รายวิชา
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
+                            </td>
+                          </tr>
 
-                        {term.courses.map((course, cIndex) => (
-                          <React.Fragment key={cIndex}>
-                            {course.instructors.map((inst, iIndex) => (
-                              <tr
-                                key={iIndex}
-                                className={`hover:bg-slate-50 transition-colors ${
-                                  course.isExternal ? "bg-orange-50/20" : ""
-                                }`}
-                              >
-                                {iIndex === 0 && (
-                                  <td
-                                    rowSpan={course.instructors.length}
-                                    className="py-4 pl-8 pr-4 align-top border-r border-slate-50 bg-white"
-                                  >
-                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                      <span className="font-bold text-slate-800 text-base">
-                                        {course.code}
-                                      </span>
-                                      {course.isExternal && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-600 border border-orange-200">
-                                          🏛️ นอกคณะ
-                                        </span>
-                                      )}
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100">
-                                        <BookOpen size={10} /> {course.credit} หน่วยกิต
-                                      </span>
-                                    </div>
-                                    <div className="text-slate-600 text-sm">{course.name}</div>
-                                  </td>
-                                )}
-
-                                <td className="py-3 px-4 align-top text-slate-700 border-r border-slate-50">
-                                  <div className="font-medium">{inst.name}</div>
-                                  <span
-                                    className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                                      inst.role.includes("รับผิดชอบ")
-                                        ? "bg-orange-50 text-orange-700 border-orange-100"
-                                        : "bg-blue-50 text-blue-700 border-blue-100"
+                          {term.courses.map((course, cIndex) => (
+                            <React.Fragment key={cIndex}>
+                              {course.instructors.map((inst, iIndex) => (
+                                  <tr
+                                    key={iIndex}
+                                    className={`hover:bg-slate-50 transition-colors ${
+                                      course.isExternal ? "bg-orange-50/20" : ""
                                     }`}
                                   >
-                                    {inst.role}
-                                  </span>
-                                  {inst.isExternal && inst.externalFaculty && (
-                                    <div className="text-[10px] text-orange-500 mt-0.5">
-                                      📍 {inst.externalFaculty}
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="py-3 px-2 align-top text-center text-slate-600">
-                                  {inst.lecture || "-"}
-                                </td>
-                                <td className="py-3 px-2 align-top text-center text-slate-600">
-                                  {inst.lab || "-"}
-                                </td>
-                                <td className="py-3 px-2 align-top text-center text-slate-600">
-                                  {inst.exam || "-"}
-                                </td>
-                                <td className="py-3 px-2 align-top text-center text-purple-600 font-bold bg-purple-50/10">
-                                  {inst.critique || "-"}
-                                </td>
-                              </tr>
-                            ))}
-                            <tr className="h-px bg-slate-100 w-full"></tr>
-                          </React.Fragment>
-                        ))}
-                      </>
-                    )}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                                    {/* กล่องรายวิชา (จะยืดหด rowSpan ตามจำนวนอาจารย์ที่เหลือรอดจากการถูกกรอง) */}
+                                    {iIndex === 0 && (
+                                      <td
+                                        rowSpan={course.instructors.length}
+                                        className="py-4 pl-8 pr-4 align-top border-r border-slate-50 bg-white"
+                                      >
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                          <span className="font-bold text-slate-800 text-base">
+                                            {course.code}
+                                          </span>
+                                          {course.isExternal && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-600 border border-orange-200">
+                                              🏛️ นอกคณะ
+                                            </span>
+                                          )}
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                            <BookOpen size={10} /> {course.credit} หน่วยกิต
+                                          </span>
+                                        </div>
+                                        <div className="text-slate-600 text-sm">{course.name}</div>
+                                      </td>
+                                    )}
 
-        <div className="p-4 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex justify-between">
-          <div className="flex items-center gap-2">
-            <Info size={14} className="text-purple-500" />
-            <span>
-              หมายเหตุ: ข้อมูลนี้แสดงผลสำหรับหน้าจอ หากต้องการเอกสารฉบับจริง กรุณากดปุ่มพิมพ์รายงาน
-            </span>
+                                    <td className="py-3 px-4 align-top text-slate-700 border-r border-slate-50">
+                                      <div className="font-medium">{inst.name}</div>
+                                      <span
+                                        className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                                          inst.role.includes("รับผิดชอบ")
+                                            ? "bg-orange-50 text-orange-700 border-orange-100"
+                                            : "bg-blue-50 text-blue-700 border-blue-100"
+                                        }`}
+                                      >
+                                        {inst.role}
+                                      </span>
+                                      {inst.isExternal && inst.externalFaculty && (
+                                        <div className="text-[10px] text-orange-500 mt-0.5">
+                                          📍 {inst.externalFaculty}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="py-3 px-2 align-top text-center text-slate-600">
+                                      {inst.lecture || "-"}
+                                    </td>
+                                    <td className="py-3 px-2 align-top text-center text-slate-600">
+                                      {inst.lab || "-"}
+                                    </td>
+                                    <td className="py-3 px-2 align-top text-center text-slate-600">
+                                      {inst.exam || "-"}
+                                    </td>
+                                    <td className="py-3 px-2 align-top text-center text-purple-600 font-bold bg-purple-50/10">
+                                      {inst.critique || "-"}
+                                    </td>
+                                  </tr>
+                                )
+                              )}
+                              <tr className="h-px bg-slate-100 w-full"></tr>
+                            </React.Fragment>
+                          ))}
+                        </>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          <div className="p-4 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex justify-between">
+            <div className="flex items-center gap-2">
+              <Info size={14} className="text-purple-500" />
+              <span>
+                หมายเหตุ: ข้อมูลนี้แสดงผลสำหรับหน้าจอ หากต้องการเอกสารฉบับจริง กรุณากดปุ่มพิมพ์รายงาน
+              </span>
+            </div>
           </div>
         </div>
       </div>

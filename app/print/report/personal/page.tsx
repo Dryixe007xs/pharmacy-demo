@@ -72,35 +72,48 @@ function PersonalPrintContent() {
           setViceDeanPosition(viceDean.position);
         }
 
-        const term1: ReportCourse[] = [];
-        const term2: ReportCourse[] = [];
-        const term3: ReportCourse[] = [];
+        // ✅ ใช้ Map จัดกลุ่มกันวิชาซ้ำหรือโดนทับ
+        const termsMap = new Map<number, Map<string, ReportCourse>>();
+        [1, 2, 3].forEach((termId) => termsMap.set(termId, new Map()));
 
         (assignments || []).forEach((assign: any) => {
+          const sem = Number(assign.semester);
+          const termCourses = termsMap.get(sem);
+          if (!termCourses) return;
+
           const isExternal = assign.courseType === "EXTERNAL";
           const isResponsible =
-            String(assign.lecturerId) === String(assign.subject.responsibleUserId);
+            !isExternal && 
+            String(assign.lecturerId) === String(assign.subject?.responsibleUserId);
 
-          const code = isExternal ? assign.externalCourseCode || "-" : assign.subject.code;
-          const name = isExternal ? assign.externalCourseName || "-" : assign.subject.name_th;
-          const credit = isExternal ? assign.externalCredit || "-" : assign.subject.credit;
+          // ✅ ป้องกัน Error ถ้าวิชานั้นลบไปแล้ว
+          const code = isExternal ? assign.externalCourseCode || "-" : assign.subject?.code || "-";
+          const name = isExternal ? assign.externalCourseName || "-" : assign.subject?.name_th || "-";
+          const credit = isExternal ? assign.externalCredit || "-" : assign.subject?.credit || "-";
           const role = isExternal ? "ผู้สอน" : isResponsible ? "ผู้รับผิดชอบรายวิชา" : "ผู้สอน";
 
-          const courseObj: ReportCourse = {
-            code, name, credit, role,
-            lecture: Number(assign.lectureHours) || 0,
-            lab: Number(assign.labHours) || 0,
-            exam: Number(assign.examHours) || 0,
-            critique: Number(assign.examCritiqueHours) || 0,
-            isExternal,
-            externalFaculty: assign.externalFaculty || "",
-          };
+          // ✅ ใช้ ID + Code เป็นกุญแจแยกกล่อง ป้องกันการทับซ้อนกันของวิชานอกคณะ
+          const groupKey = isExternal 
+            ? `EXT-${assign.externalCourseCode || assign.id}` 
+            : `INT-${assign.subject?.id || assign.subject?.code}`;
 
-          const sem = Number(assign.semester);
-          if (sem === 1) term1.push(courseObj);
-          else if (sem === 2) term2.push(courseObj);
-          else if (sem === 3) term3.push(courseObj);
+          if (!termCourses.has(groupKey)) {
+             termCourses.set(groupKey, {
+              code, name, credit, role,
+              lecture: Number(assign.lectureHours) || 0,
+              lab: Number(assign.labHours) || 0,
+              exam: Number(assign.examHours) || 0,
+              critique: Number(assign.examCritiqueHours) || 0,
+              isExternal,
+              externalFaculty: assign.externalFaculty || "",
+            });
+          }
         });
+
+        // จัดเรียงรายวิชาตามตัวอักษร
+        const term1 = Array.from(termsMap.get(1)!.values()).sort((a, b) => a.code.localeCompare(b.code));
+        const term2 = Array.from(termsMap.get(2)!.values()).sort((a, b) => a.code.localeCompare(b.code));
+        const term3 = Array.from(termsMap.get(3)!.values()).sort((a, b) => a.code.localeCompare(b.code));
 
         setReportData([
           { title: "ภาคการศึกษาต้น", courses: term1 },

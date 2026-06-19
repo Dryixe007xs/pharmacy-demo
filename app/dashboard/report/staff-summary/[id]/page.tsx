@@ -27,7 +27,7 @@ interface ReportCourse {
   lab: number;
   exam: number;
   critique: number;
-  isExternal?: boolean; // 👈 เพิ่ม
+  isExternal?: boolean; 
 }
 
 interface SemesterData {
@@ -44,6 +44,9 @@ export default function StaffIndividualReportPage() {
   const [reportData, setReportData] = useState<SemesterData[]>([]);
   const [loading, setLoading] = useState(true);
   const [academicYear, setAcademicYear] = useState<string | number>("-"); 
+  
+  // 👈 เพิ่ม State สำหรับ iframe
+  const [printUrl, setPrintUrl] = useState<string | null>(null); 
 
   useEffect(() => {
     if (!staffId) return;
@@ -91,10 +94,9 @@ export default function StaffIndividualReportPage() {
 
             const isExternal = assign.courseType === "EXTERNAL";
             const isResponsible = String(assign.lecturerId) === String(assign.subject?.responsibleUserId);
-            const role = isResponsible ? "ผู้รับผิดชอบรายวิชา" : "ผู้สอน";
+            const role = isExternal ? "ผู้สอน" : isResponsible ? "ผู้รับผิดชอบรายวิชา" : "ผู้สอน";
             
             const courseObj: ReportCourse = {
-                // 👈 แยก code/name/credit ตาม courseType
                 code: isExternal 
                     ? assign.externalCourseCode || "-"
                     : assign.subject?.code || "-",
@@ -109,7 +111,7 @@ export default function StaffIndividualReportPage() {
                 lab: Number(assign.labHours) || 0,
                 exam: Number(assign.examHours) || 0,
                 critique: Number(assign.examCritiqueHours) || 0,
-                isExternal, // 👈 เพิ่ม
+                isExternal, 
             };
 
             const sem = Number(assign.semester);
@@ -135,8 +137,10 @@ export default function StaffIndividualReportPage() {
     fetchData();
   }, [staffId]);
 
+  // 👈 แก้ไขฟังก์ชันปริ้นท์ ให้ชี้ไปที่ไฟล์ที่เราทำเสร็จแล้ว!
   const handlePrint = () => {
-    window.print();
+    toast.info("กำลังเตรียมเอกสารสำหรับพิมพ์...");
+    setPrintUrl(`/print/report/personal?lecturerId=${staffId}&t=${Date.now()}`);
   };
 
   if (loading) {
@@ -186,21 +190,20 @@ export default function StaffIndividualReportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100/50 p-6 font-sarabun text-slate-800 print:bg-white print:p-0">
+    <div className="min-h-screen bg-slate-100/50 p-6 font-sarabun text-slate-800">
       <Toaster position="top-center" richColors />
 
-      {/* Styles for Print */}
-      <style jsx global>{`
-        @media print {
-            @page { margin: 10mm; size: landscape; } 
-            body { -webkit-print-color-adjust: exact; }
-            .no-print { display: none !important; }
-            .page-break { page-break-before: always; }
-        }
-      `}</style>
+      {/* 👈 ซ่อน iframe สำหรับสั่งปริ้นท์แบบเบื้องหลัง */}
+      {printUrl && (
+        <iframe
+          src={printUrl}
+          className="fixed w-0 h-0 border-0"
+          title="Print Frame"
+        />
+      )}
 
       {/* Navigation Bar */}
-      <div className="max-w-full mx-auto mb-6 flex justify-between items-center no-print">
+      <div className="max-w-full mx-auto mb-6 flex justify-between items-center">
           <Button 
             variant="ghost" 
             onClick={() => router.back()} 
@@ -214,12 +217,12 @@ export default function StaffIndividualReportPage() {
       </div>
 
       {/* Main Container */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print:shadow-none print:border-none print:rounded-none">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         
         {/* Profile Header */}
-        <div className="p-8 border-b border-slate-100 bg-gradient-to-r from-purple-50/50 via-white to-white print:bg-none">
+        <div className="p-8 border-b border-slate-100 bg-gradient-to-r from-purple-50/50 via-white to-white">
             <div className="flex flex-col md:flex-row gap-8 items-start md:items-center">
-                <div className="w-24 h-24 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center text-3xl font-bold text-purple-600 shrink-0 print:border-slate-300">
+                <div className="w-24 h-24 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center text-3xl font-bold text-purple-600 shrink-0">
                     {staff.firstName?.charAt(0)}
                 </div>
                 
@@ -276,14 +279,14 @@ export default function StaffIndividualReportPage() {
                             
                             <tr className="bg-slate-50">
                                 <td colSpan={6} className="p-0 border-t-[3px] border-slate-200">
-                                    <div className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-indigo-50/80 to-transparent border-l-[6px] border-indigo-500 shadow-[inset_0_-1px_0_rgba(226,232,240,1)] print:border-l-4 print:border-slate-400 print:bg-slate-100">
-                                        <div className="p-2 bg-indigo-100/50 rounded-lg text-indigo-600 print:text-slate-600 print:bg-white">
+                                    <div className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-indigo-50/80 to-transparent border-l-[6px] border-indigo-500 shadow-[inset_0_-1px_0_rgba(226,232,240,1)]">
+                                        <div className="p-2 bg-indigo-100/50 rounded-lg text-indigo-600">
                                             <Layers size={18} strokeWidth={2.5} />
                                         </div>
-                                        <h3 className="font-bold text-indigo-900 text-base tracking-wide print:text-black">
+                                        <h3 className="font-bold text-indigo-900 text-base tracking-wide">
                                             {term.title}
                                         </h3>
-                                        <span className="ml-2 bg-white px-3 py-1 rounded-full text-xs font-semibold text-indigo-600 border border-indigo-100 shadow-sm print:border-slate-300 print:text-slate-600">
+                                        <span className="ml-2 bg-white px-3 py-1 rounded-full text-xs font-semibold text-indigo-600 border border-indigo-100 shadow-sm">
                                             {term.courses.length} รายวิชา
                                         </span>
                                     </div>
@@ -292,18 +295,12 @@ export default function StaffIndividualReportPage() {
                             
                             {term.courses.length > 0 ? (
                                 term.courses.map((course, cIndex) => (
-                                    <tr
-                                        key={cIndex}
-                                        className={`hover:bg-slate-50 transition-colors group text-sm ${
-                                            course.isExternal ? "bg-orange-50/20" : ""
-                                        }`}
-                                    >
+                                    <tr key={cIndex} className={`hover:bg-slate-50 transition-colors group text-sm ${course.isExternal ? "bg-orange-50/20" : ""}`}>
                                         <td className="py-4 px-6 align-top">
                                             <div className="flex flex-col gap-1">
                                                 <div className="flex items-center justify-between gap-2 flex-wrap">
                                                     <span className="font-semibold text-slate-800 text-base">{course.code}</span>
                                                     <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                                                        {/* 👈 badge นอกคณะ */}
                                                         {course.isExternal && (
                                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-600 border border-orange-200">
                                                                 🏛️ นอกคณะ
@@ -352,7 +349,7 @@ export default function StaffIndividualReportPage() {
                         </React.Fragment>
                     ))}
                     
-                    <tr className="bg-slate-800 text-white font-bold text-base print:bg-gray-200 print:text-black print:border-t-2 print:border-black shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] relative z-10">
+                    <tr className="bg-slate-800 text-white font-bold text-base shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] relative z-10">
                         <td colSpan={2} className="py-5 px-6 text-right tracking-wide uppercase text-sm">รวมตลอดปีการศึกษา</td>
                         <td className="py-5 px-4 text-center">
                             {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.lecture, 0), 0).toFixed(2)}
@@ -363,7 +360,7 @@ export default function StaffIndividualReportPage() {
                         <td className="py-5 px-4 text-center">
                             {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.exam, 0), 0).toFixed(2)}
                         </td>
-                        <td className="py-5 px-4 text-center text-purple-200 print:text-black border-r border-slate-700 print:border-none bg-slate-900/50">
+                        <td className="py-5 px-4 text-center text-purple-200 border-r border-slate-700 bg-slate-900/50">
                             {reportData.reduce((sum, term) => sum + term.courses.reduce((a, b) => a + b.critique, 0), 0).toFixed(2)}
                         </td>
                     </tr>
@@ -381,13 +378,7 @@ export default function StaffIndividualReportPage() {
                 <li>ช่อง <strong>"วิพากษ์ข้อสอบ"</strong> แสดงจำนวนหัวข้อที่ทำจริง</li>
                 <li>รายวิชาที่มี badge <strong>🏛️ นอกคณะ</strong> คือรายวิชาที่สอนให้กับคณะอื่น</li>
             </ul>
-            
-            <div className="mt-5 pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:justify-between items-center gap-2 text-[10px] text-slate-400">
-                <span>ระบบฐานข้อมูลภาระงานสอน คณะเภสัชศาสตร์ มหาวิทยาลัยพะเยา</span>
-                <span>พิมพ์เมื่อ: {new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
         </div>
-
       </div>
     </div>
   );
