@@ -92,11 +92,9 @@ function determineWorkloadStatus(
   if (allHeadApproved) return "approved";
   if (anyRejectedByHead) return "rejected";
 
- // ✅ External ข้ามขั้นตอน responsible → แต่ต้องเช็คว่าอาจารย์กดส่งให้ประธานแล้วจริง
   const allExternal = instructors.every((i) => i.isExternal);
   if (allExternal) return "pending_approval";
 
-  // Internal ต้องรอผู้รับผิดชอบ approve ก่อน
   const allResponsibleApproved = instructors.every(
     (i) => i.responsibleStatus === "APPROVED",
   );
@@ -109,7 +107,6 @@ function getStatusWeight(status: WorkloadStatus): number {
   return STATUS_PRIORITY[status] ?? 999;
 }
 
-// filter เฉพาะ internal courses
 function filterInternalCourses(
   allCourses: any[],
   chairId: string,
@@ -138,9 +135,7 @@ function transformCourseDataForChair(
 ): CourseWorkload[] {
   const workloadData: CourseWorkload[] = [];
 
-  // ──────────────────────────────────────────
-  // ส่วนที่ 1: วิชาในคณะ (internal) — logic เดิมทั้งหมด
-  // ──────────────────────────────────────────
+  // ส่วนที่ 1: วิชาในคณะ (internal)
   internalCourses.forEach((course: any) => {
     const assignments = course.teachingAssignments || [];
     if (assignments.length === 0) return;
@@ -213,10 +208,7 @@ function transformCourseDataForChair(
     );
   });
 
-  // ──────────────────────────────────────────
-  // ส่วนที่ 2: วิชานอกคณะ (external) — จาก /api/assignments/external
-  // แต่ละ assignment = 1 card
-  // ──────────────────────────────────────────
+  // ส่วนที่ 2: วิชานอกคณะ (external)
   externalCourses.forEach((container: any) => {
     const assignments = container.teachingAssignments || [];
 
@@ -285,7 +277,6 @@ function useProgramChairData(chairId: string | undefined, userRole?: string) {
     setError(null);
 
     try {
-      // ✅ fetch พร้อมกัน 2 endpoint
       const [resInternal, resExternal] = await Promise.all([
         fetch("/api/courses?filter=active"),
         fetch(`/api/assignments/external?chairId=${chairId}`),
@@ -436,7 +427,7 @@ function useChairApproval(onSuccess: () => void, chairId?: string) {
         title: "ส่งกลับให้แก้ไข",
         html: `<div style="text-align:left;margin-bottom:1rem;"><p><strong>รายวิชา:</strong> ${course.code} ${course.name}</p></div>`,
         input: "textarea",
-        inputLabel: "เหตุผลในการส่งกลับ (ไม่บังคับ)",
+        inputLabel: "เหตุผลในการส่งกลับ (จำเป็นต้องกรอก)",
         inputPlaceholder: "ระบุรายละเอียดที่ต้องการให้แก้ไข...",
         showCancelButton: true,
         confirmButtonColor: "#dc2626",
@@ -444,9 +435,9 @@ function useChairApproval(onSuccess: () => void, chairId?: string) {
         confirmButtonText: "ส่งกลับแก้ไข",
         cancelButtonText: "ยกเลิก",
         inputValidator: (v) =>
-          v && v.length < 5 ? "กรุณาระบุอย่างน้อย 5 ตัวอักษร" : null,
+          (!v || v.trim().length < 5) ? "กรุณาระบุอย่างน้อย 5 ตัวอักษร" : null,
       });
-      if (reason === undefined) return;
+      if (!reason) return;
 
       setProcessingId(course.id);
       try {
@@ -458,9 +449,8 @@ function useChairApproval(onSuccess: () => void, chairId?: string) {
               body: JSON.stringify({
                 id: inst.id,
                 headApprovalStatus: "REJECTED",
-                // ✅ External ไม่ reset responsibleStatus
                 ...(inst.isExternal ? {} : { responsibleStatus: "REJECTED" }),
-                rejectionReason: reason || undefined,
+                rejectionReason: reason, // 👈 ส่งคำคอมเมนต์ไปให้ API บันทึกแบบแท็ก
                 approverId: chairId,
               }),
             }).then((res) => {
@@ -536,11 +526,9 @@ export default function ProgramChairPage() {
 
   const statusCounts = useMemo(
     () => ({
-      pending: filteredCourses.filter((c) => c.status === "pending_approval")
-        .length,
+      pending: filteredCourses.filter((c) => c.status === "pending_approval").length,
       rejected: filteredCourses.filter((c) => c.status === "rejected").length,
-      waiting: filteredCourses.filter((c) => c.status === "waiting_owner")
-        .length,
+      waiting: filteredCourses.filter((c) => c.status === "waiting_owner").length,
       approved: filteredCourses.filter((c) => c.status === "approved").length,
     }),
     [filteredCourses],
@@ -571,30 +559,10 @@ export default function ProgramChairPage() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
           {[
-            {
-              label: "รอพิจารณา",
-              value: statusCounts.pending,
-              color: "orange",
-              Icon: AlertOctagon,
-            },
-            {
-              label: "ส่งกลับแล้ว",
-              value: statusCounts.rejected,
-              color: "red",
-              Icon: AlertCircle,
-            },
-            {
-              label: "กำลังรอ",
-              value: statusCounts.waiting,
-              color: "slate",
-              Icon: Clock,
-            },
-            {
-              label: "รับรองแล้ว",
-              value: statusCounts.approved,
-              color: "lime",
-              Icon: CheckCircle,
-            },
+            { label: "รอพิจารณา", value: statusCounts.pending, color: "orange", Icon: AlertOctagon },
+            { label: "ส่งกลับแล้ว", value: statusCounts.rejected, color: "red", Icon: AlertCircle },
+            { label: "กำลังรอ", value: statusCounts.waiting, color: "slate", Icon: Clock },
+            { label: "รับรองแล้ว", value: statusCounts.approved, color: "lime", Icon: CheckCircle },
           ].map(({ label, value, color, Icon }, i) => (
             <motion.div
               key={label}
@@ -681,41 +649,15 @@ export default function ProgramChairPage() {
                     <table className="w-full text-sm">
                       <thead className="bg-gradient-to-r from-slate-50 to-slate-100/50 text-slate-600 font-semibold">
                         <tr>
-                          <th className="py-4 px-6 text-left w-[20%]">
-                            รายวิชา
-                          </th>
-                          <th className="py-4 px-4 text-center w-[10%]">
-                            ภาคการศึกษา
-                          </th>
-                          <th className="py-4 px-6 text-left w-[18%]">
-                            อาจารย์ผู้สอน
-                          </th>
-                          <th className="py-4 px-4 text-center w-[8%]">
-                            สถานะ
-                          </th>
-                          <th className="py-4 px-3 text-center w-[9%]">
-                            บรรยาย
-                            <br />
-                            (ชม.)
-                          </th>
-                          <th className="py-4 px-3 text-center w-[9%]">
-                            ปฏิบัติการ
-                            <br />
-                            (ชม.)
-                          </th>
-                          <th className="py-4 px-3 text-center w-[9%]">
-                            คุมสอบนอกตาราง
-                            <br />
-                            (ชม.)
-                          </th>
-                          <th className="py-4 px-3 text-center w-[9%]">
-                            วิพากษ์ข้อสอบ
-                            <br />
-                            (หัวข้อ)
-                          </th>
-                          <th className="py-4 px-3 text-center w-[10%]">
-                            เอกสาร / หมายเหตุ
-                          </th>
+                          <th className="py-4 px-6 text-left w-[20%]">รายวิชา</th>
+                          <th className="py-4 px-4 text-center w-[10%]">ภาคการศึกษา</th>
+                          <th className="py-4 px-6 text-left w-[18%]">อาจารย์ผู้สอน</th>
+                          <th className="py-4 px-4 text-center w-[8%]">สถานะ</th>
+                          <th className="py-4 px-3 text-center w-[9%]">บรรยาย<br />(ชม.)</th>
+                          <th className="py-4 px-3 text-center w-[9%]">ปฏิบัติการ<br />(ชม.)</th>
+                          <th className="py-4 px-3 text-center w-[9%]">คุมสอบนอกตาราง<br />(ชม.)</th>
+                          <th className="py-4 px-3 text-center w-[9%]">วิพากษ์ข้อสอบ<br />(หัวข้อ)</th>
+                          <th className="py-4 px-3 text-center w-[10%]">เอกสาร / หมายเหตุ</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -757,9 +699,7 @@ export default function ProgramChairPage() {
                                     <span className="inline-flex w-fit items-center px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-600 mt-1">
                                       {course.programName}
                                     </span>
-                                    {course.instructors.some(
-                                      (i) => i.isExternal,
-                                    ) && (
+                                    {course.instructors.some((i) => i.isExternal) && (
                                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-orange-100 text-orange-700 border border-orange-200 w-fit mt-1">
                                         🏛️ รายวิชานอกคณะ
                                       </span>
@@ -771,10 +711,7 @@ export default function ProgramChairPage() {
                                   className="py-6 px-4 align-top border-r border-slate-100 bg-white text-center"
                                 >
                                   {(() => {
-                                    const config =
-                                      SEMESTER_CONFIG[
-                                        course.semester as keyof typeof SEMESTER_CONFIG
-                                      ];
+                                    const config = SEMESTER_CONFIG[course.semester as keyof typeof SEMESTER_CONFIG];
                                     return (
                                       <div
                                         className={`inline-flex items-center justify-center px-3.5 py-1.5 rounded-full font-bold text-xs border whitespace-nowrap ${
@@ -785,8 +722,7 @@ export default function ProgramChairPage() {
                                               : "bg-emerald-50 text-emerald-700 border-emerald-200"
                                         }`}
                                       >
-                                        {config?.label ||
-                                          `เทอม ${course.semester}`}
+                                        {config?.label || `เทอม ${course.semester}`}
                                       </div>
                                     );
                                   })()}
@@ -834,27 +770,32 @@ export default function ProgramChairPage() {
                                     <ExternalLink size={12} /> ดูเอกสาร
                                   </a>
                                 ) : (
-                                  <span className="text-slate-300 text-xs">
-                                    —
-                                  </span>
+                                  <span className="text-slate-300 text-xs">—</span>
                                 )
                               ) : instructor.lecturerFeedback ? (
-                                <div
-                                  className="inline-flex items-start gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-yellow-50 text-yellow-800 border border-yellow-200 text-left max-w-[180px]"
-                                  title={instructor.lecturerFeedback}
-                                >
-                                  <FileText
-                                    size={11}
-                                    className="mt-0.5 shrink-0 text-yellow-500"
-                                  />
-                                  <span className="line-clamp-2">
-                                    {instructor.lecturerFeedback}
-                                  </span>
-                                </div>
+                                // 🌟 ปรับปรุงการแสดงผลหมายเหตุของฝั่งประธานหลักสูตร
+                                (() => {
+                                  const isChairReject = instructor.lecturerFeedback.startsWith("[CHAIR_REJECT]:");
+                                  const cleanText = isChairReject 
+                                    ? instructor.lecturerFeedback.replace("[CHAIR_REJECT]:", "").trim() 
+                                    : instructor.lecturerFeedback;
+                                  
+                                  return (
+                                    <div
+                                      className={`inline-flex items-start gap-1.5 px-3 py-1.5 rounded-lg text-xs text-left max-w-[180px] shadow-sm ${
+                                        isChairReject 
+                                          ? "bg-red-50 text-red-800 border border-red-200" // คอมเมนต์ที่ประธานเขียนตีกลับเอง (กล่องแดง)
+                                          : "bg-yellow-50 text-yellow-800 border border-yellow-200" // ข้อโต้แย้งจากอาจารย์ผู้สอน (กล่องเหลือง)
+                                      }`}
+                                      title={cleanText}
+                                    >
+                                      <FileText size={11} className={`mt-0.5 shrink-0 ${isChairReject ? "text-red-500" : "text-yellow-500"}`} />
+                                      <span className="line-clamp-2 font-medium">{cleanText}</span>
+                                    </div>
+                                  );
+                                })()
                               ) : (
-                                <span className="text-slate-300 text-xs">
-                                  —
-                                </span>
+                                <span className="text-slate-300 text-xs">—</span>
                               )}
                             </td>
                           </tr>
@@ -869,10 +810,7 @@ export default function ProgramChairPage() {
                             รวมทั้งหมด
                           </td>
                           <td className="py-3.5 px-3 text-center font-bold text-lime-600 text-lg">
-                            {course.instructors.reduce(
-                              (s, i) => s + i.lecture,
-                              0,
-                            )}
+                            {course.instructors.reduce((s, i) => s + i.lecture, 0)}
                           </td>
                           <td className="py-3.5 px-3 text-center font-bold text-lime-600 text-lg">
                             {course.instructors.reduce((s, i) => s + i.lab, 0)}
@@ -881,10 +819,7 @@ export default function ProgramChairPage() {
                             {course.instructors.reduce((s, i) => s + i.exam, 0)}
                           </td>
                           <td className="py-3.5 px-3 text-center font-bold text-lime-600 text-lg">
-                            {course.instructors.reduce(
-                              (s, i) => s + i.critique,
-                              0,
-                            )}
+                            {course.instructors.reduce((s, i) => s + i.critique, 0)}
                           </td>
                           <td />
                         </tr>
@@ -904,13 +839,8 @@ export default function ProgramChairPage() {
                           className="flex flex-col sm:flex-row gap-4 items-center w-full justify-center"
                         >
                           <div className="flex items-center gap-2.5 px-4 py-2.5 bg-orange-50 text-orange-700 rounded-xl border border-orange-200">
-                            <AlertOctagon
-                              size={18}
-                              className="text-orange-500"
-                            />
-                            <span className="text-sm font-semibold">
-                              รอการพิจารณาจากท่าน
-                            </span>
+                            <AlertOctagon size={18} className="text-orange-500" />
+                            <span className="text-sm font-semibold">รอการพิจารณาจากท่าน</span>
                           </div>
                           <motion.button
                             whileHover={{ scale: 1.03 }}
@@ -924,9 +854,7 @@ export default function ProgramChairPage() {
                             ) : (
                               <FileCheck className="h-5 w-5" />
                             )}
-                            {processingId === course.id
-                              ? "กำลังบันทึก..."
-                              : "รับรองข้อมูล"}
+                            {processingId === course.id ? "กำลังบันทึก..." : "รับรองข้อมูล"}
                           </motion.button>
                           <motion.button
                             whileHover={{ scale: 1.03 }}
@@ -948,9 +876,7 @@ export default function ProgramChairPage() {
                           className="flex items-center gap-2.5 px-6 py-2.5 bg-gradient-to-r from-lime-50 to-emerald-50 text-lime-700 rounded-full border border-lime-200 shadow-sm"
                         >
                           <CheckCircle size={22} className="text-lime-600" />
-                          <span className="font-bold text-sm">
-                            รับรองข้อมูลเรียบร้อยแล้ว
-                          </span>
+                          <span className="font-bold text-sm">รับรองข้อมูลเรียบร้อยแล้ว</span>
                         </motion.div>
                       )}
 
@@ -962,9 +888,7 @@ export default function ProgramChairPage() {
                           className="flex items-center gap-2.5 px-6 py-2.5 bg-gradient-to-r from-red-50 to-orange-50 text-red-700 rounded-full border border-red-200 shadow-sm"
                         >
                           <AlertOctagon size={22} className="text-red-600" />
-                          <span className="font-bold text-sm">
-                            ส่งกลับแก้ไขแล้ว
-                          </span>
+                          <span className="font-bold text-sm">ส่งกลับแก้ไขแล้ว</span>
                         </motion.div>
                       )}
 
@@ -976,9 +900,7 @@ export default function ProgramChairPage() {
                           className="flex items-center gap-2.5 text-slate-500 px-5 py-2.5 bg-slate-100 rounded-full border border-slate-200"
                         >
                           <Clock size={19} />
-                          <span className="text-sm font-semibold">
-                            รอผู้รับผิดชอบรายวิชาดำเนินการ
-                          </span>
+                          <span className="text-sm font-semibold">รอผู้รับผิดชอบรายวิชาดำเนินการ</span>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -994,9 +916,7 @@ export default function ProgramChairPage() {
             className="py-24 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50"
           >
             <FileText className="w-20 h-20 mx-auto mb-5 text-slate-300" />
-            <h3 className="text-xl font-bold text-slate-600 mb-2">
-              ไม่พบรายวิชา
-            </h3>
+            <h3 className="text-xl font-bold text-slate-600 mb-2">ไม่พบรายวิชา</h3>
             <p className="text-slate-400 mb-4">
               {searchTerm
                 ? "ไม่พบรายวิชาที่ตรงกับเงื่อนไขการค้นหา"

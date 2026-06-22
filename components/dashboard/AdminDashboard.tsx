@@ -4,9 +4,11 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import Link from "next/link";
 import { 
   Users, Search, ChevronDown, ChevronUp, 
-  Clock, BookOpen, BarChart3, Loader2, Calendar
+  Clock, BookOpen, BarChart3, Loader2, Calendar,
+  Workflow, HelpCircle, ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -149,45 +151,62 @@ export default function AdminDashboard({ session }: { session: any }) {
                     <h1 className="text-2xl font-bold text-slate-800">แผงควบคุมผู้บริหาร</h1>
                     <p className="text-slate-500 text-sm">ติดตามความคืบหน้าการกรอกภาระงานสอน</p>
                 </div>
-                <div className="flex items-center gap-2 bg-white p-2 rounded-lg border shadow-sm">
-                    <div className="flex items-center gap-2 px-2 text-sm text-slate-500 font-medium">
-                        <Calendar size={16} /> ปีการศึกษา:
-                    </div>
+                <div className="flex flex-col gap-2 items-end">
+                    <div className="flex items-center gap-2 bg-white p-2 rounded-lg border shadow-sm">
+                        <div className="flex items-center gap-2 px-2 text-sm text-slate-500 font-medium">
+                            <Calendar size={16} /> ปีการศึกษา:
+                        </div>
 
-                    <Select value={selectedSemester} onValueChange={(v) => handleFilterChange('semester', v)}>
-                        <SelectTrigger className="w-[160px] h-9 text-sm bg-slate-50 font-bold">
-                            <SelectValue placeholder="เทอม" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">ทุกภาคการศึกษา</SelectItem>
-                            <SelectItem value="1">ภาคต้น (1)</SelectItem>
-                            <SelectItem value="2">ภาคปลาย (2)</SelectItem>
-                            <SelectItem value="3">ภาคฤดูร้อน (3)</SelectItem>
-                        </SelectContent>
-                    </Select>
-
-                    <span className="text-slate-300">/</span>
-
-                    {selectedYear ? (
-                        <Select value={selectedYear} onValueChange={(v) => handleFilterChange('year', v)}>
-                            <SelectTrigger className="w-[100px] h-9 text-sm bg-slate-50">
-                                <SelectValue placeholder="ปี" />
+                        <Select value={selectedSemester} onValueChange={(v) => handleFilterChange('semester', v)}>
+                            <SelectTrigger className="w-[160px] h-9 text-sm bg-slate-50 font-bold">
+                                <SelectValue placeholder="เทอม" />
                             </SelectTrigger>
                             <SelectContent>
-                                {availableYears.map(y => (
-                                    <SelectItem key={y} value={y}>{y}</SelectItem>
-                                ))}
+                                <SelectItem value="all">ทุกภาคการศึกษา</SelectItem>
+                                <SelectItem value="1">ภาคต้น (1)</SelectItem>
+                                <SelectItem value="2">ภาคปลาย (2)</SelectItem>
+                                <SelectItem value="3">ภาคฤดูร้อน (3)</SelectItem>
                             </SelectContent>
                         </Select>
-                    ) : (
-                        <div className="w-[100px] h-9 bg-slate-50 border rounded-md flex items-center justify-center">
-                            <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+
+                        <span className="text-slate-300">/</span>
+
+                        {selectedYear ? (
+                            <Select value={selectedYear} onValueChange={(v) => handleFilterChange('year', v)}>
+                                <SelectTrigger className="w-[100px] h-9 text-sm bg-slate-50">
+                                    <SelectValue placeholder="ปี" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableYears.map(y => (
+                                        <SelectItem key={y} value={y}>{y}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        ) : (
+                            <div className="w-[100px] h-9 bg-slate-50 border rounded-md flex items-center justify-center">
+                                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Workflow Link — same width as filter, aligned right */}
+                    <Link href="/workflow" className="w-full">
+                        <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl px-4 py-2.5 text-white shadow-md hover:shadow-lg hover:scale-[1.02] transition-all cursor-pointer group flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <div className="bg-white/20 p-1.5 rounded-lg">
+                                    <HelpCircle className="w-4 h-4 text-white" />
+                                </div>
+                                <div>
+                                    <p className="font-bold text-sm leading-tight">กระบวนการ</p>
+                                    <p className="text-emerald-100 text-[11px]">ขั้นตอนการทำงาน</p>
+                                </div>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-white/70 group-hover:translate-x-1 transition-transform" />
                         </div>
-                    )}
+                    </Link>
                 </div>
             </div>
 
-            {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="border-l-4 border-l-blue-500 shadow-sm">
                     <CardContent className="p-5 flex items-center justify-between">

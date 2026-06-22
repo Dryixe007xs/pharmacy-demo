@@ -68,7 +68,6 @@ export async function GET(request: Request) {
             name_en: true,
             credit: true,
             program: { select: { name_th: true } },
-            // ✅ ดึง courseOfferings เพื่อหา responsible ของ term นี้
             courseOfferings: {
               where: {
                 termConfig: {
@@ -91,7 +90,6 @@ export async function GET(request: Request) {
     });
 
     const result = assignments.map((a) => {
-      // ✅ ดึง responsible จาก CourseOffering ของ term นี้
       const offering = a.subject.courseOfferings[0];
       return {
         ...a,
@@ -258,24 +256,21 @@ export async function PUT(request: Request) {
       responsibleStatus,
       headApprovalStatus,
       academicApprovalStatus,
+      rejectionReason, 
       approverId,
-      adminOverride, // ✅ flag ที่ฝั่ง client ส่งมาเมื่อแอดมินตั้งใจ override โดยไม่ trigger reset
+      adminOverride, 
     } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
 
-    // ✅ field ที่ปกติเป็นสิทธิ์ของ ADMIN เท่านั้น (force-approve แทนผู้อื่น, แก้สถานะข้ามขั้น)
     const isPrivilegedChange =
       lecturerStatus !== undefined ||
       headApprovalStatus !== undefined ||
       academicApprovalStatus !== undefined ||
       adminOverride === true;
 
-    // เปิดให้ผู้ใช้ทั่วไปแก้ field สถานะของตัวเอง (เช่น lecturerStatus ตอนยืนยันของตนเอง,
-    // headApprovalStatus ตอนประธานหลักสูตรอนุมัติ, academicApprovalStatus ตอนรองวิชาการอนุมัติ)
-    // ผ่าน flow ปกติได้ตามเดิม — เราจะ block เฉพาะกรณีที่ระบุ adminOverride มาแบบไม่มีสิทธิ์
     if (adminOverride === true && !isAdmin) {
       return NextResponse.json(
         { error: "Forbidden: เฉพาะแอดมินเท่านั้นที่สามารถบังคับแก้ไขสถานะ/ชั่วโมงนี้ได้" },
@@ -300,9 +295,6 @@ export async function PUT(request: Request) {
     if (examHours !== undefined) { dataToUpdate.examHours = Number(examHours); hoursUpdated = true; }
     if (examCritiqueHours !== undefined) { dataToUpdate.examCritiqueHours = Number(examCritiqueHours); hoursUpdated = true; }
 
-    // ✅ เมื่อมีการแก้ชั่วโมง (ไม่ว่าจะโดยแอดมินหรือเจ้าของข้อมูล) ให้ reset สถานะอนุมัติขั้นถัดไป
-    // เพื่อให้ flow การอนุมัติเริ่มใหม่ตามชั่วโมงล่าสุด — เว้นแต่ adminOverride
-    // ระบุค่าสถานะมาด้วยตรงๆ (กรณีแอดมินต้องการแก้ชั่วโมงแบบไม่กระทบสถานะ)
     if (hoursUpdated && !adminOverride) {
       if (responsibleStatus === undefined) {
         dataToUpdate.responsibleStatus =
@@ -313,6 +305,7 @@ export async function PUT(request: Request) {
       if (headApprovalStatus === undefined) {
         dataToUpdate.headApprovalStatus = null;
         dataToUpdate.headApprovedAt = null;
+        dataToUpdate.lecturerFeedback = null;
       }
       if (academicApprovalStatus === undefined) {
         dataToUpdate.academicApprovalStatus = null;
@@ -321,8 +314,6 @@ export async function PUT(request: Request) {
     }
 
     if (lecturerStatus !== undefined) {
-      // ✅ การแก้ lecturerStatus ของ "คนอื่น" (admin บังคับยืนยันแทนอาจารย์) ต้องเป็น ADMIN
-      // หมายเหตุ: ฝั่ง client ควรเช็คเองด้วยว่าผู้ใช้กำลังแก้ของตัวเองหรือของคนอื่น
       dataToUpdate.lecturerStatus =
         lecturerStatus === null ? ApprovalStatus.DRAFT : lecturerStatus;
     }
@@ -335,12 +326,11 @@ export async function PUT(request: Request) {
       dataToUpdate.responsibleStatus = responsibleStatus;
     }
 
-    // ✅ headApprovalStatus: รองรับทั้งกรณีตั้งค่าสถานะจริง และกรณี reset เป็น null
     if (headApprovalStatus !== undefined) {
       if (headApprovalStatus === null) {
         dataToUpdate.headApprovalStatus = null;
         dataToUpdate.headApprovedAt = null;
-        // เมื่อตีกลับ/รีเซ็ตขั้นประธานหลักสูตร ให้รีเซ็ตขั้นรองวิชาการตามไปด้วย
+        dataToUpdate.lecturerFeedback = null;
         if (academicApprovalStatus === undefined) {
           dataToUpdate.academicApprovalStatus = null;
           dataToUpdate.academicApprovedAt = null;
@@ -348,6 +338,13 @@ export async function PUT(request: Request) {
       } else {
         dataToUpdate.headApprovalStatus = headApprovalStatus;
         dataToUpdate.headApprovedAt = new Date();
+
+        // 🌟 บังคับใส่ Tag ทันทีแม้ว่า rejectionReason จะว่างเปล่า
+        if (headApprovalStatus === "REJECTED") {
+          dataToUpdate.lecturerFeedback = `[CHAIR_REJECT]: ${rejectionReason || "ไม่ระบุเหตุผล"}`;
+        } else if (headApprovalStatus === "PENDING") {
+          dataToUpdate.lecturerFeedback = null;
+        }
 
         if (approverId) {
           dataToUpdate.headApproverId = approverId;
@@ -377,7 +374,6 @@ export async function PUT(request: Request) {
       }
     }
 
-    // ✅ academicApprovalStatus: รองรับทั้งกรณีตั้งค่าสถานะจริง และกรณี reset เป็น null
     if (academicApprovalStatus !== undefined) {
       if (academicApprovalStatus === null) {
         dataToUpdate.academicApprovalStatus = null;

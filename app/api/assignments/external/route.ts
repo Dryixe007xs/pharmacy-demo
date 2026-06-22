@@ -246,6 +246,7 @@ export async function PUT(req: Request) {
           headApprovedAt: null,
           academicApprovalStatus: null,
           academicApprovedAt: null,
+          lecturerFeedback: null, // 🌟 ล้างคำคอมเมนต์ที่ถูกตีกลับจากประธานออก เมื่อมีการแก้และบันทึกใหม่
         }),
       },
     });

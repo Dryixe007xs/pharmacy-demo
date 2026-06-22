@@ -6,7 +6,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { 
   Search, PenLine, Plus, Trash2, Edit2, X, User, Check, Loader2, UserPlus, 
   AlertCircle, CheckCircle, Send, Clock, FileText, AlertTriangle, MessageSquare, 
-  ChevronRight, Layers, ShieldCheck, RefreshCw, GraduationCap
+  ChevronRight, Layers, ShieldCheck, RefreshCw, GraduationCap, Info
 } from "lucide-react";
 import { Toaster, toast } from 'sonner';
 import Swal from 'sweetalert2';
@@ -502,7 +502,8 @@ function useCourseLogic(currentUser: any) {
               id: a.id,
               responsibleStatus: "APPROVED",
               headApprovalStatus: "PENDING",
-              academicApprovalStatus: "PENDING"
+              academicApprovalStatus: "PENDING",
+              lecturerFeedback: null // 🌟 บังคับล้างคอมเมนต์เก่าเมื่อผู้รับผิดชอบกดยืนยันส่งใหม่
             })
           })
         );
@@ -818,7 +819,8 @@ function CourseModal({ course, assignments, currentUser, staffs, onClose, action
   const [searchStaff, setSearchStaff] = useState("");
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
 
-  const isRejectedByChair = assignments.some((a: Assignment) => a.headApprovalStatus === 'REJECTED');
+  const rejectedAssignments = assignments.filter((a: Assignment) => a.headApprovalStatus === 'REJECTED');
+  const isRejectedByChair = rejectedAssignments.length > 0;
 
   const isReadyToSubmit = assignments.length > 0 && assignments.every((a: Assignment) => {
     const totalH = calculateTotalHours(a);
@@ -830,7 +832,6 @@ function CourseModal({ course, assignments, currentUser, staffs, onClose, action
   const isAcademicApproved = assignments.length > 0 && assignments.every((a: Assignment) => a.academicApprovalStatus === 'APPROVED');
   const isLocked = isSubmitted && !isRejectedByChair;
 
-  // ✅ เหลือแค่ Swal confirm + SuccessOverlay (ลบ Swal success ออกแล้ว)
   const handleSubmit = async () => {
     const result = await Swal.fire({
       title: "ยืนยันการส่งข้อมูล?",
@@ -912,12 +913,38 @@ function CourseModal({ course, assignments, currentUser, staffs, onClose, action
 
         {/* Body */}
         <div className="p-6 overflow-y-auto bg-slate-50/50 custom-scrollbar flex-1">
+          
+          {/* 🌟 กล่องแดงแจ้งประธานส่งกลับ: แกะป้ายคำนำหน้า [CHAIR_REJECT]: ออกมาโชว์ */}
           {isRejectedByChair && (
-            <div className="bg-red-50 border-b border-red-200 p-3 flex items-center gap-3 text-red-700 mb-4 rounded-lg">
-              <AlertTriangle className="h-5 w-5 shrink-0" />
-              <div>
-                <p className="font-bold text-sm">ถูกส่งกลับแก้ไขโดยประธานหลักสูตร</p>
-                <p className="text-xs">กรุณาตรวจสอบและแก้ไขข้อมูลที่มีปัญหา แล้วกดส่งอีกครั้ง</p>
+            <div className="bg-red-50 border border-red-200 p-4 text-red-700 mb-6 rounded-xl shadow-sm">
+              <div className="flex items-center gap-3 mb-2">
+                <AlertTriangle className="h-5 w-5 shrink-0 text-red-600" />
+                <div>
+                  <p className="font-bold text-base text-red-800">ถูกส่งกลับแก้ไขโดยประธานหลักสูตร</p>
+                  <p className="text-xs text-red-600 mt-0.5">กรุณาตรวจสอบข้อความหมายเหตุ แก้ไขข้อมูล และกดส่งอีกครั้ง</p>
+                </div>
+              </div>
+              
+              <div className="mt-3 space-y-2">
+                {rejectedAssignments.map((a: Assignment) => {
+                  const feedbackStr = a.lecturerFeedback || "";
+                  const hasChairTag = feedbackStr.includes("[CHAIR_REJECT]:");
+                  const displayReason = hasChairTag
+                    ? feedbackStr.replace("[CHAIR_REJECT]:", "").trim()
+                    : "ไม่มีการระบุข้อความหมายเหตุเพิ่มเติม";
+
+                  return (
+                    <div key={a.id} className="bg-white p-3 rounded-lg border border-red-100 shadow-sm flex gap-3 items-start">
+                      <MessageSquare size={16} className="mt-0.5 text-red-400 shrink-0" />
+                      <div>
+                        <span className="font-bold text-xs uppercase text-slate-500 block mb-0.5">
+                          หมายเหตุถึง {getLecturerName(a.lecturer)}:
+                        </span>
+                        <span className="text-sm text-red-700 font-medium">"{displayReason}"</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1064,7 +1091,8 @@ function AssignmentRow({ assignment: a, actions, isLocked, currentUser }: any) {
 
   const isRejected = a.lecturerStatus === 'REJECTED';
   const isSelf = String(currentUser?.id) === String(a.lecturerId);
-  const isSent = a.lecturerStatus === 'PENDING' || a.lecturerStatus === 'APPROVED';
+  // 🌟 ปลดล็อกให้ปุ่มส่งกลับมาใช้งานได้ ถ้าโดนประธานหลักสูตรตีกลับ (headApprovalStatus === 'REJECTED')
+  const isSent = (a.lecturerStatus === 'PENDING' || a.lecturerStatus === 'APPROVED') && a.headApprovalStatus !== 'REJECTED';
   const totalHours = calculateTotalHours(a);
 
   const handleInputChange = (field: keyof typeof hours, value: string) => {
@@ -1111,9 +1139,10 @@ function AssignmentRow({ assignment: a, actions, isLocked, currentUser }: any) {
   const getStatusInfo = () => {
     if (a.academicApprovalStatus === 'APPROVED') return { text: '• อนุมัติสมบูรณ์', color: 'text-emerald-600 font-bold' };
     if (a.headApprovalStatus === 'APPROVED') return { text: '• ประธานอนุมัติแล้ว', color: 'text-cyan-600' };
+    if (a.headApprovalStatus === 'REJECTED') return { text: '• ประธานส่งกลับ', color: 'text-red-500 font-bold' };
     if (a.lecturerStatus === 'APPROVED') return { text: '• ผู้สอนยืนยันแล้ว', color: 'text-green-600' };
     if (a.lecturerStatus === 'PENDING') return { text: '• รอผู้สอนตรวจสอบ', color: 'text-blue-600' };
-    if (a.lecturerStatus === 'REJECTED') return { text: '• ต้องแก้ไขข้อมูล', color: 'text-red-500' };
+    if (a.lecturerStatus === 'REJECTED') return { text: '• ผู้สอนขอแก้ไข', color: 'text-orange-500' };
     return { text: '• แบบร่าง', color: 'text-slate-400' };
   };
 
@@ -1133,7 +1162,7 @@ function AssignmentRow({ assignment: a, actions, isLocked, currentUser }: any) {
             <MessageSquare size={18} className="mt-0.5 shrink-0 opacity-60" />
             <div>
               <span className="font-bold text-xs uppercase text-red-400 block mb-1">เหตุผล:</span>
-              "{a.lecturerFeedback || "ไม่ระบุ"}"
+              "{a.lecturerFeedback?.replace("[CHAIR_REJECT]:", "").trim() || "ไม่ระบุ"}"
             </div>
           </div>
           <div className="flex items-center gap-3 mt-1">
